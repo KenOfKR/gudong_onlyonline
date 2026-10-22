@@ -83,7 +83,7 @@
     const trust = p => (recOf(p)?.ally || 0) - (recOf(p)?.evil || 0);
     const basis = p => {
       const r = recOf(p);
-      return r && r.reasons[0] ? `（${r.reasons[0]}）` : '（目前沒有任何可疑紀錄）'; };  if (left.length === 1) return choose(left[0], '只剩他還沒行動，沒有其他選擇');  /* 藥不然防自爆鐵律：絕不直接把手機傳給本輪剛被自己偷襲的目標 */ const justAmbushedIds = A.ctx.log.ambushIds \vert{}\vert{} []; if (bot.role === '藥不然' && justAmbushedIds.length && left.length > 1) { const safeLeft = left.filter(p => !justAmbushedIds.includes(p.id)); if (safeLeft.length > 0) { const bufferPick = [...safeLeft].sort((a, b) => trust(b) - trust(a))[0]; return choose(bufferPick, `我剛暗中偷襲了目標，絕不能直接把手機交給受害者暴露自己在上一棒，先傳給${U.tag(bufferPick)}墊一棒製造不在場證明`);
+      return r && r.reasons[0] ? `（${r.reasons[0]}）` : '（目前沒有任何可疑紀錄）'; };  if (left.length === 1) return choose(left[0], '只剩他還沒行動，沒有其他選擇');  /* 藥不然防自爆鐵律：絕不直接把手機傳給本輪剛被自己偷襲的目標 */ const justAmbushedIds = A.ctx.log.ambushIds || []; if (bot.role === '藥不然' && justAmbushedIds.length && left.length > 1) { const safeLeft = left.filter(p => !justAmbushedIds.includes(p.id)); if (safeLeft.length > 0) { const bufferPick = [...safeLeft].sort((a, b) => trust(b) - trust(a))[0]; return choose(bufferPick, `我剛暗中偷襲了目標，絕不能直接把手機交給受害者暴露自己在上一棒，先傳給${U.tag(bufferPick)}墊一棒製造不在場證明`);
       }
     }
 
