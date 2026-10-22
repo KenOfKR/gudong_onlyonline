@@ -90,15 +90,13 @@
     </div>`));
 
 /* ---------------- 角色圖鑑自動輪播 ---------------- */
-  // 抓取右邊「下一位角色」按鈕與圖片外框
-  const nextGalBtn = document.querySelector('button[data-act="gal"][data-arg="1"]');
   const portraitArea = document.getElementById('gPortrait');
   let autoPlayInterval;
 
   function startAutoPlay() {
-    // 每 3.5 秒自動觸發一次點擊
     autoPlayInterval = setInterval(() => {
-      // 確保按鈕存在，且玩家沒有切換到其他瀏覽器分頁才自動點擊
+      // 【關鍵修改】：每次時間到，都即時去畫面上尋找最新的按鈕，避免被重繪干擾
+      const nextGalBtn = document.querySelector('button[data-act="gal"][data-arg="1"]');
       if (nextGalBtn && !document.hidden) {
         nextGalBtn.click();
       }
@@ -109,14 +107,18 @@
     clearInterval(autoPlayInterval);
   }
 
-  // 若元素存在則啟動輪播，並綁定滑鼠/觸控暫停事件
-  if (nextGalBtn && portraitArea) {
-    startAutoPlay();
+  if (portraitArea) {
+    // 稍微延遲半秒啟動，確保 home.js 已經把初始畫面渲染完畢
+    setTimeout(startAutoPlay, 500);
+    
     portraitArea.addEventListener('mouseenter', stopAutoPlay);
     portraitArea.addEventListener('mouseleave', startAutoPlay);
     portraitArea.addEventListener('touchstart', stopAutoPlay, { passive: true });
     portraitArea.addEventListener('touchend', startAutoPlay, { passive: true });
   }
+  
+  GD.UI = UI;
+})(window.GD);
   
   GD.UI = UI;
 })(window.GD);
