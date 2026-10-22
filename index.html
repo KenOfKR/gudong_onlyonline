@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>古董局中局 v9.0｜全智能語音博弈・自我進化版</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="toasts" aria-live="polite"></div>
+
+  <header class="top">
+    <div class="row">
+      <div class="logo" data-act="home" title="返回大廳">古</div>
+      <div>
+        <h1>古董局中局 <span class="pill">v9.0</span></h1>
+        <div class="sub">全智能語音博弈・自我進化版</div>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn" id="btnAuth" data-act="auth">Google 登入</button>
+      <button class="btn" data-act="settings" title="設定與電腦進化紀錄">⚙️</button>
+      <button class="btn" id="btnTts" data-act="tts" title="語音播報">🔊</button>
+      <button class="btn red" data-act="home">回大廳</button>
+    </div>
+  </header>
+
+  <!-- ========== 首頁：角色圖鑑 + 入口 + 進行中房間 ========== -->
+  <main id="home">
+    <section class="panel col">
+      <div class="row between"><span class="stamp" id="gCamp"></span><span class="xs b mono" id="gCount"></span></div>
+      <div class="portrait" id="gPortrait">
+        <button class="btn nav prev" data-act="gal" data-arg="-1" aria-label="上一位角色">◀</button>
+        <button class="btn nav next" data-act="gal" data-arg="1" aria-label="下一位角色">▶</button>
+      </div>
+      <div class="row wrap center" id="gDots"></div>
+      <div>
+        <div class="row between"><h2 class="xl b" id="gTitle" style="margin:0"></h2><span class="sm b red" id="gWeapon"></span></div>
+        <p class="sm" id="gDesc" style="margin:4px 0 0"></p>
+      </div>
+      <div class="row between sm" style="border-top:2px dashed var(--edge);padding-top:8px">
+        <span class="mute b">角色圖放進 assets/roles/ 即可替換</span>
+        <button class="btn" data-act="rules">📜 規則書</button>
+      </div>
+    </section>
+
+    <div class="col">
+      <section class="panel col">
+        <div class="panel-h"><span>🪪 掌眼人名帖</span><span class="xs mute" id="authHint"></span></div>
+        <div class="grid g2">
+          <label class="sm b">尊號（暱稱）<input class="input" id="inName" maxlength="10" placeholder="請輸入暱稱"></label>
+          <label class="sm b"><span class="row between"><span>四位數房號</span><a href="#" class="xs red" data-act="roll">🎲 隨機</a></span>
+            <input class="input mono" id="inRoom" maxlength="4" inputmode="numeric" style="text-align:center;letter-spacing:6px;color:var(--red)" value="8888"></label>
+        </div>
+      </section>
+
+      <section class="panel col">
+        <div class="panel-h"><span>🎮 開局方式</span><span class="stamp" id="brainBadge">電腦大腦</span></div>
+        <div class="grid g2">
+          <button class="btn red big" data-act="solo">⚡ 單人秒開（7 位電腦）</button>
+          <button class="btn gold big" data-act="online" id="btnOnline">🪑 多人連線大廳</button>
+        </div>
+        <p class="xs mute" style="margin:0" id="modeHint"></p>
+      </section>
+
+      <section class="panel col">
+        <div class="panel-h"><span>🏮 進行中的房間</span>
+          <span class="row"><span class="xs mute">30 分鐘未更新自動關閉</span><button class="btn sq" data-act="lobby" title="重新整理">↻</button></span></div>
+        <div class="col" id="lobbyList" style="gap:6px"></div>
+      </section>
+    </div>
+  </main>
+
+  <!-- ========== 牌桌 ========== -->
+  <section id="board" hidden data-tab="table">
+    <div class="panel bar">
+      <div class="row wrap">
+        <span class="pill mono" id="bRoom"></span>
+        <span class="stamp" id="bRound"></span>
+        <b id="bPhase" class="sm"></b>
+      </div>
+      <div class="row wrap">
+        <span class="tag" id="bChips" style="background:#fdf8ee;color:var(--red)" hidden></span>
+        <button class="btn night" id="bRole" data-act="peek" title="點擊顯示/隱藏身分"></button>
+        <button class="btn jade" id="bFill" data-act="fill" hidden>🤖 補滿電腦並開局</button>
+      </div>
+    </div>
+
+    <div class="mtabs">
+      <button class="btn red" data-act="tab" data-arg="table">🪑 牌桌</button>
+      <button class="btn" data-act="tab" data-arg="speech">🗣️ 發言</button>
+      <button class="btn" data-act="tab" data-arg="intel">📜 情報</button>
+    </div>
+
+    <div class="cols">
+      <div class="col" id="colL">
+        <section class="panel" id="intel"></section>
+        <section class="panel"><div class="panel-h"><span>📿 傳遞時序</span><span class="xs mute">技能標記</span></div><div class="col" id="chains"></div></section>
+        <section class="panel"><div class="panel-h"><span>🏺 獸首票型</span><span id="votePager"></span></div><div id="voteBody"></div></section>
+      </div>
+
+      <div class="col" id="colC">
+        <section class="panel">
+          <div class="row between xs b" style="margin-bottom:6px">
+            <span>🪑 第一人稱牌桌（您在正下方，點座位可輸入色名）</span>
+            <span id="seatShift" class="row" style="gap:4px"><button class="btn" data-act="shift" data-arg="-1">◀ 換座</button><button class="btn" data-act="shift" data-arg="1">換座 ▶</button></span>
+          </div>
+          <div class="oval" id="oval"></div>
+          <div id="colorBar" style="margin-top:10px;border-top:2px dashed var(--edge);padding-top:8px">
+            <div class="xs b" style="margin-bottom:4px">🎨 選擇您的火漆印章顏色</div><div class="colors" id="colors"></div>
+          </div>
+        </section>
+        <section class="panel col" id="console"></section>
+      </div>
+
+      <div class="col" id="colR">
+        <section class="panel col" id="speechPanel">
+          <div class="panel-h"><span>🎙️ 掌眼陳詞（語音）</span><span class="xs red" id="thinking"></span></div>
+          <div class="note" id="turnHint"></div>
+          <button class="mic" id="mic" disabled>🎙️ 按住說話</button>
+          <div class="live-text" id="liveText" hidden></div>
+          <div class="sendbar" id="sendBar" hidden>
+            <span class="xs b">即將送出</span><i></i>
+            <button class="btn" data-act="sendNow">立即送出</button><button class="btn red" data-act="sendCancel">取消</button>
+          </div>
+          <details id="typeBox"><summary class="xs b" style="cursor:pointer">⌨️ 改用打字 / 快捷詞</summary>
+            <div class="col mt">
+              <textarea class="input" id="draft" rows="2" placeholder="點牌桌座位可插入「顏色【名字】」"></textarea>
+              <div class="grid g4 wrapsm" id="quick"></div>
+              <div class="row"><button class="btn" data-act="speakPass">直接過 ⏩</button><button class="btn red grow" data-act="speakType">送出發言 ➔</button></div>
+            </div>
+          </details>
+        </section>
+        <section class="panel col" style="min-height:260px">
+          <div class="panel-h"><span>🗣️ 陳詞紀錄</span><span id="speechPager"></span></div>
+          <div class="col scroll" id="speechBody" style="max-height:420px"></div>
+        </section>
+      </div>
+    </div>
+
+    <div id="gameover" class="col" hidden style="margin-top:14px"></div>
+  </section>
+
+  <div class="modal" id="modal" hidden></div>
+
+  <!-- Firebase 為可選：載入失敗（離線 / 被擋）時自動退回單人本機模式 -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js" onerror="void 0"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js" onerror="void 0"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js" onerror="void 0"></script>
+
+  <!-- 載入順序：設定 → 工具 → 規則 → 引擎 → 電腦大腦 → 網路/語音 → UI → 啟動 -->
+  <script src="js/config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/roster.js"></script>
+  <script src="js/core/rules.js"></script>
+  <script src="js/core/claims.js"></script>
+  <script src="js/core/engine.js"></script>
+  <script src="js/bot/genes.js"></script>
+  <script src="js/bot/mind.js"></script>
+  <script src="js/bot/strategy.js"></script>
+  <script src="js/bot/speech.js"></script>
+  <script src="js/bot/gemini.js"></script>
+  <script src="js/bot/driver.js"></script>
+  <script src="js/bot/learning.js"></script>
+  <script src="js/bot/review.js"></script>
+  <script src="js/net.js"></script>
+  <script src="js/voice.js"></script>
+  <script src="js/ui/art.js"></script>
+  <script src="js/ui/ui.js"></script>
+  <script src="js/ui/home.js"></script>
+  <script src="js/ui/board.js"></script>
+  <script src="js/ui/console.js"></script>
+  <script src="js/ui/speech.js"></script>
+  <script src="js/ui/gameover.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
