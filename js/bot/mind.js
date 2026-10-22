@@ -1,23 +1,12 @@
 /* ============================================================================
- * bot/mind.js — PersuasiveMindEngine（說服型推理大腦・高階博弈強化版）
- *
- * 公平原則：電腦玩家只使用「真人也看得到」的資訊——自己的查驗、公開發言、開票結果、
- * 第二名公開真偽——絕不偷看獸首真偽或他人身分。
- *
- * 推理流程（analyze）：
- *   1) 歷史證據：方震查驗、被偷襲來源、跨輪票型 vs 第二名公開真偽（含 2真2假互補推導）、言行不一、被點名
- *   2) 世界線貝氏推斷：枚舉「老朝奉在第 f 棒啟動擾亂(含未啟動) × 本輪 6 種真偽配置」共 56 個世界，
- *      用自己的查驗與前手宣稱（依可信度加權）更新，得到每尊獸首為真的後驗機率
- *   3) 宣稱 vs 後驗：與高信心後驗相矛盾的宣稱者加嫌疑；擾亂區間內的玩家加老朝奉權重
- *   4) 基因調整：skepticism / conformity / assertiveness 影響各項權重
+ * bot/mind.js — PersuasiveMindEngine（說服型推理大腦・順位衰減與擋刀強化版）
  * ========================================================================== */
 (function (GD) {
   'use strict';
   const { U, Rules } = GD;
   const EVIL = ['老朝奉', '藥不然', '鄭國渠'];
-  const CONFIGS = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]];   // 本輪哪兩尊為真
+  const CONFIGS = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]];
 
-  /** 整理本次決策需要的上下文 */
   function context(bot, room) {
     const t = room.currentRoundIdx, rd = room.rounds[t];
     const pass = rd.passOrder;
@@ -35,14 +24,9 @@
     };
   }
 
-  /* reasons = 完整推理依據（私下，終局覆盤用）；said = 可以公開說出口的理由（發言用）。
-     涉及私密資訊的依據（方震的陣營查驗、同伴身分、只有我看到的獸首）一律傳 say:null，絕不進發言。 */
   const blank = p => ({ player: p, evil: 0, ally: 0, logits: {}, reasons: [], said: [], conflicts: [],
-                        confessed: false,   // 好人視角：此人公開認壞（不是老朝奉就不用抓）
-                        knownEvil: false,   // 壞人視角：此人公開認壞，確定是自己人，找許願 / 方震時要排除
-                        pubFake: 0 });      // 累計投在「已公開為贗品」的第二名上的票數（公開資訊，可拿來質問）
+                        confessed: false, knownEvil: false, pubFake: 0 });
 
-  /** 某玩家截至第 t 輪，累計投在已公開贗品（每輪第二名）上的票數：[{round, beast, n}] */
   function pubFakeVotes(room, pid, t) {
     const out = [];
     for (let r = 0; r <= t; r++) {
@@ -61,9 +45,6 @@
     }
   }
 
-  /* ------------------------------------------------------------------------
-   * 階段 1：歷史證據 → 每位玩家的嫌疑 / 友善分與角色 logits
-   * ---------------------------------------------------------------------- */
   function buildProfiles(ctx) {
     const { bot, room, t, genes, isGood } = ctx;
     const sk = genes.skepticism, cf = genes.conformity;
@@ -79,14 +60,12 @@
       const myPos = pass.indexOf(bot.id);
       const ins = (me.inspect || []).filter(i => typeof i.displayedReal === 'boolean');
 
-      /* 位置學：第六位決定誰當第七位，等於決定誰當尾家（第八位）。外界常把「六控八」看成同隊。 */
       if (pass.length === 8 && isGood && (r < t || rd.voteResults)) {
         const p6 = pass[5], p8 = pass[7];
         const link = `${R}第六位把手機控成第八位尾家（六控八）`;
         [p6, p8].forEach(pid => prof[pid] && pid !== bot.id && bump(prof[pid], { evil: 6 + 4 * sk, roles: { '老朝奉': 0.25, '藥不然': 0.25 }, why: link }));
       }
 
-      /* 方震：親手查驗的陣營是最硬的證據 */
       if (me.fangTargetId && prof[me.fangTargetId]) {
         const evil = me.fangCamp === 'evil';
         bump(prof[me.fangTargetId], evil
@@ -94,7 +73,6 @@
           : { ally: 90, roles: { '老朝奉': -6, '藥不然': -6, '鄭國渠': -6 }, why: `${R}我以【方震】親手查驗確認他是好人陣營`, say: null });
       }
 
-      /* 被偷襲：偷襲者必定是在我之前就已行動的玩家（藥不然） */
       if (me.blind && myPos > 0) {
         const earlier = pass.slice(0, myPos);
         const weightBoost = earlier.length === 1 ? 85 : (38 / earlier.length);
@@ -103,19 +81,22 @@
           why: earlier.length === 1
             ? `${R}排在第一位傳手機給我，害我在第二位直接被偷襲，鐵定是【藥不然】`
             : `${R}我遭藥不然偷襲致盲，他排在我之前的行動者之列`,
-          say: null          // 被偷襲預設不公開（許願、方震尤其不能說），只留在覆盤
+          say: null
         }));
       }
 
-      /* ★ [強化 1] 壞人視角抓方震與許願：
-         1. 自稱「驗不到」且非我方偷襲者 -> 可能是方震或困惑平民
-         2. 因為方震常偽裝報真品，壞人需同時觀察「獸首僅跟風前手已報過的獸首（不開新獸首線），卻積極點名抓人/質問票型」的行為特徵！ */
+      /* 壞人視角抓方震（同時會被好人的「穿方震衣服擋刀」吸引火力！） */
       if (!isGood) {
         const mineAmb = me.ambushIds || [];
         const claimedBeastsSoFar = new Set();
         (rd.speeches || []).forEach(sp => {
           const rec = prof[sp.playerId];
           if (!rec || !sp.p) return;
+          const rawTxt = String(sp.text || '');
+          // 若有人公開宣稱查驗某人陣營（不報獸首、改報驗人，包含好人穿方震衣服擋刀！），藥不然會高度懷疑他是方震
+          if ((sp.p.campChecks && sp.p.campChecks.length) || /查驗.*陣營|不談獸首.*查驗/.test(rawTxt)) {
+            bump(rec, { roles: { '方震': 2.6 }, why: `${R}公開宣稱查驗玩家陣營、不報獸首，極像【方震】`, say: null });
+          }
           if ((sp.p.unsure || sp.p.blind) && !mineAmb.includes(sp.playerId)) {
             bump(rec, { roles: { '方震': 1.0, '黃煙煙': 0.4, '木戶加奈': 0.4 }, why: `${R}自稱驗不到`, say: null });
           }
@@ -125,7 +106,7 @@
           const isAggressiveHunter = (sp.p.accuse && sp.p.accuse.length > 0) || !!sp.p.callSuspectId || (sp.p.asked && sp.p.asked.length > 0);
 
           if (isEchoOnly && isAggressiveHunter) {
-            bump(rec, { roles: { '方震': 1.35 }, why: `${R}獸首僅順風附和前手，卻積極點名抓人或質問，極具【方震】偽裝特徵`, say: null });
+            bump(rec, { roles: { '方震': 1.15 }, why: `${R}獸首僅順風附和前手，卻積極點名抓人或質問`, say: null });
           } else if (isFirstClaimer && myPos > 0) {
             bump(rec, { roles: { '許願': 0.45, '姬雲浮': 0.35 }, why: `${R}主動首發開出新獸首真偽線`, say: null });
           }
@@ -133,7 +114,6 @@
         });
       }
 
-      /* 壞人視角：有人公開認壞 = 多一個確定的自己人 */
       if (!isGood) (rd.speeches || []).forEach(sp => {
         const rec = prof[sp.playerId];
         if (!rec || !sp.p || !sp.p.selfEvil) return;
@@ -141,7 +121,6 @@
         bump(rec, { ally: 60, why: `${R}公開認壞，確定是自己人`, say: null });
       });
 
-      /* 好人視角：他人宣稱 vs 我親眼所見（矛盾 = 說謊，或兩人之間有人啟動了擾亂）*/
       if (isGood) {
         ins.forEach(i => (rd.speeches || []).forEach(sp => {
           if (sp.playerId === bot.id || !prof[sp.playerId]) return;
@@ -169,23 +148,25 @@
         }));
       }
 
-      /* ★ [強化 2] 開票後：已知真偽（第二名公開 + 我自己的查驗 + 2真2假互補定律）vs 每個人的發言與選票 */
       if (rd.voteResults) {
         const known = {};
         const r2 = rd.voteResults.rank2;
-        known[r2.name] = { real: r2.isReal, w: 1, pub: true };          // 第二名公開，全場都知道
-        const mySightWeight = (bot.role === '姬雲浮' || !isGood || myPos === 0) ? 0.96 : 0.68;
+        known[r2.name] = { real: r2.isReal, w: 1, pub: true };
+        /* ★ 位置越後面驗的獸首越不可信（Positional Decay）：
+           第 1 棒 (myPos===0)、姬雲浮、壞人不會被反轉，權重 0.96；
+           一般好人從第 2 棒的 0.82 一路遞減至第 8 棒的 0.30！ */
+        const posReliability = (bot.role === '姬雲浮' || !isGood || myPos === 0)
+          ? 0.96
+          : Math.max(0.30, 0.90 - Math.max(0, myPos) * 0.085);
+
         ins.forEach(i => {
-          if (!known[i.beastName]) known[i.beastName] = { real: i.displayedReal, w: mySightWeight, pub: false };
+          if (!known[i.beastName]) known[i.beastName] = { real: i.displayedReal, w: posReliability, pub: false };
         });
-        /* 壞人視角：認壞的隊友攤開了自己真實的查驗 */
         if (!isGood) (rd.speeches || []).forEach(sp => {
           if (sp.playerId === bot.id || !sp.p || !sp.p.selfEvil) return;
           (sp.p.claims || []).forEach(c => { if (!known[c.beast]) known[c.beast] = { real: c.real, w: 0.9, pub: false }; });
         });
 
-        /* ★ 2真2假數學互補閉包推導：每輪 4 尊獸首必為 2 真 2 假！
-           若已掌握 2 尊高信心真品，剩餘 2 尊必為贗品；若已掌握 2 尊高信心贗品，剩餘 2 尊必為真品！ */
         const highConf = Object.entries(known).filter(([, v]) => v.w >= 0.85);
         const confReals = highConf.filter(([, v]) => v.real === true);
         const confFakes = highConf.filter(([, v]) => v.real === false);
@@ -217,7 +198,6 @@
           });
         });
 
-        /* 開票後回頭檢驗當輪誰把「已公開為贗品的第二名 r2」吹成真品（公開打臉鐵證） */
         if (isGood && !r2.isReal) {
           (rd.speeches || []).forEach(sp => {
             const rec = prof[sp.playerId]; if (!rec) return;
@@ -234,7 +214,6 @@
         }
       }
 
-      /* 公開認壞：說話的人一定是壞人 */
       if (isGood) (rd.speeches || []).forEach(sp => {
         const rec = prof[sp.playerId];
         if (!rec || !sp.p || !sp.p.selfEvil) return;
@@ -243,7 +222,6 @@
                     why: `${R}自己公開認壞` });
       });
 
-      /* 被點名請說明票型，本人隨後發言卻沒有回應 = 閃躲 */
       if (isGood) (rd.speeches || []).forEach((sp, i) => (sp.p?.asked || []).forEach(aid => {
         const rec = prof[aid]; if (!rec) return;
         const reply = (rd.speeches || []).slice(i + 1).find(x => x.playerId === aid);
@@ -252,7 +230,6 @@
         }
       }));
 
-      /* 言行不一：喊投某獸首，開票卻沒投 */
       if (rd.voteResults) (rd.speeches || []).forEach(sp => {
         const rec = prof[sp.playerId]; const cb = sp.p?.callBeast; if (!rec || !cb) return;
         const ballot = rd.votes[sp.playerId] || {};
@@ -261,7 +238,6 @@
         }
       });
 
-      /* 他人的指認與集火號召：依「發言者本身可信度」與我的從眾度加權 */
       (rd.speeches || []).forEach(sp => {
         if (sp.playerId === bot.id || !prof[sp.playerId]) return;
         const callerEvil = prof[sp.playerId].evil;
@@ -278,13 +254,11 @@
       });
     }
 
-    /* 票型採人：累計 3 票以上投在「已公開為贗品」的第二名上 */
     if (isGood) Object.values(prof).forEach(rec => {
       if (rec.pubFake >= 3) bump(rec, { evil: (rec.pubFake - 2) * 12, roles: { '老朝奉': 0.5 },
         why: `累計 ${rec.pubFake} 票投在已公開的贗品上` });
     });
 
-    /* logits → 機率（百分比），自己的角色排除 */
     Object.values(prof).forEach(rec => {
       const roles = GD.ROLE_ORDER.filter(x => x !== bot.role);
       const mx = Math.max(...roles.map(x => rec.logits[x] || 0));
@@ -297,22 +271,27 @@
   }
 
   /* ------------------------------------------------------------------------
-   * 階段 2：本輪「世界線」貝氏後驗
+   * 階段 2：本輪「世界線」貝氏後驗（含傳遞順位可信度衰減）
    * ---------------------------------------------------------------------- */
   function posterior(ctx, prof) {
     const { rd, pass, myPos, myIns, isGood, bot, names } = ctx;
     const NONE = 8;
     const ks = [NONE, 0, 1, 2, 3, 4, 5, 6, 7].filter(k => !(isGood && k === myPos));
-    let prior = k => (k === NONE ? 0.4 : 0.6 / (ks.length - 1));
-    if (bot.role === '老朝奉') {                            // 我就是老朝奉：我自己知道有沒有擾亂
+    // 實戰中老朝奉約有 78% 機率會在前段開擾亂，因此排越後面的好人，k < myPos 反轉世界線權重累積越高
+    let prior = k => (k === NONE ? 0.22 : 0.78 / (ks.length - 1));
+    if (bot.role === '老朝奉') {
       const used = ctx.log.skillTag === '🎭擾亂';
       prior = k => (used ? (k === myPos ? 1 : 0) : (k === NONE ? 1 : 0));
     }
     const base = 0.93 - 0.5 * ctx.genes.skepticism;
     const trustOf = (pid, sp) => {
-      const r = prof[pid]; if (!r) return base * 0.9;
+      const r = prof[pid];
+      const spPos = Math.max(0, pass.indexOf(pid));
+      // ★ 順位衰減係數：越前面查驗的人（第 1、2 棒）資訊越乾淨，越後面（第 6~8 棒）越不可信
+      const posFactor = (sp && sp.p && sp.p.selfEvil) ? 0 : (0.08 - spPos * 0.04);
+      if (!r) return U.clamp(base * 0.9 + posFactor, 0.08, 0.95);
       if (sp && sp.p && sp.p.selfEvil) return isGood ? 0.6 : 0.95;
-      return U.clamp(base - r.evil / 130 + r.ally / 220, 0.08, 0.95);
+      return U.clamp(base - r.evil / 130 + r.ally / 220 + posFactor, 0.08, 0.95);
     };
 
     const pReal = names.map(() => 0), laoAt = Array(9).fill(0);
@@ -344,15 +323,11 @@
     return { post, laoAt: laoAt.map(x => (total ? x / total : 0)), confident: post.some(b => Math.abs(b.pReal - 0.5) > 0.3) };
   }
 
-  /* ------------------------------------------------------------------------
-   * 階段 3：整合，產生決策需要的排名
-   * ---------------------------------------------------------------------- */
   function analyze(bot, room) {
     const ctx = context(bot, room);
     const prof = buildProfiles(ctx);
     const pst = posterior(ctx, prof);
 
-    /* 世界線反推：後驗認為「老朝奉在第 k 棒擾亂」→ 該棒玩家加老朝奉權重 */
     if (ctx.isGood && pst.confident) {
       ctx.pass.forEach((pid, k) => {
         if (prof[pid] && pst.laoAt[k] > 0.12) {

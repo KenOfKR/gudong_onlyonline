@@ -1,24 +1,14 @@
 /* ============================================================================
- * bot/learning.js — BotLearningEngine（自我學習與基因修正）
- *
- * 流程：終局後（由 driver 觸發一次）→ 逐一評估每位電腦玩家本局表現 →
- *       產生「帶理由的」基因調整 → 寫入 localStorage → 下一局該角色以新基因出場。
- *
- * 評估只使用本局已發生的事實（票型、開票真偽、鑑人結果、當時的發言計畫），
- * 完全可重播；每一筆調整都附上原因，覆盤面板會原樣顯示。
- *
- * 安全閥：單局每項基因最多 ±0.10；基因限制在 [0.05, 0.95]；
- *        學習率隨場次緩降（最低 50%），避免後期被單局結果帶偏。
+ * bot/learning.js — BotLearningEngine（自我學習與基因修正・含後段反轉誤判自信調降）
  * ========================================================================== */
 (function (GD) {
   'use strict';
   const { U, Genes } = GD;
   const STEP_CAP = 0.10;
-  const REVERT = 0.06;     // 每局回歸出廠值的比例
+  const REVERT = 0.06;
 
   const realOf = (rd, name) => (rd.beasts.find(b => b.name === name) || {}).isReal;
 
-  /** 這位玩家三輪各投了幾票真品 / 贗品，以及被誰「帶進坑」*/
   function ballotFacts(room, bot) {
     const facts = { real: 0, fake: 0, duped: [], fakeRounds: [] };
     room.rounds.forEach((rd, r) => {
@@ -27,7 +17,6 @@
         if (realOf(rd, name)) facts.real += n; else {
           facts.fake += n;
           facts.fakeRounds.push({ round: r + 1, beast: name, n });
-          // 是否有壞人在該輪公開宣稱它為真（= 被騙票）
           const liar = rd.speeches.find(sp => {
             const p = U.byId(room, sp.playerId);
             return p && !GD.isGood(p.role) && sp.playerId !== bot.id && (sp.p?.claims || []).some(c => c.beast === name && c.real);
@@ -63,7 +52,7 @@
         add('skepticism', -0.015, `三輪 ${f.real} 票全中真品，判斷穩定，略微放鬆多疑`);
       }
 
-      /* --- ★ 新增：後段順位遭老朝奉反轉卻過度自信重壓贗品，調降自信值 (assertiveness) --- */
+      /* --- 後段順位遭老朝奉反轉卻過度自信重壓贗品：調降自信值 (assertiveness) --- */
       room.rounds.forEach((rd, rIdx) => {
         const myPos = rd.passOrder.indexOf(bot.id);
         const myLog = rd.turnLogs[bot.id] || { inspect: [] };
@@ -71,7 +60,6 @@
         (myLog.inspect || []).forEach(ins => {
           const actualReal = realOf(rd, ins.beastName);
           const votedCnt = myBallot[ins.beastName] || 0;
-          // 排在第 5~8 棒 (myPos >= 4)，親眼看到「真品」但實際是贗品（被反轉），還重壓 2 票以上
           if (myPos >= 4 && ins.displayedReal === true && actualReal === false && votedCnt >= 2) {
             add('assertiveness', -0.045,
               `第 ${rIdx + 1} 輪我排在後段（${U.nth(myPos)}）查驗【${ins.beastName}】顯示真品，卻忽略後段極易遭老朝奉反轉而重壓 ${votedCnt} 票贗品，應調降盲目自信並學會保留籌碼`);
@@ -94,13 +82,13 @@
           add('skepticism', 0.03, `未充分查證${caller && !caller.isBot ? '真人' : ''}號召的可信度`);
         } else if (GD.isGood(target.role)) {
           add('skepticism', 0.02, `鑑人誤指好人 ${U.tag(target)}，嫌疑排名需要更保守`);
+          add('assertiveness', -0.03, `終局過度自信指認好人隊友 ${U.tag(target)}，下次未握有鐵證前應收斂號召鋒芒`);
         }
       }
 
       /* --- 身分暴露 --- */
       if (bot.role === '許願' && g.xuCaught) add('assertiveness', -0.04, '許願被老朝奉指認，發言曝光度偏高，收斂鋒芒');
       if (bot.role === '方震') {
-        /* 方震從不亮陣營查驗；評估的是「用公開理由帶集火」是否暴露了自己 */
         const pushed = minds.some(m => m.suspectId);
         if (g.fangCaught && pushed) add('assertiveness', -0.04, '帶集火的動作太明顯，被藥不然認出是方震，下次更低調');
         else if (pushed && g.laoCaught) add('assertiveness', 0.03, '用公開理由帶集火，成功抓到老朝奉且沒暴露自己');
@@ -110,7 +98,6 @@
       /* --- 壞人：帶風向成效 --- */
       const lies = minds.filter(m => m.mode === 'lie' || m.mode === 'follow');
       lies.forEach(m => {
-        const idx = minds.indexOf(m);
         const rd = room.rounds.find(r => r.mind[bot.id] === m);
         const vr = rd.voteResults;
         const inTop = vr && (vr.rank1.name === m.beast || vr.rank2.name === m.beast);
@@ -145,7 +132,6 @@
       }
     }
 
-    /* --- 學習率與單局上限 --- */
     const rec = Genes.record(bot.botId);
     const lr = Math.max(0.5, 1 - rec.games * 0.03);
     const delta = {};
@@ -155,22 +141,16 @@
     Genes.KEYS.forEach(k => { delta[k] = U.round3(U.clamp(delta[k], -STEP_CAP, STEP_CAP)); });
 
     const before = bot.genes || Genes.load(bot.botId);
-    /* 均值回歸：每局把基因往出廠值拉回 REVERT 比例，避免多局累積後全部貼在 0.05 / 0.95 邊界、
-       性格趨同。有穩定訊號（同方向連續被推）的基因仍會偏離出廠值，只是不會無限漂移。 */
     const factory = GD.Roster.baseGenes(bot.botId);
     Genes.KEYS.forEach(k => { delta[k] += (factory[k] - before[k]) * REVERT; });
     Genes.KEYS.forEach(k => { delta[k] = U.round3(U.clamp(delta[k], -STEP_CAP, STEP_CAP)); });
     const after = {};
     Genes.KEYS.forEach(k => { after[k] = Genes.clamp(before[k] + delta[k]); });
-    Genes.KEYS.forEach(k => { delta[k] = U.round3(after[k] - before[k]); });   // 夾限後的實際變化
+    Genes.KEYS.forEach(k => { delta[k] = U.round3(after[k] - before[k]); });
 
     return { botId: bot.botId, name: bot.name, role: bot.role, won, before, after, delta, notes: kept, lr: U.round3(lr), games: rec.games + 1 };
   }
 
-  /**
-   * 終局後呼叫（Net.act 內）：評估所有電腦、寫入 localStorage、把結果掛到 room.learning。
-   * 重複呼叫安全：以 gameId + botId 判斷是否已學過。
-   */
   function finalize(room) {
     if (room.learning || !room.gameOver) return false;
     const out = {};
