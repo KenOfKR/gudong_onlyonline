@@ -63,6 +63,24 @@
         add('skepticism', -0.015, `三輪 ${f.real} 票全中真品，判斷穩定，略微放鬆多疑`);
       }
 
+      /* --- ★ 新增：後段順位遭老朝奉反轉卻過度自信重壓贗品，調降自信值 (assertiveness) --- */
+      room.rounds.forEach((rd, rIdx) => {
+        const myPos = rd.passOrder.indexOf(bot.id);
+        const myLog = rd.turnLogs[bot.id] || { inspect: [] };
+        const myBallot = rd.votes[bot.id] || {};
+        (myLog.inspect || []).forEach(ins => {
+          const actualReal = realOf(rd, ins.beastName);
+          const votedCnt = myBallot[ins.beastName] || 0;
+          // 排在第 5~8 棒 (myPos >= 4)，親眼看到「真品」但實際是贗品（被反轉），還重壓 2 票以上
+          if (myPos >= 4 && ins.displayedReal === true && actualReal === false && votedCnt >= 2) {
+            add('assertiveness', -0.045,
+              `第 ${rIdx + 1} 輪我排在後段（${U.nth(myPos)}）查驗【${ins.beastName}】顯示真品，卻忽略後段極易遭老朝奉反轉而重壓 ${votedCnt} 票贗品，應調降盲目自信並學會保留籌碼`);
+            add('conformity', 0.025,
+              `第 ${rIdx + 1} 輪後段個人視野遭反轉污染，應多參考前段好人的乾淨資訊`);
+          }
+        });
+      });
+
       /* --- 終局鑑人 --- */
       const hitLao = target && target.id === lao.id;
       const followed = bot.final && bot.final.followId;
