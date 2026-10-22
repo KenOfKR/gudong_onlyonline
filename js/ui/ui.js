@@ -89,5 +89,34 @@
       <div class="note"><b class="red">語音</b>：輪到你發言時按住「🎙️ 按住說話」，放開後系統會校正同音字、產生重點摘要並自動發布，所有玩家（含電腦）都讀得到。</div>
     </div>`));
 
+/* ---------------- 角色圖鑑自動輪播 ---------------- */
+  // 抓取右邊「下一位角色」按鈕與圖片外框
+  const nextGalBtn = document.querySelector('button[data-act="gal"][data-arg="1"]');
+  const portraitArea = document.getElementById('gPortrait');
+  let autoPlayInterval;
+
+  function startAutoPlay() {
+    // 每 3.5 秒自動觸發一次點擊
+    autoPlayInterval = setInterval(() => {
+      // 確保按鈕存在，且玩家沒有切換到其他瀏覽器分頁才自動點擊
+      if (nextGalBtn && !document.hidden) {
+        nextGalBtn.click();
+      }
+    }, 3500); 
+  }
+
+  function stopAutoPlay() {
+    clearInterval(autoPlayInterval);
+  }
+
+  // 若元素存在則啟動輪播，並綁定滑鼠/觸控暫停事件
+  if (nextGalBtn && portraitArea) {
+    startAutoPlay();
+    portraitArea.addEventListener('mouseenter', stopAutoPlay);
+    portraitArea.addEventListener('mouseleave', startAutoPlay);
+    portraitArea.addEventListener('touchstart', stopAutoPlay, { passive: true });
+    portraitArea.addEventListener('touchend', startAutoPlay, { passive: true });
+  }
+  
   GD.UI = UI;
 })(window.GD);
