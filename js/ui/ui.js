@@ -89,13 +89,12 @@
       <div class="note"><b class="red">語音</b>：輪到你發言時按住「🎙️ 按住說話」，放開後系統會校正同音字、產生重點摘要並自動發布，所有玩家（含電腦）都讀得到。</div>
     </div>`));
 
-/* ---------------- 角色圖鑑自動輪播 ---------------- */
+  /* ---------------- 角色圖鑑自動輪播 ---------------- */
   const portraitArea = document.getElementById('gPortrait');
   let autoPlayInterval;
 
   function startAutoPlay() {
     autoPlayInterval = setInterval(() => {
-      // 【關鍵修改】：每次時間到，都即時去畫面上尋找最新的按鈕，避免被重繪干擾
       const nextGalBtn = document.querySelector('button[data-act="gal"][data-arg="1"]');
       if (nextGalBtn && !document.hidden) {
         nextGalBtn.click();
@@ -108,17 +107,13 @@
   }
 
   if (portraitArea) {
-    // 稍微延遲半秒啟動，確保 home.js 已經把初始畫面渲染完畢
     setTimeout(startAutoPlay, 500);
-    
     portraitArea.addEventListener('mouseenter', stopAutoPlay);
     portraitArea.addEventListener('mouseleave', startAutoPlay);
     portraitArea.addEventListener('touchstart', stopAutoPlay, { passive: true });
     portraitArea.addEventListener('touchend', startAutoPlay, { passive: true });
   }
-  
-  GD.UI = UI;
-})(window.GD);
-  
+
+  // 這一行極度重要，絕對不能被刪掉，它是將 UI 綁定給全域的關鍵！
   GD.UI = UI;
 })(window.GD);
