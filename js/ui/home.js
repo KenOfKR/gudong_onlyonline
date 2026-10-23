@@ -1,7 +1,8 @@
 /* ============================================================================
  * ui/home.js — 首頁：角色圖鑑、暱稱/房號、開局入口、進行中房間列表、登入、設定
- *              ＋ 開場置中無邊框影片 (goodong.mp4)
+ *              ＋ 開場置中無邊框有聲影片 (goodong.mp4)
  *              ＋ 大廳專屬可拖曳漂浮半透明《破局》MP3 音樂播放器
+ *              ＋ 規則書下方可摺疊《破局》歌詞面板
  * ========================================================================== */
 (function (GD) {
   'use strict';
@@ -14,6 +15,51 @@
    * ======================================================================== */
   const VIDEO_SOURCES = ['goodong.mp4', 'assets/goodong.mp4', 'goodong.webm'];
   const AUDIO_SOURCES = ['破局.mp3', 'assets/破局.mp3'];
+
+  // ★ 請將完整歌詞其餘段落貼入下方字串中
+  const LYRICS_TEXT = [
+    '(Verse 1)',
+    '青銅上的綠鏽 藏著哪朝的烽火',
+    '溫潤的白瓷釉 掩飾過誰的落魄',
+    '指尖輕拂過歲月 掌眼斷千秋的脈絡',
+    '傳世的珍寶 幾件是真 幾件是傳說',
+    '',
+    '(Pre-Chorus)',
+    '一分真 九分假 迷霧重重',
+    '五脈的規矩 鎖不住貪婪的暗湧',
+    '誰在幕後操盤 擺弄這歷史的時鐘',
+    '我是局外人 卻早已深陷迷宮',
+    '',
+    '(Chorus)',
+    '古董局中局 假作真時真亦空',
+    '看破了金石字畫 看不破人心的黑洞',
+    '破局而出 哪怕被當作異類嘲弄',
+    '誓要拂去塵埃 還原那份清白的初衷',
+    '',
+    '(Verse 2)',
+    '殘缺的古卷篇 拼湊出誰的因果',
+    '神秘的佛頭笑 牽動了半生禪惑',
+    '做舊的手法再精妙 總有破綻在角落',
+    '尋真之路 哪怕前方是萬丈的業火',
+    '',
+    '(Bridge)',
+    '真與假 善與惡 都在一念之間',
+    '鑒的是古董 考驗的卻是尊嚴',
+    '縱然天下人都被虛妄遮住了眼',
+    '我也要燃起孤燈 照亮這長夜的底線',
+    '',
+    '(Chorus)',
+    '古董局中局 假作真時真亦空',
+    '看破了金石字畫 看不破人心的黑洞',
+    '破局而出 哪怕被當作異類嘲弄',
+    '誓要拂去塵埃 還原那份清白的初衷',
+    '',
+    '',
+    '(Outro)',
+    '局中局 夢中夢',
+    '一眼看盡千年 誰才是真正的過客',
+        
+  ].join('\n');
 
   let bgmAudio = null;
   let floatPlayer = null;
@@ -32,6 +78,26 @@
   function isInLobby() {
     const homeEl = UI.byId('home');
     return !!(homeEl && !homeEl.hidden);
+  }
+
+  /** 在大廳「📜 規則書」按鈕所在列的正下方插入可摺疊的《破局》歌詞區塊 */
+  function injectLyricsBox() {
+    if (document.getElementById('gdLyricsDetails')) return;
+    const rulesBtn = document.querySelector('#home button[data-act="rules"]');
+    if (!rulesBtn) return;
+    const rulesRow = rulesBtn.parentElement;
+    if (!rulesRow || !rulesRow.parentElement) return;
+
+    const details = document.createElement('details');
+    details.id = 'gdLyricsDetails';
+    details.style.cssText = 'border-top:2px dashed var(--edge);padding-top:8px;margin-top:4px';
+    details.innerHTML = `
+      <summary class="sm b" style="cursor:pointer;color:var(--red);user-select:none;outline:none">
+        🎵 《破局》
+      </summary>
+      <div style="font-size:14px; margin-top:8px; padding:10px 12px; background:var(--paper-hi); border:1px solid var(--edge); border-radius:8px; white-space:pre-line; line-height:1.75; color:var(--ink); max-height:240px; overflow-y:auto">${U.esc(LYRICS_TEXT)}</div>
+    `;
+    rulesRow.insertAdjacentElement('afterend', details);
   }
 
   /** 使漂浮視窗支援滑鼠與觸控拖曳，且不超出畫面邊界 */
@@ -95,6 +161,7 @@
 
   /** 初始化大廳漂浮音樂播放器與開場無邊框影片 DOM */
   function initMediaSystem() {
+    injectLyricsBox();
     if (document.getElementById('gdFloatPlayer')) return;
 
     // 1. 建立 Audio 物件
@@ -244,7 +311,7 @@
 
     replayBtn.addEventListener('click', () => openIntroVideo(true));
 
-    // 3. 建立置中「無邊框」開場影片彈窗 (goodong.mp4)
+    // 3. 建立置中「無邊框」開場影片彈窗 (goodong.mp4)，預設直接開啟聲音，無額外開啟聲音標示
     introOverlay = document.createElement('div');
     introOverlay.id = 'gdIntroVideoOverlay';
     introOverlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:10000;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)';
@@ -254,15 +321,12 @@
           style="position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.65);color:#fff;border:none;font-size:18px;font-weight:900;cursor:pointer;z-index:20;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,0.5)">✕</button>
         <video id="gdIntroVideo" playsinline preload="auto"
           style="width:100%;max-height:84vh;display:block;background:transparent;border:none;outline:none;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,0.85)"></video>
-        <button type="button" id="unmuteIntroBtn"
-          style="display:none;position:absolute;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(21,128,61,0.92);color:#fef3c7;border:none;padding:8px 18px;border-radius:999px;font-weight:900;font-size:14px;cursor:pointer;z-index:15;box-shadow:0 4px 14px rgba(0,0,0,0.6)">🔊 點擊開啟影片聲音</button>
       </div>
     `;
     document.body.appendChild(introOverlay);
 
     introVideo = document.getElementById('gdIntroVideo');
     const closeBtn = document.getElementById('closeIntroVideoBtn');
-    const unmuteBtn = document.getElementById('unmuteIntroBtn');
 
     let vidSrcIdx = 0;
     introVideo.src = VIDEO_SOURCES[0];
@@ -271,7 +335,6 @@
       if (vidSrcIdx < VIDEO_SOURCES.length) {
         introVideo.src = VIDEO_SOURCES[vidSrcIdx];
       } else if (introOverlay && introOverlay.style.display === 'flex') {
-        // 若找不到影片檔或載入失敗，自動關閉遮罩並啟動《破局》音樂
         closeIntroVideo();
       }
     });
@@ -282,16 +345,17 @@
     });
     introVideo.addEventListener('ended', closeIntroVideo);
 
-    unmuteBtn.addEventListener('click', () => {
-      introVideo.muted = false;
-      introVideo.volume = 0.85;
-      unmuteBtn.style.display = 'none';
-    });
-
-    // 若瀏覽器阻擋首次自動播放 BGM，在使用者於大廳第一次互動時自動啟動《破局》
-    const unlockAudioOnInteract = () => {
+    // 使用者於畫面首次點擊時，若影片正在等待有聲播放或《破局》待命中，立即觸發有聲播放
+    const unlockAudioOnInteract = e => {
       if (!isInLobby()) return;
-      if (introOverlay && introOverlay.style.display === 'flex') return;
+      if (introOverlay && introOverlay.style.display === 'flex') {
+        if (e && e.target && e.target.id === 'closeIntroVideoBtn') return;
+        if (introVideo && introVideo.paused) {
+          introVideo.muted = false;
+          introVideo.play().catch(() => {});
+        }
+        return;
+      }
       if (bgmAudio && bgmAudio.paused && !userPausedBgm) {
         bgmAudio.play().catch(() => {});
       }
@@ -299,32 +363,25 @@
     document.addEventListener('pointerdown', unlockAudioOnInteract);
   }
 
-  /** 開啟並自動播放置中無邊框 goodong 影片 */
+  /** 開啟並自動以有聲模式播放置中無邊框 goodong 影片 */
   function openIntroVideo(isManualReplay = false) {
     initMediaSystem();
     if (!introOverlay || !introVideo) return;
 
-    // 播放片頭影片時先暫停《破局》，等影片播完或按叉叉後再自動播放《破局》
     if (bgmAudio && !bgmAudio.paused) bgmAudio.pause();
 
-    const unmuteBtn = document.getElementById('unmuteIntroBtn');
     introOverlay.style.display = 'flex';
     introVideo.currentTime = 0;
     introVideo.muted = false;
+    introVideo.volume = 0.85;
 
     const playPromise = introVideo.play();
     if (playPromise !== undefined) {
-      playPromise.then(() => {
-        if (unmuteBtn) unmuteBtn.style.display = 'none';
-      }).catch(() => {
-        // 若瀏覽器阻擋未互動有聲自動播放，自動以靜音播放並浮現「開啟聲音」按鈕
-        introVideo.muted = true;
-        introVideo.play().then(() => {
-          if (unmuteBtn) unmuteBtn.style.display = 'block';
-        }).catch(() => {
-          if (isManualReplay) UI.toast('找不到 goodong.mp4 影片檔，請確認已放在根目錄', 'warn');
+      playPromise.catch(() => {
+        if (isManualReplay) {
+          UI.toast('找不到 goodong.mp4 影片檔，請確認已放在根目錄', 'warn');
           closeIntroVideo();
-        });
+        }
       });
     }
   }
@@ -366,7 +423,6 @@
     }
   }
 
-  // ★ 監聽房間狀態：進入房間立即停止音樂並隱藏漂浮視窗；返回大廳時重新顯示
   GD.bus.on('joined', stopAllLobbyMedia);
   GD.bus.on('left', () => {
     if (isInLobby()) {
@@ -495,7 +551,6 @@
 
     initMediaSystem();
     if (floatPlayer) floatPlayer.style.display = 'flex';
-    // 首次進站自動彈出並播放無邊框 goodong.mp4，播完後自動啟動《破局》；若已看過則直接播放《破局》
     if (!sessionStorage.getItem('gd_intro_played')) {
       openIntroVideo(false);
     } else {
