@@ -19,7 +19,7 @@ window.GD = window.GD || {};
     /* --- 房間與大廳 --- */
     ROOM_COLLECTION: 'GudongOnlineGame',
     ROOM_PREFIX: 'v9_room_',
-    ROOM_STALE_MS: 10 * 60 * 1000,   // 超過 10 分鐘未更新 → 標記 closed 並隱藏
+    ROOM_STALE_MS: 30 * 60 * 1000,   // 超過 30 分鐘未更新 → 標記 closed 並隱藏
     LOBBY_REFRESH_MS: 30 * 1000,
 
     /* --- 規則參數 --- */

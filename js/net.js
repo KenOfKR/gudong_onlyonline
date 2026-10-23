@@ -1,15 +1,9 @@
 /* ============================================================================
- * net.js — 房間存取、同步與大廳清理
+ * js/net.js — 房間存取、同步與大廳清理（防吃票、防傳遞回滾強化版）
  *
- * 兩種模式：
- *   solo    單人 + 電腦，狀態只存 localStorage，不碰網路（雙擊 index.html 就能玩）
- *   online  多人連線，Firestore 即時同步；每個動作用「交易」套用在最新遠端狀態上，
- *           兩位真人同時投票也不會互相覆蓋。
- *
- * 唯一的寫入入口：Net.act(fn)。fn(room) 是就地修改函式，回傳 falsy 代表動作不合法（不寫入）。
- * 所有 act 會排隊依序執行；成功後遞增 rev 並廣播 bus 事件 'room'。
- *
- * 大廳清理：超過 CONFIG.ROOM_STALE_MS（30 分鐘）未更新的房間，標記 closed 並從列表隱藏。
+ * 關鍵修正：
+ *   1) 移除連線模式 (online) 交易衝突時「只改本機卻假裝成功」的致命陷阱，改為自動重試最多 4 次。
+ *   2) 房主心跳 (startBeat) 在連線模式下改用輕量欄位 update({ hostBeat })，絕不觸發整包交易鎖干擾玩家操作。
  * ========================================================================== */
 (function (GD) {
   'use strict';
@@ -23,6 +17,7 @@
 
   const clone = o => JSON.parse(JSON.stringify(o));
   const docId = code => C.ROOM_PREFIX + code;
+  const sleep = ms => new Promise(res => setTimeout(res, ms));
   const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 
   /* 每個分頁一個玩家 id（sessionStorage），重新整理仍是同一個人 */
@@ -102,13 +97,13 @@
       }
       if (mode === 'solo') existing = GD.store.get(C.STORAGE.room + code, null);
 
-      if (existing && (existing.closed || Date.now() - (existing.updatedAt || 0) > C.ROOM_STALE_MS)) existing = null;   // 過期房間視同不存在
+      if (existing && (existing.closed || Date.now() - (existing.updatedAt || 0) > C.ROOM_STALE_MS)) existing = null;
       room = existing || Engine.newRoom(code, Net.myId);
       room.mode = mode;
 
       const ok = await Net.act(r => {
         const mine = r.players.find(p => p.id === Net.myId) ||
-          (r.status !== 'waiting' ? r.players.find(p => !p.isBot && p.name === name) : null);   // 斷線重連：以暱稱認回座位
+          (r.status !== 'waiting' ? r.players.find(p => !p.isBot && p.name === name) : null);
         if (mine) { mine.id = Net.myId; mine.name = name; }
         else if (!Engine.addPlayer(r, { id: Net.myId, name })) return false;
         if (!r.hostId || !r.players.some(p => p.id === r.hostId && !p.isBot)) r.hostId = Net.myId;
@@ -160,14 +155,12 @@
           });
         } catch (e) { console.warn('[net] 大廳讀取失敗', e && e.message); }
       }
-      // 本機房間（單人局）：同樣套用 30 分鐘規則，過期的直接標記 closed
       GD.store.keys(C.STORAGE.room).forEach(k => {
         const data = GD.store.get(k, null);
         if (!data) return;
         if (!data.closed && now - (data.updatedAt || 0) > C.ROOM_STALE_MS) { data.closed = true; GD.store.set(k, data); return; }
         if (!(db && out.some(o => o.code === data.roomId && o.source === 'online'))) consider(data, 'solo');
       });
-      // 把遠端過期房間標記為 closed（任何用戶開大廳都會順手清；失敗不影響使用）
       staleOnline.forEach(ref => ref.set({ closed: true }, { merge: true }).catch(() => {}));
 
       return out.sort((a, b) => b.updatedAt - a.updatedAt);
@@ -180,28 +173,42 @@
     if (!room) return false;
     if (mode === 'online' && db) {
       const ref = db.doc(`${C.ROOM_COLLECTION}/${docId(room.roomId)}`);
-      try {
-        const result = await withTimeout(db.runTransaction(async tx => {
-          const snap = await tx.get(ref);
-          const base = snap.exists ? snap.data() : room;
-          const draft = clone(base);
-          let ok = false;
-          try { ok = fn(draft); } catch (e) { console.error('[act]', e); }
-          if (!ok) return null;
-          draft.rev = (base.rev || 0) + 1;
-          draft.updatedAt = Date.now();
-          const clean = clone(draft);                     // Firestore 不接受 undefined 欄位；JSON 往返會把它們去掉
-          tx.set(ref, clean);
-          return clean;
-        }), 9000);
-        if (!result) return false;
-        Net.commit(result);
-        return true;
-      } catch (e) {
-        console.warn('[net] 交易失敗，暫以本機狀態繼續：', e && e.message);
-        GD.bus.emit('netwarn', '連線不穩，動作已在本機套用');
+      // ★ 關鍵修正：多人同時傳遞或同時投票時，若遇到 Firestore Transaction 衝突或網路抖動，
+      // 自動重試最多 4 次，且絕不在交易失敗時污染本機狀態（避免畫面假裝成功卻被雲端退回或漏計票）！
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          const result = await withTimeout(db.runTransaction(async tx => {
+            const snap = await tx.get(ref);
+            const base = snap.exists ? snap.data() : room;
+            const draft = clone(base);
+            let ok = false;
+            try { ok = fn(draft); } catch (e) { console.error('[act]', e); }
+            if (!ok) return { aborted: true, latest: base };
+            draft.rev = (base.rev || 0) + 1;
+            draft.updatedAt = Date.now();
+            const clean = clone(draft);
+            tx.set(ref, clean);
+            return { aborted: false, clean };
+          }), 10000);
+
+          if (!result || result.aborted) {
+            if (result && result.latest && (result.latest.rev || 0) > (room.rev || 0)) {
+              Net.commit(result.latest);
+            }
+            return false;
+          }
+          Net.commit(result.clean);
+          return true;
+        } catch (e) {
+          console.warn(`[net] 遠端交易重試 (${attempt + 1}/4)：`, e && e.message);
+          if (attempt < 3) await sleep(220 * (attempt + 1));
+        }
       }
+      GD.bus.emit('netwarn', '網路延遲過高，請再點擊一次確認動作');
+      return false;
     }
+
+    // 單機模式 (solo)
     const draft = clone(room);
     let ok = false;
     try { ok = fn(draft); } catch (e) { console.error('[act]', e); }
@@ -218,18 +225,24 @@
       const remote = snap.data();
       if (remote.closed) { GD.bus.emit('closed'); return; }
       if ((remote.rev || 0) > (room.rev || 0) || remote.gameId !== room.gameId) {
-        if ((remote.rev || 0) >= (room.rev || 0)) Net.commit(remote);
+        Net.commit(remote);
       }
     }, err => console.warn('[net] 訂閱中斷', err && err.message));
   }
 
-  /** 房主心跳：讓其他人知道「負責代打電腦的人」還在；同時維持 updatedAt 不被大廳清掉 */
+  /** ★ 房主心跳：連線模式下只做輕量欄位更新，絕不遞增 rev 或覆寫整包 room，避免干擾其他真人投票與傳遞 */
   function startBeat() {
     clearInterval(beatTimer);
     beatTimer = setInterval(() => {
-      if (!room || room.hostId !== Net.myId || room.status === 'gameover') return;   // 終局後不再續命，讓大廳能自然清理
-      Net.act(r => { r.hostBeat = Date.now(); return true; });
-    }, 10000);
+      if (!room || room.hostId !== Net.myId || room.status === 'gameover') return;
+      if (mode === 'online' && db) {
+        const now = Date.now();
+        room.hostBeat = now;
+        db.doc(`${C.ROOM_COLLECTION}/${docId(room.roomId)}`).update({ hostBeat: now, updatedAt: now }).catch(() => {});
+      } else {
+        Net.act(r => { r.hostBeat = Date.now(); return true; });
+      }
+    }, 12000);
   }
 
   GD.Net = Net;
