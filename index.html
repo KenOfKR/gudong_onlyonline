@@ -9,6 +9,40 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <style>
+    /* 桌面版：讓陳詞紀錄橫跨「第一人稱牌桌 (#colC)」與「掌眼陳詞 (#colR)」兩欄總寬度 */
+    @media (min-width: 961px) {
+      #board .cols {
+        display: grid;
+        grid-template-columns: 1fr 1.15fr 1fr;
+        align-items: start;
+        gap: 14px;
+      }
+      #colL { grid-column: 1; grid-row: 1 / span 2; }
+      #colC { grid-column: 2; grid-row: 1; }
+      #colR { grid-column: 3; grid-row: 1; }
+      #speechLogPanel { grid-column: 2 / span 2; grid-row: 2; }
+    }
+    @media (max-width: 960px) {
+      #board:not([data-tab="speech"]) #speechLogPanel { display: none !important; }
+    }
+    /* 2.5秒倒數進度條動畫 */
+    @keyframes sendCountdown {
+      from { width: 100%; }
+      to { width: 0%; }
+    }
+    #sendBar i {
+      display: inline-block;
+      height: 6px;
+      background: var(--red);
+      border-radius: 3px;
+      vertical-align: middle;
+      width: 100%;
+    }
+    #sendBar.counting i {
+      animation: sendCountdown 2.5s linear forwards;
+    }
+  </style>
 </head>
 <body>
   <div id="toasts" aria-live="polite"></div>
@@ -124,22 +158,26 @@
           <button class="mic" id="mic" disabled>🎙️ 按住說話</button>
           <div class="live-text" id="liveText" hidden></div>
           <div class="sendbar" id="sendBar" hidden>
-            <span class="xs b">即將送出</span><i></i>
+            <span class="xs b">即將送出 (2.5秒)</span><div style="flex:1;margin:0 8px;background:rgba(0,0,0,.1);border-radius:3px;overflow:hidden"><i></i></div>
             <button class="btn" data-act="sendNow">立即送出</button><button class="btn red" data-act="sendCancel">取消</button>
           </div>
-          <details id="typeBox"><summary class="xs b" style="cursor:pointer">⌨️ 改用打字 / 快捷詞</summary>
-            <div class="col mt">
-              <textarea class="input" id="draft" rows="2" placeholder="點牌桌座位可插入「顏色【名字】」"></textarea>
-              <div class="grid g4 wrapsm" id="quick"></div>
-              <div class="row"><button class="btn" data-act="speakPass">直接過 ⏩</button><button class="btn red grow" data-act="speakType">送出發言 ➔</button></div>
+          <div id="typeBox" class="col mt" style="border-top:2px dashed var(--edge);padding-top:8px">
+            <div class="xs b">⌨️ 打字 / 快捷詞（可隨時預打草稿）</div>
+            <textarea class="input" id="draft" rows="2" placeholder="點牌桌座位或下方快捷詞可預先輸入草稿…"></textarea>
+            <div class="grid g4 wrapsm" id="quick"></div>
+            <div class="row">
+              <button class="btn" id="btnSpeakPass" data-act="speakPass" disabled>直接過 ⏩</button>
+              <button class="btn red grow" id="btnSpeakType" data-act="speakType" disabled>送出發言 ➔</button>
             </div>
-          </details>
-        </section>
-        <section class="panel col" style="min-height:260px">
-          <div class="panel-h"><span>🗣️ 陳詞紀錄</span><span id="speechPager"></span></div>
-          <div class="col scroll" id="speechBody" style="max-height:420px"></div>
+          </div>
         </section>
       </div>
+
+      <!-- 橫跨 colC 與 colR 兩欄總寬度的陳詞紀錄 -->
+      <section class="panel col" id="speechLogPanel" style="min-height:260px">
+        <div class="panel-h"><span>🗣️ 陳詞紀錄</span><span id="speechPager"></span></div>
+        <div class="col scroll" id="speechBody" style="max-height:420px"></div>
+      </section>
     </div>
 
     <div id="gameover" class="col" hidden style="margin-top:14px"></div>
