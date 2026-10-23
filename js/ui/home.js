@@ -1,11 +1,382 @@
 /* ============================================================================
  * ui/home.js — 首頁：角色圖鑑、暱稱/房號、開局入口、進行中房間列表、登入、設定
+ *              ＋ 開場置中無邊框影片 (goodong.mp4)
+ *              ＋ 大廳專屬可拖曳漂浮半透明《破局》MP3 音樂播放器
  * ========================================================================== */
 (function (GD) {
   'use strict';
   const { U, UI, Net } = GD;
   const C = GD.CONFIG;
   let gi = 0;
+
+  /* ==========================================================================
+   * 🎬 開場無邊框影片 (goodong.mp4) ＆ 🎵 大廳專屬可拖曳漂浮《破局》播放器
+   * ======================================================================== */
+  const VIDEO_SOURCES = ['goodong.mp4', 'assets/goodong.mp4', 'goodong.webm'];
+  const AUDIO_SOURCES = ['破局.mp3', 'assets/破局.mp3'];
+
+  let bgmAudio = null;
+  let floatPlayer = null;
+  let introOverlay = null;
+  let introVideo = null;
+  let bgmLoop = true;
+  let userPausedBgm = false;
+
+  const fmtTime = sec => {
+    if (!sec || !isFinite(sec) || sec < 0) return '00:00';
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+
+  function isInLobby() {
+    const homeEl = UI.byId('home');
+    return !!(homeEl && !homeEl.hidden);
+  }
+
+  /** 使漂浮視窗支援滑鼠與觸控拖曳，且不超出畫面邊界 */
+  function makeDraggable(panelEl, handleEl) {
+    let dragging = false;
+    let startX = 0, startY = 0, origLeft = 0, origTop = 0;
+
+    const clampPos = (left, top) => {
+      const rect = panelEl.getBoundingClientRect();
+      const maxL = Math.max(8, window.innerWidth - rect.width - 8);
+      const maxT = Math.max(8, window.innerHeight - rect.height - 8);
+      return {
+        left: Math.min(Math.max(8, left), maxL),
+        top: Math.min(Math.max(8, top), maxT)
+      };
+    };
+
+    handleEl.addEventListener('pointerdown', e => {
+      if (e.target.closest('button') || e.target.closest('input')) return;
+      dragging = true;
+      const rect = panelEl.getBoundingClientRect();
+      startX = e.clientX;
+      startY = e.clientY;
+      origLeft = rect.left;
+      origTop = rect.top;
+      panelEl.style.right = 'auto';
+      panelEl.style.bottom = 'auto';
+      panelEl.style.left = `${origLeft}px`;
+      panelEl.style.top = `${origTop}px`;
+      handleEl.style.cursor = 'grabbing';
+      if (handleEl.setPointerCapture) {
+        try { handleEl.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+      e.preventDefault();
+    });
+
+    window.addEventListener('pointermove', e => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const pos = clampPos(origLeft + dx, origTop + dy);
+      panelEl.style.left = `${pos.left}px`;
+      panelEl.style.top = `${pos.top}px`;
+    });
+
+    const endDrag = () => {
+      if (!dragging) return;
+      dragging = false;
+      handleEl.style.cursor = 'grab';
+    };
+    window.addEventListener('pointerup', endDrag);
+    window.addEventListener('pointercancel', endDrag);
+
+    window.addEventListener('resize', () => {
+      if (!panelEl.style.left || panelEl.style.left === 'auto') return;
+      const pos = clampPos(parseFloat(panelEl.style.left) || 16, parseFloat(panelEl.style.top) || 16);
+      panelEl.style.left = `${pos.left}px`;
+      panelEl.style.top = `${pos.top}px`;
+    });
+  }
+
+  /** 初始化大廳漂浮音樂播放器與開場無邊框影片 DOM */
+  function initMediaSystem() {
+    if (document.getElementById('gdFloatPlayer')) return;
+
+    // 1. 建立 Audio 物件
+    bgmAudio = new Audio();
+    bgmAudio.preload = 'auto';
+    bgmAudio.loop = bgmLoop;
+    bgmAudio.volume = parseFloat(localStorage.getItem('gd_bgm_vol') ?? '0.55');
+    let audioSrcIdx = 0;
+    bgmAudio.src = AUDIO_SOURCES[0];
+    bgmAudio.addEventListener('error', () => {
+      audioSrcIdx++;
+      if (audioSrcIdx < AUDIO_SOURCES.length) bgmAudio.src = AUDIO_SOURCES[audioSrcIdx];
+    });
+
+    // 2. 建立可拖曳的漂浮半透明音樂播放器（掛在 document.body，絕不影響原網頁排版）
+    floatPlayer = document.createElement('div');
+    floatPlayer.id = 'gdFloatPlayer';
+    floatPlayer.style.cssText = [
+      'position:fixed',
+      'right:18px',
+      'bottom:18px',
+      'width:270px',
+      'z-index:9000',
+      'background:rgba(28, 20, 14, 0.82)',
+      'backdrop-filter:blur(8px)',
+      '-webkit-backdrop-filter:blur(8px)',
+      'color:#f5d08a',
+      'border:1.5px solid rgba(245, 208, 138, 0.45)',
+      'border-radius:12px',
+      'padding:9px 11px',
+      'box-shadow:0 8px 28px rgba(0,0,0,0.55)',
+      'user-select:none',
+      'font-size:12px',
+      'display:flex',
+      'flex-direction:column',
+      'gap:7px'
+    ].join(';');
+
+    floatPlayer.innerHTML = `
+      <div id="gdFloatHeader" title="按住此處可任意拖曳移動視窗"
+        style="display:flex;align-items:center;justify-content:space-between;cursor:grab;border-bottom:1px dashed rgba(245,208,138,0.28);padding-bottom:5px">
+        <span style="font-weight:900;font-size:12.5px;color:#fde68a;letter-spacing:0.5px">⠿ 🎵 大廳配樂《破局》</span>
+        <button type="button" id="bgmMinBtn" title="收合/展開面板"
+          style="background:transparent;color:#fde68a;border:1px solid rgba(245,208,138,0.4);border-radius:4px;padding:0 5px;font-size:11px;cursor:pointer;line-height:1.4">−</button>
+      </div>
+      <div id="gdFloatBody" style="display:flex;flex-direction:column;gap:7px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+          <button type="button" id="bgmPlayBtn" class="btn gold" style="flex:1;padding:4px 8px;font-size:12px;font-weight:900">▶️ 播放</button>
+          <button type="button" id="bgmLoopBtn" class="btn" style="padding:4px 8px;font-size:11.5px;background:rgba(20,83,45,0.9);color:#fef3c7;border-color:#4ade80" title="切換重複播放">🔁 循環：開</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span id="bgmCurTime" class="mono" style="font-size:11px;color:#fef3c7;min-width:34px;text-align:right">00:00</span>
+          <input type="range" id="bgmSeek" min="0" max="100" value="0" step="0.1" style="flex:1;cursor:pointer;accent-color:#f59e0b;height:5px">
+          <span id="bgmDurTime" class="mono" style="font-size:11px;color:#d6be96;min-width:34px">00:00</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="display:flex;align-items:center;gap:4px;flex:1" title="調整音樂音量">
+            <span id="bgmVolIcon" style="font-size:13px">🔊</span>
+            <input type="range" id="bgmVol" min="0" max="1" step="0.02" value="${bgmAudio.volume}" style="flex:1;cursor:pointer;accent-color:#f59e0b;height:5px">
+          </div>
+          <button type="button" id="replayIntroBtn" class="btn red" style="padding:3px 8px;font-size:11.5px;font-weight:900;white-space:nowrap">🎬 重播片頭</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(floatPlayer);
+
+    const headerEl = document.getElementById('gdFloatHeader');
+    const bodyEl = document.getElementById('gdFloatBody');
+    const minBtn = document.getElementById('bgmMinBtn');
+    const playBtn = document.getElementById('bgmPlayBtn');
+    const loopBtn = document.getElementById('bgmLoopBtn');
+    const seekBar = document.getElementById('bgmSeek');
+    const curTimeEl = document.getElementById('bgmCurTime');
+    const durTimeEl = document.getElementById('bgmDurTime');
+    const volBar = document.getElementById('bgmVol');
+    const volIcon = document.getElementById('bgmVolIcon');
+    const replayBtn = document.getElementById('replayIntroBtn');
+
+    makeDraggable(floatPlayer, headerEl);
+
+    minBtn.addEventListener('click', () => {
+      const collapsed = bodyEl.style.display === 'none';
+      bodyEl.style.display = collapsed ? 'flex' : 'none';
+      minBtn.textContent = collapsed ? '−' : '+';
+      floatPlayer.style.width = collapsed ? '270px' : '185px';
+    });
+
+    const syncPlayBtn = () => {
+      if (!playBtn) return;
+      playBtn.textContent = bgmAudio.paused ? '▶️ 播放' : '⏸️ 暫停';
+    };
+
+    playBtn.addEventListener('click', () => {
+      if (bgmAudio.paused) {
+        userPausedBgm = false;
+        bgmAudio.play().then(syncPlayBtn).catch(() => UI.toast('請確認根目錄已放入「破局.mp3」', 'warn'));
+      } else {
+        userPausedBgm = true;
+        bgmAudio.pause();
+        syncPlayBtn();
+      }
+    });
+
+    loopBtn.addEventListener('click', () => {
+      bgmLoop = !bgmLoop;
+      bgmAudio.loop = bgmLoop;
+      loopBtn.textContent = bgmLoop ? '🔁 循環：開' : '➡️ 循環：關';
+      loopBtn.style.background = bgmLoop ? 'rgba(20,83,45,0.9)' : 'rgba(75,85,99,0.85)';
+      loopBtn.style.borderColor = bgmLoop ? '#4ade80' : '#9ca3af';
+    });
+
+    bgmAudio.addEventListener('loadedmetadata', () => {
+      seekBar.max = bgmAudio.duration || 100;
+      durTimeEl.textContent = fmtTime(bgmAudio.duration);
+    });
+
+    bgmAudio.addEventListener('timeupdate', () => {
+      if (!seekBar.dataset.dragging) {
+        seekBar.max = bgmAudio.duration || 100;
+        seekBar.value = bgmAudio.currentTime || 0;
+      }
+      curTimeEl.textContent = fmtTime(bgmAudio.currentTime);
+      if (bgmAudio.duration) durTimeEl.textContent = fmtTime(bgmAudio.duration);
+    });
+
+    bgmAudio.addEventListener('play', syncPlayBtn);
+    bgmAudio.addEventListener('pause', syncPlayBtn);
+    bgmAudio.addEventListener('ended', syncPlayBtn);
+
+    seekBar.addEventListener('pointerdown', () => { seekBar.dataset.dragging = '1'; });
+    seekBar.addEventListener('pointerup', () => { delete seekBar.dataset.dragging; });
+    seekBar.addEventListener('input', () => {
+      curTimeEl.textContent = fmtTime(parseFloat(seekBar.value));
+    });
+    seekBar.addEventListener('change', () => {
+      delete seekBar.dataset.dragging;
+      if (bgmAudio.duration) bgmAudio.currentTime = parseFloat(seekBar.value);
+    });
+
+    volBar.addEventListener('input', () => {
+      const v = parseFloat(volBar.value);
+      bgmAudio.volume = v;
+      bgmAudio.muted = (v === 0);
+      localStorage.setItem('gd_bgm_vol', String(v));
+      volIcon.textContent = v === 0 ? '🔇' : v < 0.4 ? '🔉' : '🔊';
+    });
+
+    replayBtn.addEventListener('click', () => openIntroVideo(true));
+
+    // 3. 建立置中「無邊框」開場影片彈窗 (goodong.mp4)
+    introOverlay = document.createElement('div');
+    introOverlay.id = 'gdIntroVideoOverlay';
+    introOverlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:10000;display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)';
+    introOverlay.innerHTML = `
+      <div style="position:relative;width:min(92vw,960px);background:transparent;border:none;outline:none;display:flex;flex-direction:column;align-items:center">
+        <button type="button" id="closeIntroVideoBtn" title="關閉影片"
+          style="position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,0.65);color:#fff;border:none;font-size:18px;font-weight:900;cursor:pointer;z-index:20;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(0,0,0,0.5)">✕</button>
+        <video id="gdIntroVideo" playsinline preload="auto"
+          style="width:100%;max-height:84vh;display:block;background:transparent;border:none;outline:none;border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,0.85)"></video>
+        <button type="button" id="unmuteIntroBtn"
+          style="display:none;position:absolute;bottom:24px;left:50%;transform:translateX(-50%);background:rgba(21,128,61,0.92);color:#fef3c7;border:none;padding:8px 18px;border-radius:999px;font-weight:900;font-size:14px;cursor:pointer;z-index:15;box-shadow:0 4px 14px rgba(0,0,0,0.6)">🔊 點擊開啟影片聲音</button>
+      </div>
+    `;
+    document.body.appendChild(introOverlay);
+
+    introVideo = document.getElementById('gdIntroVideo');
+    const closeBtn = document.getElementById('closeIntroVideoBtn');
+    const unmuteBtn = document.getElementById('unmuteIntroBtn');
+
+    let vidSrcIdx = 0;
+    introVideo.src = VIDEO_SOURCES[0];
+    introVideo.addEventListener('error', () => {
+      vidSrcIdx++;
+      if (vidSrcIdx < VIDEO_SOURCES.length) {
+        introVideo.src = VIDEO_SOURCES[vidSrcIdx];
+      } else if (introOverlay && introOverlay.style.display === 'flex') {
+        // 若找不到影片檔或載入失敗，自動關閉遮罩並啟動《破局》音樂
+        closeIntroVideo();
+      }
+    });
+
+    closeBtn.addEventListener('click', closeIntroVideo);
+    introOverlay.addEventListener('click', e => {
+      if (e.target === introOverlay) closeIntroVideo();
+    });
+    introVideo.addEventListener('ended', closeIntroVideo);
+
+    unmuteBtn.addEventListener('click', () => {
+      introVideo.muted = false;
+      introVideo.volume = 0.85;
+      unmuteBtn.style.display = 'none';
+    });
+
+    // 若瀏覽器阻擋首次自動播放 BGM，在使用者於大廳第一次互動時自動啟動《破局》
+    const unlockAudioOnInteract = () => {
+      if (!isInLobby()) return;
+      if (introOverlay && introOverlay.style.display === 'flex') return;
+      if (bgmAudio && bgmAudio.paused && !userPausedBgm) {
+        bgmAudio.play().catch(() => {});
+      }
+    };
+    document.addEventListener('pointerdown', unlockAudioOnInteract);
+  }
+
+  /** 開啟並自動播放置中無邊框 goodong 影片 */
+  function openIntroVideo(isManualReplay = false) {
+    initMediaSystem();
+    if (!introOverlay || !introVideo) return;
+
+    // 播放片頭影片時先暫停《破局》，等影片播完或按叉叉後再自動播放《破局》
+    if (bgmAudio && !bgmAudio.paused) bgmAudio.pause();
+
+    const unmuteBtn = document.getElementById('unmuteIntroBtn');
+    introOverlay.style.display = 'flex';
+    introVideo.currentTime = 0;
+    introVideo.muted = false;
+
+    const playPromise = introVideo.play();
+    if (playPromise !== undefined) {
+      playPromise.then(() => {
+        if (unmuteBtn) unmuteBtn.style.display = 'none';
+      }).catch(() => {
+        // 若瀏覽器阻擋未互動有聲自動播放，自動以靜音播放並浮現「開啟聲音」按鈕
+        introVideo.muted = true;
+        introVideo.play().then(() => {
+          if (unmuteBtn) unmuteBtn.style.display = 'block';
+        }).catch(() => {
+          if (isManualReplay) UI.toast('找不到 goodong.mp4 影片檔，請確認已放在根目錄', 'warn');
+          closeIntroVideo();
+        });
+      });
+    }
+  }
+
+  /** 關閉片頭影片（按叉叉或播完時觸發），並自動開始播放《破局》MP3 */
+  function closeIntroVideo() {
+    if (introVideo) {
+      introVideo.pause();
+      introVideo.currentTime = 0;
+    }
+    if (introOverlay) {
+      introOverlay.style.display = 'none';
+    }
+    sessionStorage.setItem('gd_intro_played', '1');
+    if (isInLobby() && !userPausedBgm) {
+      tryPlayLobbyBgm();
+    }
+  }
+
+  /** 在大廳顯示漂浮播放器並嘗試播放《破局》 */
+  function tryPlayLobbyBgm() {
+    initMediaSystem();
+    if (floatPlayer) floatPlayer.style.display = 'flex';
+    if (!bgmAudio || !isInLobby() || userPausedBgm) return;
+    if (introOverlay && introOverlay.style.display === 'flex') return;
+    bgmAudio.play().catch(() => {});
+  }
+
+  /** 進入房間時強制停止所有大廳音樂與影片，並隱藏漂浮播放器 */
+  function stopAllLobbyMedia() {
+    if (introVideo) introVideo.pause();
+    if (introOverlay) introOverlay.style.display = 'none';
+    if (bgmAudio) {
+      bgmAudio.pause();
+      bgmAudio.currentTime = 0;
+    }
+    if (floatPlayer) {
+      floatPlayer.style.display = 'none';
+    }
+  }
+
+  // ★ 監聽房間狀態：進入房間立即停止音樂並隱藏漂浮視窗；返回大廳時重新顯示
+  GD.bus.on('joined', stopAllLobbyMedia);
+  GD.bus.on('left', () => {
+    if (isInLobby()) {
+      if (floatPlayer) floatPlayer.style.display = 'flex';
+      if (!userPausedBgm) tryPlayLobbyBgm();
+    }
+  });
+  GD.bus.on('room', r => {
+    if (r && !isInLobby()) stopAllLobbyMedia();
+  });
 
   /* ---------------- 角色圖鑑 ---------------- */
   function renderGallery() {
@@ -42,11 +413,12 @@
   }
   GD.bus.on('auth', u => { if (u && !UI.byId('inName').value.trim()) UI.byId('inName').value = u.name; renderHints(); });
 
-  /* ---------------- 開局 ---------------- */
+  /* ---------------- 開局（進入房間時自動停止大廳音樂並隱藏漂浮視窗） ---------------- */
   async function enter(asMode, fillBots) {
     const n = name();
     GD.store.set(C.STORAGE.name, n);
     try {
+      stopAllLobbyMedia();
       await Net.join({ code: code(), name: n, asMode, fillBots });
       if (asMode === 'online' && Net.mode() === 'solo') UI.toast('無法連線至雲端，已改用單人本機模式', 'warn');
       GD.UI.showBoard();
@@ -120,6 +492,15 @@
     UI.byId('inName').value = GD.store.get(C.STORAGE.name, '');
     UI.text('btnTts', GD.store.get(C.STORAGE.tts, true) === false ? '🔇' : '🔊');
     renderGallery(); renderHints(); renderLobby();
+
+    initMediaSystem();
+    if (floatPlayer) floatPlayer.style.display = 'flex';
+    // 首次進站自動彈出並播放無邊框 goodong.mp4，播完後自動啟動《破局》；若已看過則直接播放《破局》
+    if (!sessionStorage.getItem('gd_intro_played')) {
+      openIntroVideo(false);
+    } else {
+      tryPlayLobbyBgm();
+    }
   };
   UI.renderHints = renderHints;
 })(window.GD);
