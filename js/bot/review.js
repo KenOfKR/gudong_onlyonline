@@ -11,6 +11,57 @@
   const B = n => `【${n}】`;
   const real = v => (v ? '真品' : '贗品');
 
+  /** 整理在 bot 發言當下，場上已經發言過的前置位與後置位玩家宣稱摘要 */
+  function buildPriorSpeechesNote(room, rd, bot) {
+    const speeches = rd.speeches || [];
+    const mySpIdx = speeches.findIndex(s => s.playerId === bot.id);
+    const priorSpeeches = mySpIdx >= 0 ? speeches.slice(0, mySpIdx) : speeches;
+    if (!priorSpeeches.length) return '（我是本輪第一位發言，尚無其他已發言玩家的宣稱資訊）';
+
+    const myPassIdx = rd.passOrder.indexOf(bot.id);
+    const preItems = [];
+    const postItems = [];
+
+    priorSpeeches.forEach(s => {
+      if (s.playerId === bot.id) return;
+      const spk = U.byId(room, s.playerId);
+      if (!spk) return;
+      const passIdx = rd.passOrder.indexOf(s.playerId);
+      const posLabel = passIdx >= 0 ? U.nth(passIdx) : '未知順位';
+      const colorName = U.colorOf(spk).name;
+
+      // 優先從發言解析結構 (s.p.claims) 或電腦決策 (rd.mind) 提取宣稱
+      const claims = (s.p && s.p.claims && s.p.claims.length)
+        ? s.p.claims
+        : (rd.mind[s.playerId] && rd.mind[s.playerId].claims) || [];
+
+      let actDesc = '';
+      if (claims.length) {
+        actDesc = `宣稱${claims.map(c => `${B(c.beast)}${c.real ? '真' : '假'}`).join('、')}`;
+      } else if (s.p && s.p.blind) {
+        actDesc = '宣稱被偷襲';
+      } else if (s.p && s.p.blocked) {
+        actDesc = '宣稱無法查驗';
+      } else if (s.pass) {
+        actDesc = '選擇過麥';
+      } else {
+        actDesc = s.summary ? s.summary : '未明確報出獸首真偽';
+      }
+
+      const entry = `${posLabel}: [${colorName}] ${actDesc}`;
+      if (myPassIdx >= 0 && passIdx >= 0 && passIdx < myPassIdx) {
+        preItems.push({ passIdx, text: entry });
+      } else {
+        postItems.push({ passIdx, text: entry });
+      }
+    });
+
+    preItems.sort((a, b) => a.passIdx - b.passIdx);
+    postItems.sort((a, b) => a.passIdx - b.passIdx);
+    const all = [...preItems.map(x => x.text), ...postItems.map(x => x.text)];
+    return all.length ? `（${all.join('，')}）` : '';
+  }
+
   /** 單輪覆盤：把當時的推理說成「有理有據」的句子 */
   function reviewRound(room, bot, r) {
     const rd = room.rounds[r], m = rd.mind[bot.id];
@@ -52,15 +103,17 @@
 
     /* ③ 推論：世界線後驗 */
     if (m) {
-      const top = [...m.post].sort((a, b) => b.p - a.p);
       const laoIdx = m.laoAt.map((p, i) => [p, i]).sort((a, b) => b[0] - a[0])[0];
       const actual = rd.beasts.map(b => `${B(b.name)}${b.isReal ? '真' : '假'}`).join(' ');
       out.steps.push({ k: '世界線推演', v: `綜合我的查驗與全場宣稱，我估計 ${m.post.map(b => `${B(b.name)}為真 ${Math.round(b.p * 100)}%`).join('、')}` +
         (laoIdx && laoIdx[0] > 0.12 && laoIdx[1] < 8 ? `；並認為老朝奉在${U.nth(laoIdx[1])}擾亂的機率約 ${Math.round(laoIdx[0] * 100)}%` : '') +
         `。【事後揭曉】實際為 ${actual}${rd.laoActive ? '，本輪老朝奉確實啟動過擾亂' : '，本輪沒有擾亂'}。` });
 
-      /* ④ 發言動機：為什麼這樣說 */
-      out.steps.push({ k: '發言動機', v: (m.why || []).join('；') + (m.mode === 'lie' ? '。（我刻意與自己的所見相反，目的在帶偏好人籌碼。）' : '。') });
+      /* ④ 發言動機：為什麼這樣說 ＋ 當時接收到的前/後置位已發言玩家宣稱資訊 */
+      const myPosTxt = rd.passOrder.indexOf(bot.id) >= 0 ? `我在${U.nth(rd.passOrder.indexOf(bot.id))}查驗，` : '';
+      const heardNote = buildPriorSpeechesNote(room, rd, bot);
+      const baseWhy = (m.why || []).join('；') + (m.mode === 'lie' ? '。（我刻意與自己的所見相反，目的在帶偏好人籌碼。）' : '。');
+      out.steps.push({ k: '發言動機', v: `${myPosTxt}${baseWhy}${heardNote}` });
     }
 
     /* ⑤ 投票 */

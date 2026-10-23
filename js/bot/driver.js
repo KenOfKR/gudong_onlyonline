@@ -1,9 +1,5 @@
 /* ============================================================================
  * bot/driver.js — 電腦玩家自動行動驅動器
- *
- * 多人連線時只讓一個瀏覽器代打（房主；房主 25 秒沒心跳，改由 id 最小的真人接手），
- * 避免多個視窗同時替同一個電腦發言。所有動作都經 Net.act 套用到最新房間狀態，
- * 即使兩邊偶爾重複觸發，Engine 的狀態檢查也會擋掉第二次。
  * ========================================================================== */
 (function (GD) {
   'use strict';
@@ -62,31 +58,59 @@
     const snap = JSON.parse(JSON.stringify(GD.Net.room()));        // 在副本上推理，避免污染即時房間
     const bot = U.byId(snap, botId);
     if (!bot || snap.currentSpeakerId !== botId) return false;
-    const { plan, A } = Strategy.plan(bot, snap);
-    const mind = snap.rounds[snap.currentRoundIdx].mind[botId];
+
+    let plan = null, A = null, mind = null;
     let text = null, source = 'bot', gemFail = '';
 
     Driver.thinking = { botId, name: bot.name, via: Gemini.enabled() ? 'gemini' : 'local' };
     GD.bus.emit('thinking', Driver.thinking);
     try {
-      if (Gemini.enabled()) {
+      const res = Strategy.plan(bot, snap);
+      plan = res.plan;
+      A = res.A;
+      mind = snap.rounds[snap.currentRoundIdx].mind[botId];
+
+      if (Gemini.enabled() && Speech && Speech.buildPrompt) {
         const raw = await Gemini.generate(Speech.buildPrompt(bot, snap, plan, A), { temperature: 0.55 + 0.35 * A.ctx.genes.deception * (A.ctx.isGood ? 0 : 1), maxTokens: 460 });
         const cleaned = raw && Gemini.clean(raw);
         const v = cleaned ? Speech.validate(cleaned, bot, snap, plan, A) : { ok: false, why: Gemini.state.lastError || '無回應' };
         if (v.ok) { text = cleaned; source = 'gemini'; } else gemFail = v.why;
       }
-      if (!text) text = Speech.localSpeech(bot, snap, plan, A);
+      if (!text && Speech && Speech.localSpeech) {
+        text = Speech.localSpeech(bot, snap, plan, A);
+      }
+    } catch (err) {
+      console.error('[driver doSpeech error]', bot.name, err);
+      gemFail = err.message || '發言生成異常';
     } finally {
       Driver.thinking = null;
       GD.bus.emit('thinking', null);
     }
-    mind.source = source;
-    if (gemFail) mind.geminiNote = gemFail;
+
+    // 緊急備援：萬一 Speech 模組未載入或報錯，直接根據查驗紀錄生成基礎發言，絕不假裝成真人過麥
+    if (!text) {
+      const rd = U.curRound(snap);
+      const log = (rd && rd.turnLogs && rd.turnLogs[botId]) || { inspect: [] };
+      const posTxt = rd ? U.nth(rd.passOrder.indexOf(botId)) : '';
+      if (log.blind) {
+        text = `我在${posTxt}，這輪先保留看法，聽聽大家怎麼分析。`;
+      } else if (log.inspect && log.inspect.length && GD.isGood(bot.role)) {
+        const seenStr = log.inspect.map(i => `【${i.beastName}】是${i.displayedReal ? '真品' : '贗品'}`).join('、');
+        text = `我在${posTxt}查驗，看到${seenStr}，提供給大家參考。`;
+      } else {
+        text = `我在${posTxt}，目前資訊還不夠明朗，先聽後面掌眼人的分析。`;
+      }
+    }
+
+    if (mind) {
+      mind.source = source;
+      if (gemFail) mind.geminiNote = gemFail;
+    }
 
     return GD.Net.act(room => {
       if (room.currentSpeakerId !== botId) return false;
       const rd = U.curRound(room);
-      rd.mind[botId] = mind;                                         // 推理依據與實際發言一併入庫，供覆盤
+      if (mind) rd.mind[botId] = mind;
       return Engine.speak(room, botId, { text, source });
     });
   }
@@ -137,8 +161,12 @@
     const n = (attempts.get(task.key) || 0) + 1;
     attempts.set(task.key, n);
     if (!ok && n < 4) inflight.delete(task.key);       // 失敗且未達上限：允許重試
-    else if (!ok && task.type === 'speech') {          // 多次失敗：保底動作，避免整局卡住
-      await GD.Net.act(r => r.currentSpeakerId === task.bot.id && Engine.speak(r, task.bot.id, { text: '', pass: true }));
+    else if (!ok && task.type === 'speech') {          // 多次失敗：保底動作，標明 source: 'bot'
+      await GD.Net.act(r => r.currentSpeakerId === task.bot.id && Engine.speak(r, task.bot.id, {
+        text: '（這輪先保留資訊，聽後面的人分析）',
+        summary: '[電腦] 暫不表態',
+        source: 'bot'
+      }));
     }
     schedule();
   }
