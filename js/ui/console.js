@@ -1,9 +1,5 @@
 /* ============================================================================
- * ui/console.js — 中央下方「操作台」
- *
- * 修改重點：
- *   1) 需求 1：滿 8 人時顯示「🎮 全員就緒・立即開始遊戲 ➔」主按鈕（未滿 8 人時才顯示補電腦按鈕）。
- *   2) 需求 2：方震查驗面板自動鎖定前幾輪已查驗過的玩家按鈕（disabled + 顯示「✓已查驗」）。
+ * ui/console.js — 中央下方「操作台」（支援觀戰者檢視開票與推進下一回合）
  * ========================================================================== */
 (function (GD) {
   'use strict';
@@ -19,10 +15,25 @@
 
   UI.renderConsole = function (room, me, rd) {
     const box = UI.byId('console');
-    if (!me) return UI.html(box, '<div class="mute center">您尚未入座</div>');
     const st = room.status;
 
-    /* ★ 需求 1：全真人版（滿 8 人）顯示正式開始按鈕；未滿 8 人時提供等待提示與補電腦選項 */
+    // ★ 若不是房內的 8 位玩家（例如因 AFK 被電腦接管而移至觀戰席）
+    if (!me) {
+      const isSpec = (room.spectators || []).some(s => s.id === Net.myId);
+      // 若剛好處於「開票結果出爐」階段，讓觀戰者也能看到開票結果並點擊「進入下一回合」！
+      if (st === 'voting' && rd && rd.voteResults) {
+        const a = rd.voteResults.rank1, b = rd.voteResults.rank2;
+        return UI.html(box, `<div class="center b lg">📊 第 ${rd.roundNum} 回合開票結果</div>
+          <div class="grid g2"><div class="note"><b class="gold">🥇 第一名（${a.votes} 票）</b><div class="xl b">【${a.name}】</div><div class="xs mute">🔒 真偽封存</div></div>
+          <div class="note"><b class="jade">🥈 第二名（${b.votes} 票）</b><div class="xl b">【${b.name}】</div><b class="sm ${b.isReal ? 'jade' : 'red'}">${b.isReal ? '✓ 真品' : '✕ 贗品'}</b></div></div>
+          <button class="btn red big block" data-act="advance">${room.currentRoundIdx < 2 ? '進入下一回合（抽新獸首、籌碼累積）➔' : '進入終局鑑人 🎯'}</button>`);
+      }
+      if (isSpec) {
+        return UI.html(box, '<div class="mute center b" style="font-size:1.1rem;padding:15px;color:#9ca3af">👀 您目前為「觀戰者」（座位由電腦代管自動進行中），可隨時觀看局勢。</div>');
+      }
+      return UI.html(box, '<div class="mute center">您尚未入座</div>');
+    }
+
     if (st === 'waiting') {
       const isFull = room.players.length >= 8;
       const allHumans = room.players.every(p => !p.isBot);
@@ -61,10 +72,7 @@
         }
         let skill = `<div class="center sm">【${me.role}】沒有主動技能。</div><button class="btn gold block" data-act="skill" data-arg="skip">下一步：指定傳遞玩家 ➔</button>`;
         if (me.role === '方震') {
-          /* ★ 需求 2：收集方震在前幾回合已經驗過的玩家 ID，將按鈕鎖死不可再點 */
-          const checkedSet = Engine.fangCheckedIds ? Engine.fangCheckedIds(room, me.id) : new Set(
-            (room.rounds || []).map(r => r.turnLogs && r.turnLogs[me.id] && r.turnLogs[me.id].fangTargetId).filter(Boolean)
-          );
+          const checkedSet = Engine.fangCheckedIds ? Engine.fangCheckedIds(room, me.id) : new Set();
           skill = log.fangTargetId
             ? `<div class="live-text center">${U.esc(log.ability)}</div><button class="btn gold block" data-act="skill" data-arg="skip">下一步 ➔</button>`
             : `<b class="red sm">【方震】請選擇查驗 1 位玩家的陣營（已查驗過的人已鎖定）</b>
@@ -135,6 +143,7 @@
   }));
   UI.on('skillYao', act((r, me, id) => Engine.skill(r, me.id, { kind: 'yao', targetId: id })));
   UI.on('pass', act((r, me, id) => Engine.pass(r, me.id, id || null)));
+  // ★ 允許觀戰者也能點擊「進入下一回合」推進牌局
   UI.on('advance', () => Net.act(r => Engine.advance(r)));
   UI.on('pvote', act((r, me, id) => Engine.personVote(r, me.id, id)));
 
