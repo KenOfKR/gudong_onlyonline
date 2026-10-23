@@ -6,7 +6,7 @@
 (function (GD) {
   'use strict';
   const loaded = {};        // 角色名 → 實際圖檔路徑
-  const EXT = ['png'];
+  const EXT = ['png', 'jpg', 'webp'];
 
   function buildTailoredCharacterSvg(roleName) {
         const m = GD.ROLES[roleName] || GD.ROLES['許願'];
