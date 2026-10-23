@@ -1,9 +1,5 @@
 /* ============================================================================
- * js/net.js — 房間存取、同步與大廳清理（防吃票、防傳遞回滾強化版）
- *
- * 關鍵修正：
- *   1) 移除連線模式 (online) 交易衝突時「只改本機卻假裝成功」的致命陷阱，改為自動重試最多 4 次。
- *   2) 房主心跳 (startBeat) 在連線模式下改用輕量欄位 update({ hostBeat })，絕不觸發整包交易鎖干擾玩家操作。
+ * js/net.js — 房間存取、同步與大廳清理（支援大廳背景自動認領 & 離房自動跑完版）
  * ========================================================================== */
 (function (GD) {
   'use strict';
@@ -11,7 +7,7 @@
   const C = GD.CONFIG;
 
   let db = null, auth = null, unsub = null;
-  let room = null, mode = 'solo';
+  let room = null, bgRoom = null, mode = 'solo';
   let chain = Promise.resolve();
   let beatTimer = null;
 
@@ -20,24 +16,25 @@
   const sleep = ms => new Promise(res => setTimeout(res, ms));
   const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 
-  /* 每個分頁一個玩家 id（sessionStorage），重新整理仍是同一個人 */
-  function tabPlayerId() {
+  function persistentPlayerId() {
     try {
-      let id = sessionStorage.getItem('gudong_v9_pid');
-      if (!id) { id = U.uid('p'); sessionStorage.setItem('gudong_v9_pid', id); }
+      let id = localStorage.getItem('gudong_v9_pid') || sessionStorage.getItem('gudong_v9_pid');
+      if (!id) id = U.uid('p');
+      localStorage.setItem('gudong_v9_pid', id);
+      sessionStorage.setItem('gudong_v9_pid', id);
       return id;
     } catch (e) { return U.uid('p'); }
   }
 
   const Net = {
-    myId: tabPlayerId(),
+    myId: persistentPlayerId(),
     room: () => room,
+    bgRoom: () => bgRoom,
     mode: () => mode,
     me: () => (room ? U.byId(room, Net.myId) : null),
     onlineAvailable: () => !!db,
     user: null,
 
-    /* ------------------------------------------------------------ 初始化 Firebase（可選）*/
     init() {
       try {
         if (typeof firebase === 'undefined') return;
@@ -61,30 +58,36 @@
     },
     async logout() { Net.user = null; try { if (auth) await auth.signOut(); } catch (e) { /* ignore */ } GD.bus.emit('auth', null); },
 
-    /* ------------------------------------------------------------ 寫入 */
     persistLocal() {
-      if (room) GD.store.set(C.STORAGE.room + room.roomId, room);
+      const target = room || bgRoom;
+      if (target) GD.store.set(C.STORAGE.room + target.roomId, target);
     },
 
     commit(next) {
-      room = next;
+      if (room && next && next.roomId === room.roomId) {
+        room = next;
+      } else if (bgRoom && next && next.roomId === bgRoom.roomId) {
+        bgRoom = next;
+        if (bgRoom.status === 'gameover' && bgRoom.learning) {
+          if (mode === 'solo') GD.store.set(C.STORAGE.room + bgRoom.roomId, bgRoom);
+        }
+      }
       Net.persistLocal();
-      GD.bus.emit('room', room);
+      GD.bus.emit('room', next);
     },
 
-    /** 唯一寫入入口：fn(draft) 回傳 truthy 才會寫入。回傳 Promise<boolean> */
     act(fn) {
       const p = chain.then(() => run(fn));
       chain = p.catch(() => {});
       return p;
     },
 
-    /* ------------------------------------------------------------ 進入 / 離開房間 */
     async join({ code, name, asMode, fillBots = false }) {
-      Net.leave(true);
+      Net.leave(true, true);
       mode = (asMode === 'online' && db) ? 'online' : 'solo';
       const key = docId(code);
       let existing = null;
+      const cleanName = String(name || '掌眼人').trim();
 
       if (mode === 'online') {
         try {
@@ -102,17 +105,50 @@
       room.mode = mode;
 
       const ok = await Net.act(r => {
-        const mine = r.players.find(p => p.id === Net.myId) ||
-          (r.status !== 'waiting' ? r.players.find(p => !p.isBot && p.name === name) : null);
-        if (mine) { mine.id = Net.myId; mine.name = name; }
-        else if (!Engine.addPlayer(r, { id: Net.myId, name })) return false;
-        if (!r.hostId || !r.players.some(p => p.id === r.hostId && !p.isBot)) r.hostId = Net.myId;
+        if (!r.spectators) r.spectators = [];
+
+        const byIdPlayer = r.players.find(p => p.id === Net.myId);
+        const byNamePlayer = r.players.find(p => !p.isBot && String(p.name).trim() === cleanName);
+        const mine = byIdPlayer || byNamePlayer;
+
+        if (mine) {
+          if (Engine.reclaimPlayer) {
+            Engine.reclaimPlayer(r, mine.id, Net.myId, cleanName);
+          } else {
+            mine.id = Net.myId;
+            mine.name = cleanName;
+          }
+        } else if (r.status === 'waiting' && r.players.length < 8) {
+          r.spectators = r.spectators.filter(s => s.id !== Net.myId && s.name !== cleanName);
+          if (!Engine.addPlayer(r, { id: Net.myId, name: cleanName })) return false;
+        } else if (r.status === 'waiting' && r.players.length >= 8 && r.players.some(p => p.isBot)) {
+          r.spectators = r.spectators.filter(s => s.id !== Net.myId && s.name !== cleanName);
+          if (!Engine.addPlayer(r, { id: Net.myId, name: cleanName })) return false;
+        } else {
+          const spec = r.spectators.find(s => s.id === Net.myId) || r.spectators.find(s => s.name === cleanName);
+          if (spec) {
+            spec.id = Net.myId;
+            spec.name = cleanName;
+          } else {
+            r.spectators.push({ id: Net.myId, name: cleanName });
+            if (r.spectators.length > 20) r.spectators.shift();
+          }
+        }
+
+        const hostValid = r.hostId && (
+          r.players.some(p => p.id === r.hostId && !p.isBot) ||
+          r.spectators.some(s => s.id === r.hostId)
+        );
+        if (!hostValid) {
+          const nextHost = r.players.find(p => !p.isBot);
+          r.hostId = nextHost ? nextHost.id : Net.myId;
+        }
         r.hostBeat = Date.now();
         r.mode = mode;
-        if (fillBots && r.status === 'waiting') { Engine.fillBots(r); }
+        if (fillBots && r.status === 'waiting' && r.players.length < 8) { Engine.fillBots(r); }
         return true;
       });
-      if (!ok) { room = null; throw new Error('房間已滿或遊戲進行中，無法加入'); }
+      if (!ok) { room = null; throw new Error('房間處理失敗，無法加入'); }
 
       if (mode === 'online') subscribe(key);
       startBeat();
@@ -120,27 +156,88 @@
       return room;
     },
 
-    leave(silent) {
+    leave(silent, hardStop = false) {
+      if (!hardStop && room && room.status !== 'waiting' && room.status !== 'gameover') {
+        bgRoom = room;
+        room = null;
+        if (Engine.replaceWithBot) {
+          Net.act(r => {
+            let changed = false;
+            const meInSeat = r.players.find(p => p.id === Net.myId && !p.isBot);
+            if (meInSeat && Engine.replaceWithBot(r, Net.myId)) changed = true;
+            r.hostId = Net.myId;
+            r.hostBeat = Date.now();
+            return changed || true;
+          }).then(() => {
+            if (GD.Driver && GD.Driver.schedule) GD.Driver.schedule();
+          });
+        }
+        if (!silent) GD.bus.emit('left');
+        return;
+      }
+
       if (unsub) { unsub(); unsub = null; }
       clearInterval(beatTimer); beatTimer = null;
       if (room && mode === 'solo' && room.status === 'gameover') GD.store.remove(C.STORAGE.room + room.roomId);
       room = null;
+      bgRoom = null;
       GD.Driver && GD.Driver.reset();
       if (!silent) GD.bus.emit('left');
     },
 
-    /* ------------------------------------------------------------ 大廳列表 + 自動清理 */
+    adoptInBackground(data, srcMode) {
+      if (room || !data || !data.roomId) return;
+      if (data.status === 'waiting' || (data.status === 'gameover' && data.learning)) return;
+      if (bgRoom && bgRoom.roomId === data.roomId) {
+        if ((data.rev || 0) > (bgRoom.rev || 0)) bgRoom = data;
+        if (GD.Driver && GD.Driver.schedule) GD.Driver.schedule();
+        return;
+      }
+      if (!bgRoom || bgRoom.status === 'gameover') {
+        if (unsub) { unsub(); unsub = null; }
+        mode = (srcMode === 'online' && db) ? 'online' : 'solo';
+        bgRoom = clone(data);
+        if (mode === 'online') subscribe(docId(bgRoom.roomId));
+        startBeat();
+        const idleMs = Date.now() - (bgRoom.updatedAt || 0);
+        if (idleMs > 12000 && Engine.replaceWithBot) {
+          Net.act(r => {
+            let changed = false;
+            (r.players || []).forEach(p => {
+              if (!p.isBot && Engine.replaceWithBot(r, p.id)) changed = true;
+            });
+            r.hostId = Net.myId;
+            r.hostBeat = Date.now();
+            return changed || true;
+          }).then(() => {
+            if (GD.Driver && GD.Driver.schedule) GD.Driver.schedule();
+          });
+        } else if (GD.Driver && GD.Driver.schedule) {
+          GD.Driver.schedule();
+        }
+      }
+    },
+
     async lobby() {
       const now = Date.now(), out = [];
+      let candidateToAdopt = null;
+
       const consider = (data, source) => {
         if (!data || !data.roomId) return;
         const stale = now - (data.updatedAt || 0) > C.ROOM_STALE_MS;
         if (stale || data.closed) return;
+        const humans = (data.players || []).filter(p => !p.isBot).map(p => p.name);
         out.push({
           code: data.roomId, source, status: data.status, round: (data.currentRoundIdx || 0) + 1,
-          humans: (data.players || []).filter(p => !p.isBot).map(p => p.name),
-          total: (data.players || []).length, updatedAt: data.updatedAt || 0, mode: data.mode || source
+          humans, total: (data.players || []).length, updatedAt: data.updatedAt || 0, mode: data.mode || source
         });
+
+        if (!room && data.status !== 'waiting' && data.status !== 'gameover') {
+          const idleMs = now - (data.updatedAt || 0);
+          if (humans.length === 0 || idleMs > 10000 || (bgRoom && bgRoom.roomId === data.roomId)) {
+            if (!candidateToAdopt) candidateToAdopt = { data, source };
+          }
+        }
       };
       const staleOnline = [];
 
@@ -163,23 +260,24 @@
       });
       staleOnline.forEach(ref => ref.set({ closed: true }, { merge: true }).catch(() => {}));
 
+      if (!room && candidateToAdopt) {
+        Net.adoptInBackground(candidateToAdopt.data, candidateToAdopt.source);
+      }
+
       return out.sort((a, b) => b.updatedAt - a.updatedAt);
     }
   };
 
-  /* ---------------------------------------------------------------- 內部 */
-
   async function run(fn) {
-    if (!room) return false;
+    const active = room || bgRoom;
+    if (!active) return false;
     if (mode === 'online' && db) {
-      const ref = db.doc(`${C.ROOM_COLLECTION}/${docId(room.roomId)}`);
-      // ★ 關鍵修正：多人同時傳遞或同時投票時，若遇到 Firestore Transaction 衝突或網路抖動，
-      // 自動重試最多 4 次，且絕不在交易失敗時污染本機狀態（避免畫面假裝成功卻被雲端退回或漏計票）！
+      const ref = db.doc(`${C.ROOM_COLLECTION}/${docId(active.roomId)}`);
       for (let attempt = 0; attempt < 4; attempt++) {
         try {
           const result = await withTimeout(db.runTransaction(async tx => {
             const snap = await tx.get(ref);
-            const base = snap.exists ? snap.data() : room;
+            const base = snap.exists ? snap.data() : active;
             const draft = clone(base);
             let ok = false;
             try { ok = fn(draft); } catch (e) { console.error('[act]', e); }
@@ -192,7 +290,7 @@
           }), 10000);
 
           if (!result || result.aborted) {
-            if (result && result.latest && (result.latest.rev || 0) > (room.rev || 0)) {
+            if (result && result.latest && (result.latest.rev || 0) > (active.rev || 0)) {
               Net.commit(result.latest);
             }
             return false;
@@ -204,16 +302,15 @@
           if (attempt < 3) await sleep(220 * (attempt + 1));
         }
       }
-      GD.bus.emit('netwarn', '網路延遲過高，請再點擊一次確認動作');
+      if (room) GD.bus.emit('netwarn', '網路延遲過高，請再點擊一次確認動作');
       return false;
     }
 
-    // 單機模式 (solo)
-    const draft = clone(room);
+    const draft = clone(active);
     let ok = false;
     try { ok = fn(draft); } catch (e) { console.error('[act]', e); }
     if (!ok) return false;
-    draft.rev = (room.rev || 0) + 1;
+    draft.rev = (active.rev || 0) + 1;
     draft.updatedAt = Date.now();
     Net.commit(draft);
     return true;
@@ -221,24 +318,36 @@
 
   function subscribe(key) {
     unsub = db.doc(`${C.ROOM_COLLECTION}/${key}`).onSnapshot(snap => {
-      if (!snap.exists || !room) return;
+      const active = room || bgRoom;
+      if (!snap.exists || !active) return;
       const remote = snap.data();
-      if (remote.closed) { GD.bus.emit('closed'); return; }
-      if ((remote.rev || 0) > (room.rev || 0) || remote.gameId !== room.gameId) {
+      if (remote.closed) {
+        if (room) GD.bus.emit('closed');
+        bgRoom = null;
+        return;
+      }
+      if ((remote.rev || 0) > (active.rev || 0) || remote.gameId !== active.gameId) {
         Net.commit(remote);
       }
     }, err => console.warn('[net] 訂閱中斷', err && err.message));
   }
 
-  /** ★ 房主心跳：連線模式下只做輕量欄位更新，絕不遞增 rev 或覆寫整包 room，避免干擾其他真人投票與傳遞 */
   function startBeat() {
     clearInterval(beatTimer);
     beatTimer = setInterval(() => {
-      if (!room || room.hostId !== Net.myId || room.status === 'gameover') return;
+      const active = room || bgRoom;
+      if (!active || active.status === 'gameover') return;
+      const isHost = active.hostId === Net.myId;
+      const hostStale = Date.now() - (active.hostBeat || 0) > 25000;
+      const firstHuman = (active.players || []).find(p => !p.isBot) || (active.spectators || [])[0];
+      if (!isHost && !(hostStale && (!firstHuman || firstHuman.id === Net.myId))) return;
+
       if (mode === 'online' && db) {
         const now = Date.now();
-        room.hostBeat = now;
-        db.doc(`${C.ROOM_COLLECTION}/${docId(room.roomId)}`).update({ hostBeat: now, updatedAt: now }).catch(() => {});
+        active.hostBeat = now;
+        const patch = { hostBeat: now, updatedAt: now };
+        if (!isHost) { active.hostId = Net.myId; patch.hostId = Net.myId; }
+        db.doc(`${C.ROOM_COLLECTION}/${docId(active.roomId)}`).update(patch).catch(() => {});
       } else {
         Net.act(r => { r.hostBeat = Date.now(); return true; });
       }
