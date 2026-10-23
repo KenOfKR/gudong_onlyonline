@@ -1,12 +1,5 @@
 /* ============================================================================
- * core/engine.js — 遊戲狀態機
- *
- * 所有動作都是「對 room 物件的就地修改函式」：
- *   - 成功回傳 true（或結果物件），不合法回傳 false 且不改動 room
- *   - 不碰 DOM、不碰網路；Net.act(fn) 負責把它包進交易 / 存檔 / 廣播
- *   - 真人與電腦玩家走完全相同的動作，沒有任何一邊的捷徑
- *
- * status 流程：waiting → playing → discussion → voting → (下一回合) ... → person_voting → gameover
+ * core/engine.js — 遊戲狀態機（防吃人、防漏票、方震防重驗與 🔍柏仰👍 標記版）
  * ========================================================================== */
 (function (GD) {
   'use strict';
@@ -43,7 +36,7 @@
     if (old) { old.name = name; return old; }
     if (room.status !== 'waiting' && room.status !== 'gameover') return null;
     if (room.players.length >= 8) {
-      const bot = room.players.find(p => p.isBot);          // 滿座時真人可擠掉一位電腦
+      const bot = room.players.find(p => p.isBot);
       if (isBot || !bot) return null;
       room.players.splice(room.players.indexOf(bot), 1);
     }
@@ -70,7 +63,7 @@
     if (!me || room.status !== 'waiting') return false;
     const other = room.players.find(p => p.colorId === colorId && p.id !== pid);
     if (other && !other.isBot) return false;
-    if (other) other.colorId = me.colorId;                   // 與電腦互換顏色
+    if (other) other.colorId = me.colorId;
     me.colorId = colorId;
     return true;
   };
@@ -80,7 +73,7 @@
     if (!me || room.status !== 'waiting' || room.players.length < 2) return false;
     const n = room.players.length;
     const sorted = U.seated(room);
-    sorted.forEach((p, i) => { p.seatIndex = i; });          // 先壓成連續座位
+    sorted.forEach((p, i) => { p.seatIndex = i; });
     const target = (me.seatIndex + delta + n) % n;
     const other = sorted.find(p => p.seatIndex === target);
     if (other) other.seatIndex = me.seatIndex;
@@ -113,7 +106,6 @@
       p.voteBank = C.CHIPS_PER_ROUND;
       p.isAmbushed = p.isPermanentlyAmbushed = p.pendingAmbush = false;
       p.confusedRound = (p.role === '黃煙煙' || p.role === '木戶加奈') ? Math.floor(Math.random() * 3) : -1;
-      // 電腦玩家：開局時鎖定本局基因（含上一局學到的修正），終局覆盤才能顯示「進化前後」
       p.genes = p.isBot && GD.Genes ? GD.Genes.load(p.botId) : undefined;
     });
     room.gameId = U.uid('g');
@@ -135,12 +127,29 @@
 
   /* ---------------------------------------------------------------- 查驗階段 */
 
-  /** 取得（必要時建立）玩家本回合的行動紀錄；方震不驗獸首，直接從技能步驟開始 */
+  function ensureInPassOrder(rd, pid) {
+    if (!Array.isArray(rd.passOrder)) rd.passOrder = [];
+    if (pid && !rd.passOrder.includes(pid)) {
+      rd.passOrder.push(pid);
+    }
+  }
+
+  Engine.fangCheckedIds = function (room, pid) {
+    const done = new Set();
+    (room.rounds || []).forEach(r => {
+      const l = r && r.turnLogs && r.turnLogs[pid];
+      if (l && l.fangTargetId) done.add(l.fangTargetId);
+    });
+    return done;
+  };
+
   Engine.log = function (room, pid) {
     const rd = U.curRound(room);
     const p = U.byId(room, pid);
+    if (room.status === 'playing' && room.currentTurnPlayerId === pid) {
+      ensureInPassOrder(rd, pid);
+    }
     if (!rd.turnLogs[pid]) {
-      // blind：回合開始當下是否已被偷襲（之後會被重置，覆盤與推理都需要這個紀錄）
       rd.turnLogs[pid] = { inspect: [], ability: '無技能操作', skillTag: '', blind: Rules.isBlind(p),
                            step: Rules.inspectQuota(p) === 0 ? 'b' : 'a' };
     }
@@ -153,6 +162,7 @@
   Engine.inspect = function (room, pid, beastName) {
     if (!myTurn(room, pid, 'a')) return false;
     const rd = U.curRound(room), p = U.byId(room, pid), log = Engine.log(room, pid);
+    ensureInPassOrder(rd, pid);
     const beast = rd.beasts.find(b => b.name === beastName);
     if (!beast || log.inspect.some(x => x.beastName === beastName)) return false;
     if (log.inspect.length >= Rules.inspectQuota(p)) return false;
@@ -162,27 +172,27 @@
     return res;
   };
 
-  /**
-   * 專屬技能。action: {kind:'fang',targetId} | {kind:'lao',active} | {kind:'yao',targetId} |
-   *                  {kind:'zheng',beast} | {kind:'skip'}
-   * 被偷襲者技能一律失效（視同 skip）。
-   */
   Engine.skill = function (room, pid, action) {
     if (!myTurn(room, pid, 'b')) return false;
     const rd = U.curRound(room), p = U.byId(room, pid), log = Engine.log(room, pid);
+    ensureInPassOrder(rd, pid);
     const done = () => { log.step = 'c'; return true; };
     if (!action || action.kind === 'skip') return done();
     if (Rules.isBlind(p)) { log.ability = '技能被偷襲封鎖'; return done(); }
 
     const target = action.targetId ? U.byId(room, action.targetId) : null;
     switch (action.kind) {
-      case 'fang':
+      case 'fang': {
         if (p.role !== '方震' || !target || target.id === pid) return false;
+        const alreadyChecked = Engine.fangCheckedIds(room, pid);
+        if (alreadyChecked.has(target.id)) return false;
         log.fangTargetId = target.id;
         log.fangCamp = GD.isGood(target.role) ? 'good' : 'evil';
+        const thumb = log.fangCamp === 'good' ? '👍' : '👎';
         log.ability = `查驗【${target.name}】陣營為：${log.fangCamp === 'good' ? '許願陣營（好人）' : '老朝奉陣營（壞人）'}`;
-        log.skillTag = `🔍驗${target.name.slice(0, 2)}`;
+        log.skillTag = `🔍${target.name.slice(0, 2)}${thumb}`;
         break;
+      }
       case 'lao':
         if (p.role !== '老朝奉') return false;
         if (action.active) { rd.laoActive = true; log.ability = '發動【擾亂】（其後好人查驗真偽反轉）'; log.skillTag = '🎭擾亂'; }
@@ -205,27 +215,36 @@
     return done();
   };
 
-  /** 指定下一位；全員已行動時 nextId 傳 null，由尾家結束查驗並進入發言 */
   Engine.pass = function (room, pid, nextId) {
     if (!myTurn(room, pid, 'c')) return false;
     const rd = U.curRound(room), p = U.byId(room, pid), log = Engine.log(room, pid);
+    ensureInPassOrder(rd, pid);
+
+    room.players.forEach(pl => {
+      if (rd.turnLogs[pl.id] && rd.turnLogs[pl.id].step === 'c' && !rd.passOrder.includes(pl.id)) {
+        rd.passOrder.splice(Math.max(0, rd.passOrder.length - 1), 0, pl.id);
+      }
+    });
+
     const remaining = room.players.filter(x => !rd.passOrder.includes(x.id));
-    if (remaining.length) {
-      if (!remaining.some(x => x.id === nextId)) return false;
-      rd.passOrder.push(nextId);
-      log.nextPlayerId = nextId;
-      room.currentTurnPlayerId = nextId;
+    if (remaining.length > 0) {
+      const actualNextId = (remaining.length === 1 && !nextId) ? remaining[0].id : nextId;
+      if (!remaining.some(x => x.id === actualNextId)) return false;
+      rd.passOrder.push(actualNextId);
+      log.nextPlayerId = actualNextId;
+      room.currentTurnPlayerId = actualNextId;
     } else {
       startDiscussion(room, rd, pid);
     }
-    p.isAmbushed = false;                                    // 失明只持續到自己行動完
+    p.isAmbushed = false;
     return true;
   };
 
   function startDiscussion(room, rd, tailId) {
     const seats = U.seated(room);
-    const t = seats.findIndex(p => p.id === tailId);
-    rd.speechOrder = Array.from({ length: seats.length }, (_, i) => seats[(t + 1 + i) % seats.length].id);  // 尾家左手邊開始，尾家壓軸
+    const actualTailId = (rd.passOrder && rd.passOrder.length) ? rd.passOrder[rd.passOrder.length - 1] : tailId;
+    const t = Math.max(0, seats.findIndex(p => p.id === actualTailId));
+    rd.speechOrder = Array.from({ length: seats.length }, (_, i) => seats[(t + 1 + i) % seats.length].id);
     rd.speechIndex = 0;
     room.currentSpeakerId = rd.speechOrder[0];
     room.currentTurnPlayerId = null;
@@ -234,19 +253,16 @@
 
   /* ---------------------------------------------------------------- 發言 */
 
-  /**
-   * source: 'human' | 'bot' | 'gemini'；summary 由呼叫端提供（真人語音）或在此自動產生
-   * 解析結果存進 speech.p，電腦玩家與覆盤共用，不必重複解析。
-   */
   Engine.speak = function (room, pid, { text, source = 'human', summary = null, pass = false }) {
     if (room.status !== 'discussion' || room.currentSpeakerId !== pid) return false;
     const rd = U.curRound(room), p = U.byId(room, pid);
     const body = pass ? '（過，先聽後面的人分析）' : String(text || '').trim();
     if (!body) return false;
     const parsed = pass ? Claims.parse('', room) : Claims.parse(body, room);
-    const label = source === 'human' ? '[真人]' : '[AI]';
+    const isHuman = p ? !p.isBot : (source === 'human');
+    const label = isHuman ? '[真人]' : '[AI]';
     rd.speeches.push({
-      playerId: pid, speakerName: p.name, colorId: p.colorId, text: body, source,
+      playerId: pid, speakerName: p.name, colorId: p.colorId, text: body, source: isHuman ? 'human' : source,
       summary: pass ? `${label} 選擇先過` : (summary || Claims.summarize(parsed, label, room, body)),
       p: parsed, time: new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
     });
@@ -258,37 +274,64 @@
 
   /* ---------------------------------------------------------------- 鑑寶投票 */
 
+  Engine.availableChips = function (room, pid) {
+    const rIdx = room.currentRoundIdx || 0;
+    const totalGranted = (rIdx + 1) * (C.CHIPS_PER_ROUND || 2);
+    let spentBefore = 0;
+    for (let i = 0; i < rIdx; i++) {
+      const prevVotes = (room.rounds[i] && room.rounds[i].votes && room.rounds[i].votes[pid]) || {};
+      spentBefore += U.sum(Object.values(prevVotes).map(v => parseInt(v, 10) || 0));
+    }
+    return Math.max(0, totalGranted - spentBefore);
+  };
+
   Engine.vote = function (room, pid, ballot) {
     if (room.status !== 'voting') return false;
     const rd = U.curRound(room), p = U.byId(room, pid);
-    if (!p || rd.votes[pid] !== undefined || rd.voteResults) return false;
+    if (!p || rd.voteResults) return false;
+
+    const existing = rd.votes[pid];
+    const existingSum = existing ? U.sum(Object.values(existing).map(v => parseInt(v, 10) || 0)) : 0;
+    const incomingSum = U.sum(Object.values(ballot || {}).map(v => parseInt(v, 10) || 0));
+    if (existing !== undefined && existingSum > 0 && incomingSum === 0) return false;
+    if (existing !== undefined && existingSum > 0 && incomingSum > 0) return false;
+
     const clean = {};
     let spend = 0;
     for (const [name, raw] of Object.entries(ballot || {})) {
       const n = parseInt(raw, 10) || 0;
       if (n <= 0) continue;
       if (!rd.beasts.some(b => b.name === name)) return false;
-      clean[name] = n; spend += n;
+      clean[name] = n;
+      spend += n;
     }
-    if (spend > p.voteBank) return false;
-    p.voteBank -= spend;                                     // 沒投完的籌碼自動保留到下一輪
+
+    const maxChips = Engine.availableChips(room, pid);
+    if (spend > maxChips) return false;
+
     rd.votes[pid] = clean;
-    if (room.players.every(x => rd.votes[x.id] !== undefined)) rd.voteResults = Rules.tally(room, rd);
+    p.voteBank = maxChips - spend;
+
+    if (room.players.length === 8 && room.players.every(x => rd.votes[x.id] !== undefined)) {
+      rd.voteResults = Rules.tally(room, rd);
+    }
     return true;
   };
 
-  /** 開票完成後進入下一回合（或終局鑑人）。可由任何玩家觸發，重複呼叫無副作用 */
   Engine.advance = function (room) {
     if (room.status !== 'voting' || !U.curRound(room).voteResults) return false;
     const idx = room.currentRoundIdx, rd = U.curRound(room);
     if (idx >= 2) { room.status = 'person_voting'; return true; }
-    const tail = rd.passOrder[rd.passOrder.length - 1];
+    const tail = rd.passOrder[rd.passOrder.length - 1] || room.players[0].id;
     const next = Engine.drawRound(room, idx + 2);
     next.passOrder = [tail];
     room.rounds.push(next);
     room.players.forEach(p => {
-      p.voteBank += C.CHIPS_PER_ROUND;
-      p.isAmbushed = !!p.pendingAmbush;                      // 偷已行動者：效果延續到下一回合
+      const prevAvail = Engine.availableChips(room, p.id);
+      const curBallot = rd.votes[p.id] || {};
+      const curSpent = U.sum(Object.values(curBallot).map(v => parseInt(v, 10) || 0));
+      p.voteBank = Math.max(0, prevAvail - curSpent) + C.CHIPS_PER_ROUND;
+      p.isAmbushed = !!p.pendingAmbush;
       p.pendingAmbush = false;
     });
     room.currentRoundIdx = idx + 1;
@@ -303,17 +346,14 @@
     if (room.status !== 'person_voting' || pid === targetId) return false;
     if (!U.byId(room, pid) || !U.byId(room, targetId) || room.personVotes[pid]) return false;
     room.personVotes[pid] = targetId;
-    if (room.players.every(p => room.personVotes[p.id])) {
+    if (room.players.length === 8 && room.players.every(p => room.personVotes[p.id])) {
       room.gameOver = Rules.score(room);
       room.status = 'gameover';
     }
     return true;
   };
 
-  /* ---------------------------------------------------------------- 查詢輔助 */
-
   Engine.remainingToAct = room => room.players.filter(p => !U.curRound(room).passOrder.includes(p.id));
-
   Engine.humans = room => room.players.filter(p => !p.isBot);
 
   GD.Engine = Engine;
