@@ -551,11 +551,7 @@
 
     initMediaSystem();
     if (floatPlayer) floatPlayer.style.display = 'flex';
-    if (!sessionStorage.getItem('gd_intro_played')) {
-      openIntroVideo(false);
-    } else {
-      tryPlayLobbyBgm();
-    }
+    openIntroVideo(false);
   };
   UI.renderHints = renderHints;
 })(window.GD);
