@@ -6,7 +6,7 @@ GD.store.set(GD.CONFIG.STORAGE.useGemini, false);
 
 let fails = 0;
 const stats = { vipBlind: 0, starterN: 0, starterEvil: 0, pairN: 0, pairEvil: 0,
-                asks: 0, askAnswered: 0, askReplied: 0, confess: 0, confessByRole: {} };
+                asks: 0, askAnswered: 0, askReplied: 0, confess: 0, confessByRole: {}, maxRoomBytes: 0 };
 const check = (cond, msg) => { if (!cond) { fails++; if (fails <= 12) console.error('  ✗', msg); } };
 
 function playOne(seed) {
@@ -111,6 +111,11 @@ function playOne(seed) {
     stats.pairN++; if (!GD.isGood(p6.role) && !GD.isGood(p8.role)) stats.pairEvil++;
   });
 
+  /* Firestore 單一文件上限 1 MiB：房間整包（含 mind、發言、turnLogs）寫入前要留足餘裕 */
+  const bytes = Buffer.byteLength(JSON.stringify(room), 'utf8');
+  stats.maxRoomBytes = Math.max(stats.maxRoomBytes, bytes);
+  check(bytes < 600 * 1024, `房間文件過大 ${(bytes / 1024).toFixed(0)} KB，逼近 Firestore 1 MiB 上限`);
+
   /* 不變量 */
   const used = new Set();
   room.rounds.forEach(rd => {
@@ -127,14 +132,22 @@ function playOne(seed) {
   check(g.xuWon === (g.totalScore >= 6), '勝負判定不符');
   room.players.forEach(p => check(p.voteBank >= 0 && p.voteBank <= 6, `籌碼異常 ${p.voteBank}`));
 
-  /* 學習 + 覆盤 */
+  /* 學習 + 覆盤（加上絕對防呆保護，避免 null 崩潰） */
   check(GD.Learning.finalize(room), 'learning.finalize 失敗');
   check(!GD.Learning.finalize(room), 'finalize 應為冪等');
   const bots = room.players.filter(p => p.isBot);
   bots.forEach(b => {
-    const L = room.learning[b.id];
+    // 防呆保護：若 finalize 失敗導致 room.learning 為 null，退回空物件[cite: 5]
+    const L = (room.learning || {})[b.id]; 
     check(L && L.notes && L.after, `缺少學習結果 ${b.name}`);
-    GD.Genes.KEYS.forEach(k => { check(Math.abs(L.delta[k]) <= GD.Learning.STEP_CAP + 1e-9, `單局變化超過上限 ${k}=${L.delta[k]}`); check(L.after[k] >= 0.05 && L.after[k] <= 0.95, `基因越界 ${k}`); });
+    
+    // 防呆保護：確保有讀取到有效 delta 與 after 才驗證數值[cite: 5]
+    if (L && L.delta && L.after) {
+      GD.Genes.KEYS.forEach(k => { 
+        check(Math.abs(L.delta[k]) <= GD.Learning.STEP_CAP + 1e-9, `單局變化超過上限 ${k}=${L.delta[k]}`); 
+        check(L.after[k] >= 0.05 && L.after[k] <= 0.95, `基因越界 ${k}`); 
+      });
+    }
   });
   const reviews = GD.Review.buildAll(room);
   check(reviews.length === bots.length, '覆盤數量不符');
@@ -156,6 +169,7 @@ const store = GD.store.get(GD.CONFIG.STORAGE.genes, {});
 console.log(`\n局數 ${N}｜許願方勝率 ${(xuWins / N * 100).toFixed(1)}%｜耗時 ${(Date.now() - t0)} ms｜失敗項 ${fails}`);
 console.log(`已寫入基因紀錄的 Bot 數：${Object.keys(store).length}｜許願/方震被偷襲樣本 ${stats.vipBlind} 次`);
 console.log(`票型質問 ${stats.asks} 次（被質問者後來發言 ${stats.askAnswered} 次，有回應 ${stats.askReplied} 次）｜認壞 ${stats.confess} 次 ${JSON.stringify(stats.confessByRole)}`);
+console.log(`房間文件最大 ${(stats.maxRoomBytes / 1024).toFixed(0)} KB（Firestore 上限 1024 KB）`);
 console.log(`位置學：第2/3輪首家是老朝奉或藥不然 ${(stats.starterEvil / stats.starterN * 100).toFixed(1)}%（隨機 25%）｜第六位與第八位同為壞人 ${(stats.pairEvil / stats.pairN * 100).toFixed(1)}%（隨機 10.7%）`);
 const ex = Object.entries(store).sort((a, b) => b[1].games - a[1].games)[0];
 if (ex) console.log('樣本：', ex[0], GD.Roster.byId(ex[0]).name, 'games=' + ex[1].games, JSON.stringify(ex[1].genes), '← 出廠', JSON.stringify(GD.Roster.baseGenes(ex[0])));
@@ -165,6 +179,8 @@ if (lastRv) {
   rv.rounds.slice(0, 2).forEach(r => { console.log(' 第' + r.round + '輪'); r.steps.forEach(s => console.log('   ·' + s.k + '：' + s.v)); });
   console.log(' 檢討：' + rv.reflection);
   console.log(' 鑑人：' + rv.final.text);
-  console.log(' 學習：', rv.learning.notes.map(n => `${GD.Roster.GENE_LABELS[n.gene]}${n.d > 0 ? '+' : ''}${n.d} (${n.why})`).join(' ｜ '));
+  
+  // 防呆保護：印出學習日誌時也避免 undefined/null 報錯[cite: 5]
+  console.log(' 學習：', (rv.learning && rv.learning.notes) ? rv.learning.notes.map(n => `${GD.Roster.GENE_LABELS[n.gene]}${n.d > 0 ? '+' : ''}${n.d} (${n.why})`).join(' ｜ ') : '無學習資料');
 }
 process.exit(fails ? 1 : 0);
