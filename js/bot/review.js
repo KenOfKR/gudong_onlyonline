@@ -1,12 +1,13 @@
 /* ============================================================================
- * bot/review.js — AI Deduction Mind-Map（終局推理覆盤）
+ * bot/review.js — AI Deduction Mind-Map（終局推理覆盤・基於原版擴充首家鐵律與跨輪排除）
  *
  * 覆盤內容全部取自賽中寫入的 round.mind[botId]（當時的推理依據、後驗機率、查驗矛盾、
  * 發言計畫），再對照終局揭曉的真相產生「事後檢討」，不是事後編故事。
  * 本模組只產生資料結構，HTML 由 ui/gameover.js 渲染。
  * ========================================================================== */
-(function (GD) {
+(function (root) {
   'use strict';
+  const GD = root.GD || (root.GD = {});
   const { U } = GD;
   const B = n => `【${n}】`;
   const real = v => (v ? '真品' : '贗品');
@@ -90,14 +91,45 @@
       }
     }
 
-    /* ② 矛盾：前手 vs 我 */
+    /* ② 矛盾：前手 vs 我（含緊鄰直踩、首家不反轉鐵律與跨輪排除法） */
     if (m && m.conflicts.length) {
+      const elimSet = new Set(m.eliminatedFromLaoIds || []);
+      const interSet = new Set(m.laoIntersectIds || []);
       m.conflicts.forEach(c => {
         const spk = U.byId(room, c.speakerId);
+        // ★ 完整列出所有前置區間人選，移除原本的 .slice(0, 4) 截斷
         const mids = (c.between || []).map(id => U.tag(U.byId(room, id))).filter(Boolean);
         const spkReal = spk ? (GD.isGood(spk.role) ? '好人' : '壞人') : '?';
-        out.steps.push({ k: '發現查驗矛盾', v: `第 ${r + 1} 輪我發現前手${U.tag(spk)}在${U.nth(c.speakerPos)}報${B(c.beast)}${c.claim ? '真' : '假'}，但我在${U.nth(c.myPos)}看到的是${c.saw ? '真' : '假'}，因此我推測${mids.length > 1 ? `中間（${mids.slice(0, 4).join('、')}）有人被老朝奉反轉，或` : ''}他本人在說謊。` +
-          `【事後揭曉】${U.tag(spk)}真身是${spk && spk.role}（${spkReal}）${spk && !GD.isGood(spk.role) ? '——我的懷疑正確。' : '——他其實可能只是被擾亂反轉而不自知。'}` });
+        const elimTags = (c.between || []).filter(id => elimSet.has(id)).map(id => U.tag(U.byId(room, id))).filter(Boolean);
+        const interTags = (c.between || []).filter(id => interSet.has(id)).map(id => U.tag(U.byId(room, id))).filter(Boolean);
+        const crossNote = (elimTags.length > 0 && interTags.length > 0)
+          ? `；結合前輪老朝奉反轉區間交叉比對，可把${elimTags.join('、')}排除，將老朝奉鎖定在${interTags.join('、')}之中`
+          : '';
+
+        let inferClause = '';
+        if (c.isAdjacent && c.speakerPos < c.myPos) {
+          inferClause = `因為${U.nth(c.speakerPos)}直接傳給我${U.nth(c.myPos)}，中間完全沒別人，我直接斷定不是${U.tag(spk)}在說謊騙票，就是他本人按下了老朝奉擾亂。`;
+        } else if (c.speakerPos === 0 && c.speakerPos < c.myPos) {
+          inferClause = `因為第一位（首家）絕對不會被擾亂反轉，因此若${U.tag(spk)}不是壞人說謊，就必定是排在我前面的行動者（${mids.join('、')}）有人啟動了老朝奉擾亂，把我${U.nth(c.myPos)}的查驗視野反轉了${crossNote}。`;
+        } else {
+          inferClause = `因此我推測${mids.length > 1 ? `中間（${mids.join('、')}）有人啟動老朝奉反轉，或` : ''}他本人在說謊${crossNote}。`;
+        }
+
+        let revealClause = '';
+        if (spk && !GD.isGood(spk.role)) {
+          revealClause = `【事後揭曉】${U.tag(spk)}真身是${spk.role}（${spkReal}）——我的懷疑正確。`;
+        } else if (c.speakerPos === 0) {
+          revealClause = `【事後揭曉】${U.tag(spk)}真身是${spk && spk.role}（${spkReal}）——他是首家不會被反轉，確實是後續傳遞區間內的老朝奉啟動了擾亂，把我${U.nth(c.myPos)}看到的結果反轉了。`;
+        } else if (c.myPos === 0) {
+          revealClause = `【事後揭曉】${U.tag(spk)}真身是${spk && spk.role}（${spkReal}）——我是首家看到真身，他在${U.nth(c.speakerPos)}其實是被擾亂反轉而不自知。`;
+        } else {
+          revealClause = `【事後揭曉】${U.tag(spk)}真身是${spk && spk.role}（${spkReal}）——我們之間的傳遞區間被老朝奉擾亂切開，導致好人視野相反。`;
+        }
+
+        out.steps.push({
+          k: '發現查驗矛盾',
+          v: `第 ${r + 1} 輪我發現前手${U.tag(spk)}在${U.nth(c.speakerPos)}報${B(c.beast)}${c.claim ? '真' : '假'}，但我在${U.nth(c.myPos)}看到的是${c.saw ? '真' : '假'}，${inferClause}${revealClause}`
+        });
       });
     }
 
@@ -149,7 +181,8 @@
 
   /** 總結：本局這位電腦的表現（給學習引擎的前言）*/
   function reflection(room, bot) {
-    const facts = GD.Learning.ballotFacts(room, bot), good = GD.isGood(bot.role);
+    const facts = (GD.Learning && GD.Learning.ballotFacts) ? GD.Learning.ballotFacts(room, bot) : { real: 0, fake: 0, duped: [] };
+    const good = GD.isGood(bot.role);
     if (good) {
       if (facts.duped.length) {
         const d = facts.duped[0], liar = U.byId(room, d.liarId);
@@ -174,4 +207,5 @@
   }
 
   GD.Review = { build, buildAll: room => room.players.filter(p => p.isBot).map(b => build(room, b)) };
-})(window.GD);
+  if (typeof module !== 'undefined' && module.exports) module.exports = GD.Review;
+})(typeof window !== 'undefined' ? window : global);

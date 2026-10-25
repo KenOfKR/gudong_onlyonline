@@ -1,8 +1,9 @@
 /* ============================================================================
- * bot/learning.js — BotLearningEngine（自我學習與基因修正・含後段反轉誤判自信調降）
+ * bot/learning.js — BotLearningEngine（雙環境相容版）
  * ========================================================================== */
-(function (GD) {
+(function (root) {
   'use strict';
+  const GD = root.GD || (root.GD = {});
   const { U, Genes } = GD;
   const STEP_CAP = 0.10;
   const REVERT = 0.06;
@@ -40,7 +41,6 @@
     const minds = room.rounds.map(rd => rd.mind[bot.id]).filter(Boolean);
 
     if (good) {
-      /* --- 鑑寶票：被騙票 / 全中 --- */
       if (f.duped.length) {
         const liar = U.byId(room, f.duped[0].liarId);
         add('skepticism', 0.04 + 0.02 * Math.min(2, f.duped.length - 1),
@@ -52,7 +52,6 @@
         add('skepticism', -0.015, `三輪 ${f.real} 票全中真品，判斷穩定，略微放鬆多疑`);
       }
 
-      /* --- 後段順位遭老朝奉反轉卻過度自信重壓贗品：調降自信值 (assertiveness) --- */
       room.rounds.forEach((rd, rIdx) => {
         const myPos = rd.passOrder.indexOf(bot.id);
         const myLog = rd.turnLogs[bot.id] || { inspect: [] };
@@ -69,7 +68,6 @@
         });
       });
 
-      /* --- 終局鑑人 --- */
       const hitLao = target && target.id === lao.id;
       const followed = bot.final && bot.final.followId;
       if (hitLao) {
@@ -86,7 +84,6 @@
         }
       }
 
-      /* --- 身分暴露 --- */
       if (bot.role === '許願' && g.xuCaught) add('assertiveness', -0.04, '許願被老朝奉指認，發言曝光度偏高，收斂鋒芒');
       if (bot.role === '方震') {
         const pushed = minds.some(m => m.suspectId);
@@ -95,7 +92,6 @@
       }
       if (!won) add('skepticism', 0.02, '本局許願陣營落敗，整體再提高警覺');
     } else {
-      /* --- 壞人：帶風向成效 --- */
       const lies = minds.filter(m => m.mode === 'lie' || m.mode === 'follow');
       lies.forEach(m => {
         const rd = room.rounds.find(r => r.mind[bot.id] === m);
@@ -107,7 +103,6 @@
       });
       const honest = minds.filter(m => m.mode === 'camouflage').length;
 
-      /* --- 壞人：是否被識破 --- */
       const goodVotes = room.players.filter(p => GD.isGood(p.role) && room.personVotes[p.id] === bot.id).length;
       if (bot.role === '老朝奉') {
         if (g.laoCaught) add('camouflage', 0.06, `鑑人環節 ${g.votesForLao}/${g.goodCount} 位好人指認我，偽裝失敗`);
@@ -122,7 +117,6 @@
         if (g.fangCaught) add('assertiveness', 0.02, '成功指認方震，偵測亮牌者有效');
       }
 
-      /* --- 壞人：策略失衡 --- */
       if (!won) {
         if (lies.length <= 1 && honest >= 2) add('deception', 0.05, `三輪有 ${honest} 輪只講真話，沒能干擾好人票型就輸了，需要更積極帶風向`);
         else if (f.real > f.fake + 1) add('deception', 0.03, `我投出 ${f.real} 張真品票、僅 ${f.fake} 張贗品票，幫好人加了太多分`);
@@ -172,4 +166,7 @@
   }
 
   GD.Learning = { evaluate, finalize, ballotFacts, STEP_CAP };
-})(window.GD);
+  
+  // Node.js 匯出支援
+  if (typeof module !== 'undefined' && module.exports) module.exports = GD.Learning;
+})(typeof window !== 'undefined' ? window : global);

@@ -1,11 +1,12 @@
 /* ============================================================================
- * bot/speech.js — 發言生成
+ * bot/speech.js — 發言生成（基於原版嚴格擴充：緊鄰直踩、首家不反轉與跨輪排除）
  *   buildPrompt   結構化 Prompt：[我是誰與身分][我的私密查驗][前手發言與真人號召紀錄][歷史開票真偽]
  *   localSpeech   無網路 / Gemini 失敗時的本地說服型發言（同樣含：查驗矛盾→偽裝或帶風向→明確號召）
  *   validate      檢查 Gemini 輸出是否與計畫一致（不得講錯獸首、不得與自己的查驗矛盾、必須號召）
  * ========================================================================== */
-(function (GD) {
+(function (root) {
   'use strict';
+  const GD = root.GD || (root.GD = {});
   const { U, Claims } = GD;
   const B = n => `【${n}】`;
   const real = v => (v ? '真' : '假');
@@ -51,7 +52,16 @@
     const partner = ctx.partner ? `你的秘密同伴是 ${U.tag(ctx.partner)}（${ctx.partner.role}）。` : (bot.role === '鄭國渠' ? '你不知道同伴是誰。' : '');
     const conflicts = Object.values(A.prof).flatMap(r => r.conflicts).filter(c => c.round === ctx.t + 1);
     const conflictTxt = conflicts.length
-      ? conflicts.map(c => `${U.tag(U.byId(room, c.speakerId))}在${U.nth(c.speakerPos)}宣稱${B(c.beast)}${real(c.claim)}，但你在${U.nth(c.myPos)}親眼看到${real(c.saw)}（矛盾！不是他說謊，就是區間內有人啟動擾亂）`).join('\n')
+      ? conflicts.map(c => {
+          const spk = U.byId(room, c.speakerId);
+          if (c.isAdjacent && c.speakerPos < c.myPos) {
+            return `${U.tag(spk)}在${U.nth(c.speakerPos)}緊鄰傳給你${U.nth(c.myPos)}，宣稱${B(c.beast)}${real(c.claim)}，但你親眼看到${real(c.saw)}（中間根本沒別人！100%是他在騙票或他本人啟動擾亂，請直接踩他）`;
+          }
+          if (c.speakerPos === 0 && c.speakerPos < c.myPos) {
+            return `${U.tag(spk)}在第一位（首家不會被反轉）宣稱${B(c.beast)}${real(c.claim)}，但你在${U.nth(c.myPos)}親眼看到${real(c.saw)}（不是首家騙人，就是前面傳遞區間有人啟動老朝奉擾亂反轉了你的視野）`;
+          }
+          return `${U.tag(spk)}在${U.nth(c.speakerPos)}宣稱${B(c.beast)}${real(c.claim)}，但你在${U.nth(c.myPos)}親眼看到${real(c.saw)}（矛盾！不是他說謊，就是區間內有人啟動擾亂）`;
+        }).join('\n')
       : '（目前沒有與你查驗直接矛盾的前手宣稱）';
     const top = A.topSuspect;
 
@@ -115,12 +125,34 @@
     const parts = plan.confess ? [] : [opener];
     const pos = U.nth(ctx.myPos);
 
-    /* ① 查驗矛盾 */
+    /* ① 查驗矛盾（優先挑本輪打算公開報出的獸首，避免許願報出第 2 尊） */
+    const plannedBeasts = new Set((plan.claims || []).map(c => c.beast));
     const conflicts = Object.values(A.prof).flatMap(r => r.conflicts).filter(c => c.round === ctx.t + 1);
-    if (ctx.isGood && conflicts.length) {
-      const c = conflicts[0], sp = U.byId(room, c.speakerId);
-      const mid = c.between.map(id => U.tag(U.byId(room, id))).filter(Boolean);
-      parts.push(`先對時序：${U.tag(sp)}在${U.nth(c.speakerPos)}說${B(c.beast)}是${real(c.claim)}品，但我${pos}親眼看到的是${real(c.saw)}品，兩邊對不上。要嘛他在騙票，要嘛${U.nth(Math.min(c.speakerPos, c.myPos))}到${U.nth(Math.max(c.speakerPos, c.myPos))}之間${mid.length > 1 ? `（${mid.slice(0, 3).join('、')}）` : ''}有人開了擾亂。`);
+    const matchedConflict = conflicts.find(c => plannedBeasts.has(c.beast)) || conflicts[0];
+
+    if (ctx.isGood && matchedConflict) {
+      const c = matchedConflict, sp = U.byId(room, c.speakerId);
+      const mid = (c.between || []).map(id => U.tag(U.byId(room, id))).filter(Boolean);
+      // 若這尊獸首在 plan.claims 裡（不是許願隱藏的第 2 尊），才直接講出「看到的是真/假品」，否則只講「對不上」以免許願雙報違規
+      const canSayMySaw = plannedBeasts.has(c.beast);
+      const contrastClause = canSayMySaw
+        ? `說${B(c.beast)}是${real(c.claim)}品，但我${pos}親眼看到的是${real(c.saw)}品，兩邊對不上`
+        : `說${B(c.beast)}是${real(c.claim)}品，但跟我${pos}掌握的線索對不上`;
+
+      if (c.isAdjacent && c.speakerPos < c.myPos) {
+        /* ★ 修正 1：第四位傳給第五位，中間沒人，直接踩死前手 */
+        parts.push(`先對時序：${U.tag(sp)}在${U.nth(c.speakerPos)}${contrastClause}。${U.nth(c.speakerPos)}直接傳給我${pos}，中間根本沒別人，他不是在騙票，就是本人開了擾亂！`);
+      } else if (c.speakerPos === 0 && c.speakerPos < c.myPos) {
+        /* ★ 修正 3：前手是首家（第一位），首家不會被反轉，並結合跨輪交集消去法 */
+        const elimIds = (A.eliminatedFromLaoIds || []).filter(id => (c.between || []).includes(id));
+        const interIds = (A.laoIntersectIds || []).filter(id => (c.between || []).includes(id));
+        const crossTxt = (elimIds.length > 0 && interIds.length > 0)
+          ? `；結合前輪反轉時序排除${elimIds.map(id => U.tag(U.byId(room, id))).join('、')}，老朝奉就鎖定在${interIds.map(id => U.tag(U.byId(room, id))).join('、')}之中`
+          : '';
+        parts.push(`先對時序：${U.tag(sp)}在第一位${contrastClause}。首家不會被反轉，要嘛他首家騙票，要嘛前面（${mid.join('、')}）有人開了擾亂反轉了我的視野${crossTxt}。`);
+      } else {
+        parts.push(`先對時序：${U.tag(sp)}在${U.nth(c.speakerPos)}${contrastClause}。要嘛他在騙票，要嘛${U.nth(Math.min(c.speakerPos, c.myPos))}到${U.nth(Math.max(c.speakerPos, c.myPos))}之間${mid.length > 1 ? `（${mid.join('、')}）` : ''}有人開了擾亂。`);
+      }
     } else if (ctx.isGood && ctx.t > 0 && A.topSuspect && A.topSuspect.evil >= 20) {
       /* 只引用 said（可公開的理由）。reasons 含私密依據（方震查驗、同伴身分），絕不可說出口 */
       parts.push(`回頭看前輪鐵證：${U.tag(A.topSuspect.player)}${A.topSuspect.said[0] ? `——${A.topSuspect.said[0]}` : '——票型與發言對不上'}，這輪他推的線請大家特別小心。`);
@@ -228,4 +260,5 @@
   }
 
   GD.Speech = { buildPrompt, localSpeech, validate, history };
-})(window.GD);
+  if (typeof module !== 'undefined' && module.exports) module.exports = GD.Speech;
+})(typeof window !== 'undefined' ? window : global);

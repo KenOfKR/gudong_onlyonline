@@ -1,8 +1,9 @@
 /* ============================================================================
- * bot/mind.js — PersuasiveMindEngine（說服型推理大腦・順位衰減與擋刀強化版）
+ * bot/mind.js — PersuasiveMindEngine（說服型推理大腦・時序交集與3壞人重盤強化版）
  * ========================================================================== */
-(function (GD) {
+(function (root) {
   'use strict';
+  const GD = root.GD || (root.GD = {});
   const { U, Rules } = GD;
   const EVIL = ['老朝奉', '藥不然', '鄭國渠'];
   const CONFIGS = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]];
@@ -24,8 +25,10 @@
     };
   }
 
-  const blank = p => ({ player: p, evil: 0, ally: 0, logits: {}, reasons: [], said: [], conflicts: [],
-                        confessed: false, knownEvil: false, pubFake: 0 });
+  const blank = p => ({
+    player: p, evil: 0, ally: 0, logits: {}, reasons: [], said: [], conflicts: [],
+    confessed: false, knownEvil: false, pubFake: 0, inLaoPoolCount: 0
+  });
 
   function pubFakeVotes(room, pid, t) {
     const out = [];
@@ -36,6 +39,7 @@
     }
     return out;
   }
+
   function bump(rec, { evil = 0, ally = 0, roles = null, why = null, say }) {
     rec.evil += evil; rec.ally += ally;
     if (roles) for (const [r, d] of Object.entries(roles)) rec.logits[r] = (rec.logits[r] || 0) + d;
@@ -53,6 +57,8 @@
     if (ctx.partner && prof[ctx.partner.id]) {
       bump(prof[ctx.partner.id], { ally: 100, roles: { [ctx.partner.role]: 12 }, why: '我的秘密同伴', say: null });
     }
+
+    const laoPools = [];
 
     for (let r = 0; r <= t; r++) {
       const rd = room.rounds[r], pass = rd.passOrder, R = `第${r + 1}輪`;
@@ -85,7 +91,6 @@
         }));
       }
 
-      /* 壞人視角抓方震（同時會被好人的「穿方震衣服擋刀」吸引火力！） */
       if (!isGood) {
         const mineAmb = me.ambushIds || [];
         const claimedBeastsSoFar = new Set();
@@ -93,7 +98,6 @@
           const rec = prof[sp.playerId];
           if (!rec || !sp.p) return;
           const rawTxt = String(sp.text || '');
-          // 若有人公開宣稱查驗某人陣營（不報獸首、改報驗人，包含好人穿方震衣服擋刀！），藥不然會高度懷疑他是方震
           if ((sp.p.campChecks && sp.p.campChecks.length) || /查驗.*陣營|不談獸首.*查驗/.test(rawTxt)) {
             bump(rec, { roles: { '方震': 2.6 }, why: `${R}公開宣稱查驗玩家陣營、不報獸首，極像【方震】`, say: null });
           }
@@ -121,28 +125,51 @@
         bump(rec, { ally: 60, why: `${R}公開認壞，確定是自己人`, say: null });
       });
 
+      /* ★ 好人查驗矛盾分析：緊鄰順位零距離直踩 ＆ 首家不反轉鐵律 */
       if (isGood) {
         ins.forEach(i => (rd.speeches || []).forEach(sp => {
           if (sp.playerId === bot.id || !prof[sp.playerId]) return;
           const a = pass.indexOf(sp.playerId);
+          if (a < 0 || myPos < 0) return;
           (sp.p?.claims || []).filter(c => c.beast === i.beastName).forEach(c => {
             if (c.real === i.displayedReal) {
               bump(prof[sp.playerId], { ally: 14, roles: { '許願': 0.4 } });
               return;
             }
             const lo = Math.min(a, myPos), hi = Math.max(a, myPos);
-            const between = pass.slice(lo, hi + 1).filter(x => x !== bot.id);
-            bump(prof[sp.playerId], {
-              evil: 25 * (0.55 + sk), roles: { '老朝奉': 1.4 * (0.6 + sk) },
-              why: `${R}在${U.nth(a)}宣稱【${c.beast}】${c.real ? '真' : '假'}，與我${U.nth(myPos)}看到的${i.displayedReal ? '真品' : '贗品'}相反`
-            });
-            between.forEach(pid => pid !== sp.playerId && prof[pid] && bump(prof[pid], {
-              evil: 11 * (0.5 + sk), roles: { '老朝奉': 1.1 / Math.sqrt(between.length) },
-              why: `${R}位於【${c.beast}】真偽矛盾的傳遞區間內`
-            }));
+            // 可能在 lo 到 hi 之間按擾亂的人：包含 lo 到 hi-1（因為 hi 查驗時還沒輪到 hi 按技能）
+            const flipPool = pass.slice(lo, hi).filter(x => x !== bot.id);
+            const isAdjacent = (hi - lo === 1);
+
+            if (isAdjacent && a < myPos) {
+              // 緊鄰前手（例如第 4 位直接傳給第 5 位），中間完全沒別人！
+              bump(prof[sp.playerId], {
+                evil: 46 * (0.65 + sk),
+                roles: { '老朝奉': 2.6 * (0.65 + sk), '藥不然': 0.8, '鄭國渠': 0.8 },
+                why: `${R}在${U.nth(a)}緊鄰傳給我${U.nth(myPos)}，中間無人卻與我查驗的【${c.beast}】相反，必為他說謊或本人啟動老朝奉擾亂`
+              });
+            } else {
+              const spkWeight = a === 0 ? 18 * (0.5 + sk) : 25 * (0.55 + sk);
+              bump(prof[sp.playerId], {
+                evil: spkWeight, roles: { '老朝奉': 1.4 * (0.6 + sk) },
+                why: `${R}在${U.nth(a)}宣稱【${c.beast}】${c.real ? '真' : '假'}，與我${U.nth(myPos)}看到的${i.displayedReal ? '真品' : '贗品'}相反`
+              });
+              flipPool.forEach(pid => pid !== sp.playerId && prof[pid] && bump(prof[pid], {
+                evil: 12 * (0.5 + sk), roles: { '老朝奉': 1.25 / Math.sqrt(Math.max(1, flipPool.length)) },
+                why: `${R}位於【${c.beast}】真偽矛盾的傳遞區間內`
+              }));
+            }
+
+            if (bot.role !== '姬雲浮' && flipPool.length > 0) {
+              laoPools.push({ round: r + 1, reason: `【${c.beast}】查驗矛盾區間`, ids: flipPool });
+            }
+
             prof[sp.playerId].conflicts.push({
               round: r + 1, beast: c.beast, speakerId: sp.playerId, speakerPos: a, claim: c.real,
-              myPos, saw: i.displayedReal, between: between.map(x => x)
+              myPos, saw: i.displayedReal,
+              between: flipPool.map(x => x),
+              isAdjacent,
+              speakerIsFirst: a === 0
             });
           });
         }));
@@ -151,10 +178,31 @@
       if (rd.voteResults) {
         const known = {};
         const r2 = rd.voteResults.rank2;
+        const r1 = rd.voteResults.rank1;
         known[r2.name] = { real: r2.isReal, w: 1, pub: true };
-        /* ★ 位置越後面驗的獸首越不可信（Positional Decay）：
-           第 1 棒 (myPos===0)、姬雲浮、壞人不會被反轉，權重 0.96；
-           一般好人從第 2 棒的 0.82 一路遞減至第 8 棒的 0.30！ */
+
+        /* ★ 若公開第二名 r2 的真偽與我當輪查驗相反 -> 證明我這輪被老朝奉反轉，鎖定前置位必有老朝奉 */
+        if (isGood && bot.role !== '姬雲浮' && myPos > 0) {
+          const myR2Ins = ins.find(i => i.beastName === r2.name);
+          if (myR2Ins && myR2Ins.displayedReal !== r2.isReal) {
+            const frontIds = pass.slice(0, myPos).filter(id => id !== bot.id);
+            if (frontIds.length) {
+              laoPools.push({
+                round: r + 1,
+                reason: `${R}我查驗【${r2.name}】遭反轉，前置行動者必有老朝奉`,
+                ids: frontIds,
+                confirmedFlip: true
+              });
+              frontIds.forEach(pid => prof[pid] && bump(prof[pid], {
+                evil: 22 / Math.sqrt(frontIds.length),
+                roles: { '老朝奉': 1.8 / Math.sqrt(frontIds.length) },
+                why: `${R}我查驗【${r2.name}】遭反轉，他排在我前面的順位區間內，具老朝奉高度嫌疑`,
+                say: null
+              }));
+            }
+          }
+        }
+
         const posReliability = (bot.role === '姬雲浮' || !isGood || myPos === 0)
           ? 0.96
           : Math.max(0.30, 0.90 - Math.max(0, myPos) * 0.085);
@@ -180,20 +228,32 @@
           });
         }
 
+        const r1SuspectWeight = (isGood && r2.isReal && r1 && r1.votes >= 8 && !known[r1.name]) ? 0.35 : 0;
+
         Object.entries(rd.votes || {}).forEach(([vid, ballot]) => {
           const rec = prof[vid]; if (!rec) return;
           Object.entries(ballot).forEach(([name, cnt]) => {
-            const k = known[name]; if (!k || cnt <= 0) return;
-            if (!k.real && k.pub) rec.pubFake += cnt;
-            if (!k.real) {
+            if (cnt <= 0) return;
+            const k = known[name];
+            if (k) {
+              if (!k.real && k.pub) rec.pubFake += cnt;
+              if (!k.real) {
+                bump(rec, {
+                  evil: cnt * 18 * k.w * (0.6 + sk * 0.8),
+                  roles: { '老朝奉': 0.8 * cnt * k.w },
+                  why: `${R}把 ${cnt} 票投給${k.pub ? '已公開' : (k.deduced ? '由2真2假反推確認' : '我查驗確認')}的贗品【${name}】`,
+                  say: k.pub ? undefined : null
+                });
+              } else {
+                bump(rec, { ally: cnt * 14 * k.w, roles: { '許願': 0.65 * cnt * k.w } });
+              }
+            } else if (r1SuspectWeight > 0 && name === r1.name) {
               bump(rec, {
-                evil: cnt * 18 * k.w * (0.6 + sk * 0.8),
-                roles: { '老朝奉': 0.8 * cnt * k.w },
-                why: `${R}把 ${cnt} 票投給${k.pub ? '已公開' : (k.deduced ? '由2真2假反推確認' : '我查驗確認')}的贗品【${name}】`,
-                say: k.pub ? undefined : null
+                evil: cnt * 10 * r1SuspectWeight * (0.5 + sk * 0.5),
+                roles: { '老朝奉': 0.3 * cnt, '鄭國渠': 0.3 * cnt },
+                why: `${R}第二名【${r2.name}】公開為真品，他卻把 ${cnt} 票灌在高票第一名【${r1.name}】（${r1.votes}票）上`,
+                say: `${R}把 ${cnt} 票灌在高票封存的【${r1.name}】上壓過真品【${r2.name}】`
               });
-            } else {
-              bump(rec, { ally: cnt * 14 * k.w, roles: { '許願': 0.65 * cnt * k.w } });
             }
           });
         });
@@ -218,8 +278,10 @@
         const rec = prof[sp.playerId];
         if (!rec || !sp.p || !sp.p.selfEvil) return;
         rec.confessed = true;
-        bump(rec, { evil: 10, roles: { '老朝奉': 0.2, '藥不然': 1.1, '鄭國渠': 1.1, '許願': -6, '方震': -6, '姬雲浮': -6, '黃煙煙': -6, '木戶加奈': -6 },
-                    why: `${R}自己公開認壞` });
+        bump(rec, {
+          evil: 10, roles: { '老朝奉': 0.2, '藥不然': 1.1, '鄭國渠': 1.1, '許願': -6, '方震': -6, '姬雲浮': -6, '黃煙煙': -6, '木戶加奈': -6 },
+          why: `${R}自己公開認壞`
+        });
       });
 
       if (isGood) (rd.speeches || []).forEach((sp, i) => (sp.p?.asked || []).forEach(aid => {
@@ -255,9 +317,69 @@
     }
 
     if (isGood) Object.values(prof).forEach(rec => {
-      if (rec.pubFake >= 3) bump(rec, { evil: (rec.pubFake - 2) * 12, roles: { '老朝奉': 0.5 },
-        why: `累計 ${rec.pubFake} 票投在已公開的贗品上` });
+      if (rec.pubFake >= 3) bump(rec, {
+        evil: (rec.pubFake - 2) * 12, roles: { '老朝奉': 0.5 },
+        why: `累計 ${rec.pubFake} 票投在已公開的贗品上`
+      });
     });
+
+    /* ★ 跨輪老朝奉候選池交集消去法 + 「場上只有 3 個壞人」總量重盤機制 */
+    let laoIntersectIds = [];
+    let eliminatedFromLaoIds = [];
+    let reEvalNote = null;
+
+    if (isGood && laoPools.length > 0) {
+      laoPools.forEach(pool => {
+        pool.ids.forEach(id => { if (prof[id]) prof[id].inLaoPoolCount++; });
+      });
+      if (laoPools.length >= 2) {
+        let inter = [...new Set(laoPools[0].ids)];
+        for (let idx = 1; idx < laoPools.length; idx++) {
+          const nextSet = new Set(laoPools[idx].ids);
+          const nextInter = inter.filter(id => nextSet.has(id));
+          if (nextInter.length > 0) inter = nextInter;
+        }
+        laoIntersectIds = inter;
+        const unionIds = [...new Set(laoPools.flatMap(p => p.ids))];
+        eliminatedFromLaoIds = unionIds.filter(id => !laoIntersectIds.includes(id));
+
+        laoIntersectIds.forEach(id => {
+          if (prof[id]) bump(prof[id], {
+            evil: 18, roles: { '老朝奉': 1.6 },
+            why: `跨輪時序交集鎖定：同時出現在多輪老朝奉反轉區間內，嫌疑極高`,
+            say: `跨輪時序交集都在老朝奉反轉區間內`
+          });
+        });
+        eliminatedFromLaoIds.forEach(id => {
+          if (prof[id]) bump(prof[id], {
+            evil: -8, roles: { '老朝奉': -1.4 },
+            why: `跨輪區間消去法：未同時出現在前輪老朝奉反轉區間內，排除老朝奉嫌疑`,
+            say: null
+          });
+        });
+      } else {
+        laoIntersectIds = [...new Set(laoPools[0].ids)];
+      }
+    }
+
+    if (isGood) {
+      const highSus = Object.values(prof).filter(r => r.evil >= 25).sort((a, b) => b.evil - a.evil);
+      if (highSus.length > 3) {
+        const core3 = highSus.slice(0, 3);
+        const pardoned = highSus.slice(3);
+        const pardonedNames = pardoned.map(r => U.tag(r.player)).join('、');
+        const coreNames = core3.map(r => U.tag(r.player)).join('、');
+        pardoned.forEach(r => {
+          r.evil = Math.max(10, r.evil * 0.65);
+        });
+        reEvalNote = `盤點全場發現可疑者超過 3 人，但壞人只有 3 個！考量好人可能遭反轉誤報或擋刀說假話、壞人也會順風報真話，我結合跨輪時序交集重盤排除${pardonedNames}，將核心壞人鎖定在${coreNames}`;
+      }
+    }
+
+    ctx.laoPools = laoPools;
+    ctx.laoIntersectIds = laoIntersectIds;
+    ctx.eliminatedFromLaoIds = eliminatedFromLaoIds;
+    ctx.reEvalNote = reEvalNote;
 
     Object.values(prof).forEach(rec => {
       const roles = GD.ROLE_ORDER.filter(x => x !== bot.role);
@@ -270,14 +392,10 @@
     return prof;
   }
 
-  /* ------------------------------------------------------------------------
-   * 階段 2：本輪「世界線」貝氏後驗（含傳遞順位可信度衰減）
-   * ---------------------------------------------------------------------- */
   function posterior(ctx, prof) {
     const { rd, pass, myPos, myIns, isGood, bot, names } = ctx;
     const NONE = 8;
     const ks = [NONE, 0, 1, 2, 3, 4, 5, 6, 7].filter(k => !(isGood && k === myPos));
-    // 實戰中老朝奉約有 78% 機率會在前段開擾亂，因此排越後面的好人，k < myPos 反轉世界線權重累積越高
     let prior = k => (k === NONE ? 0.22 : 0.78 / (ks.length - 1));
     if (bot.role === '老朝奉') {
       const used = ctx.log.skillTag === '🎭擾亂';
@@ -287,7 +405,6 @@
     const trustOf = (pid, sp) => {
       const r = prof[pid];
       const spPos = Math.max(0, pass.indexOf(pid));
-      // ★ 順位衰減係數：越前面查驗的人（第 1、2 棒）資訊越乾淨，越後面（第 6~8 棒）越不可信
       const posFactor = (sp && sp.p && sp.p.selfEvil) ? 0 : (0.08 - spPos * 0.04);
       if (!r) return U.clamp(base * 0.9 + posFactor, 0.08, 0.95);
       if (sp && sp.p && sp.p.selfEvil) return isGood ? 0.6 : 0.95;
@@ -331,9 +448,11 @@
     if (ctx.isGood && pst.confident) {
       ctx.pass.forEach((pid, k) => {
         if (prof[pid] && pst.laoAt[k] > 0.12) {
-          bump(prof[pid], { evil: pst.laoAt[k] * 40, roles: { '老朝奉': pst.laoAt[k] * 2 },
+          bump(prof[pid], {
+            evil: pst.laoAt[k] * 40, roles: { '老朝奉': pst.laoAt[k] * 2 },
             why: `第${ctx.t + 1}輪世界線推演：${Math.round(pst.laoAt[k] * 100)}% 機率他在${U.nth(k)}啟動了擾亂`,
-            say: `他在${U.nth(k)}的位置，時序上最像開了擾亂的人` });
+            say: `他在${U.nth(k)}的位置，時序上最像開了擾亂的人`
+          });
         }
       });
     }
@@ -353,7 +472,11 @@
       fakeVoters: list.filter(r => r.pubFake >= 2 && !r.knownEvil && !(ctx.partner && r.player.id === ctx.partner.id))
         .sort((a, b) => b.pubFake - a.pubFake),
       myFake: pubFakeVotes(ctx.room, bot.id, ctx.t),
-      askedMe: findAskedMe(ctx)
+      askedMe: findAskedMe(ctx),
+      laoPools: ctx.laoPools || [],
+      laoIntersectIds: ctx.laoIntersectIds || [],
+      eliminatedFromLaoIds: ctx.eliminatedFromLaoIds || [],
+      reEvalNote: ctx.reEvalNote || null
     };
     return A;
   }
@@ -378,4 +501,5 @@
   }
 
   GD.Mind = { analyze, context, posterior, buildProfiles, pubFakeVotes, EVIL };
-})(window.GD);
+  if (typeof module !== 'undefined' && module.exports) module.exports = GD.Mind;
+})(typeof window !== 'undefined' ? window : global);
