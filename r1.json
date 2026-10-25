@@ -1,0 +1,4064 @@
+{
+  "v": 9,
+  "roomId": "test_bench_1",
+  "hostId": null,
+  "hostBeat": 0,
+  "gameId": "g_ffs6h61m",
+  "status": "gameover",
+  "closed": false,
+  "currentRoundIdx": 2,
+  "currentTurnPlayerId": null,
+  "currentSpeakerId": null,
+  "turnStartTime": 0,
+  "deck": [
+    "鼠",
+    "牛",
+    "虎",
+    "兔",
+    "龍",
+    "蛇",
+    "馬",
+    "羊",
+    "猴",
+    "雞",
+    "狗",
+    "豬"
+  ],
+  "players": [
+    {
+      "id": "bot_bot_017_1iujtymd",
+      "name": "薏涵",
+      "isBot": true,
+      "botId": "bot_017",
+      "colorId": "black",
+      "seatIndex": 0,
+      "role": "許願",
+      "voteBank": 0,
+      "isAmbushed": false,
+      "isPermanentlyAmbushed": false,
+      "pendingAmbush": false,
+      "confusedRound": -1,
+      "genes": {
+        "skepticism": 0.66,
+        "deception": 0.42,
+        "camouflage": 0.37,
+        "assertiveness": 0.7,
+        "conformity": 0.27
+      },
+      "brain": {},
+      "final": {
+        "why": "貫徹自己發言時鋪的梗",
+        "followId": null,
+        "top": [
+          {
+            "id": "bot_bot_036_1l5419ev",
+            "evil": 145,
+            "probs": {
+              "老朝奉": 97,
+              "藥不然": 1,
+              "方震": 0
+            },
+            "reasons": [
+              "累計 4 票投在已公開的贗品上",
+              "第3輪在第七位宣稱【虎】是真品，開票卻當場翻出【虎】是贗品",
+              "第3輪把 2 票投給已公開的贗品【虎】"
+            ]
+          },
+          {
+            "id": "bot_bot_004_juxllg1s",
+            "evil": 88,
+            "probs": {
+              "老朝奉": 88,
+              "藥不然": 3,
+              "方震": 2
+            },
+            "reasons": [
+              "第3輪把 2 票投給已公開的贗品【虎】",
+              "第3輪在第一位宣稱【鼠】假，與我第四位看到的真品相反",
+              "第2輪第六位把手機控成第八位尾家（六控八）"
+            ]
+          },
+          {
+            "id": "bot_bot_013_1q2g3usa",
+            "evil": 78,
+            "probs": {
+              "老朝奉": 72,
+              "藥不然": 10,
+              "方震": 3
+            },
+            "reasons": [
+              "第3輪第六位把手機控成第八位尾家（六控八）",
+              "第2輪在第六位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品",
+              "第2輪把 2 票投給已公開的贗品【龍】"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bot_bot_004_juxllg1s",
+      "name": "順欸",
+      "isBot": true,
+      "botId": "bot_004",
+      "colorId": "red",
+      "seatIndex": 1,
+      "role": "黃煙煙",
+      "voteBank": 0,
+      "isAmbushed": false,
+      "isPermanentlyAmbushed": false,
+      "pendingAmbush": false,
+      "confusedRound": 1,
+      "genes": {
+        "skepticism": 0.47,
+        "deception": 0.62,
+        "camouflage": 0.45,
+        "assertiveness": 0.49,
+        "conformity": 0.5
+      },
+      "brain": {},
+      "final": {
+        "why": "貫徹自己發言時鋪的梗",
+        "followId": null,
+        "top": [
+          {
+            "id": "bot_bot_036_1l5419ev",
+            "evil": 140,
+            "probs": {
+              "老朝奉": 97,
+              "藥不然": 1,
+              "許願": 1,
+              "方震": 0
+            },
+            "reasons": [
+              "累計 4 票投在已公開的贗品上",
+              "第3輪在第七位宣稱【虎】是真品，開票卻當場翻出【虎】是贗品",
+              "第3輪把 2 票投給已公開的贗品【虎】"
+            ]
+          },
+          {
+            "id": "bot_bot_013_1q2g3usa",
+            "evil": 128,
+            "probs": {
+              "老朝奉": 98,
+              "藥不然": 1,
+              "許願": 0,
+              "方震": 0
+            },
+            "reasons": [
+              "第3輪把 2 票投給我查驗確認的贗品【鼠】",
+              "第3輪在第八位宣稱【鼠】真，與我第一位看到的贗品相反",
+              "第3輪第六位把手機控成第八位尾家（六控八）"
+            ]
+          },
+          {
+            "id": "bot_bot_028_uyt1fr1o",
+            "evil": 95,
+            "probs": {
+              "老朝奉": 89,
+              "藥不然": 3,
+              "許願": 2,
+              "方震": 2
+            },
+            "reasons": [
+              "第3輪把 3 票投給我查驗確認的贗品【鼠】",
+              "第3輪位於【鼠】真偽矛盾的傳遞區間內",
+              "第3輪第六位把手機控成第八位尾家（六控八）"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bot_bot_036_1l5419ev",
+      "name": "熊寶",
+      "isBot": true,
+      "botId": "bot_036",
+      "colorId": "orange",
+      "seatIndex": 2,
+      "role": "鄭國渠",
+      "voteBank": 0,
+      "isAmbushed": false,
+      "isPermanentlyAmbushed": false,
+      "pendingAmbush": false,
+      "confusedRound": -1,
+      "genes": {
+        "skepticism": 0.5,
+        "deception": 0.6,
+        "camouflage": 0.48,
+        "assertiveness": 0.52,
+        "conformity": 0.52
+      },
+      "brain": {},
+      "final": {
+        "why": "鄭國渠的票無效，順勢投最像好人的人",
+        "followId": null,
+        "top": [
+          {
+            "id": "bot_bot_004_juxllg1s",
+            "evil": 42,
+            "probs": {
+              "老朝奉": 41,
+              "藥不然": 17,
+              "許願": 8,
+              "方震": 8
+            },
+            "reasons": [
+              "第3輪把 2 票投給已公開的贗品【虎】",
+              "第3輪我遭藥不然偷襲致盲，他排在我之前的行動者之列"
+            ]
+          },
+          {
+            "id": "bot_bot_013_1q2g3usa",
+            "evil": 36,
+            "probs": {
+              "老朝奉": 41,
+              "藥不然": 8,
+              "許願": 13,
+              "方震": 8
+            },
+            "reasons": [
+              "第2輪把 2 票投給已公開的贗品【龍】",
+              "第2輪主動首發開出新獸首真偽線"
+            ]
+          },
+          {
+            "id": "bot_bot_017_1iujtymd",
+            "evil": 24,
+            "probs": {
+              "老朝奉": 22,
+              "藥不然": 20,
+              "許願": 15,
+              "方震": 10
+            },
+            "reasons": [
+              "第3輪把 1 票投給已公開的贗品【虎】",
+              "第3輪我遭藥不然偷襲致盲，他排在我之前的行動者之列",
+              "第1輪主動首發開出新獸首真偽線"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bot_bot_013_1q2g3usa",
+      "name": "隻貓",
+      "isBot": true,
+      "botId": "bot_013",
+      "colorId": "yellow",
+      "seatIndex": 3,
+      "role": "方震",
+      "voteBank": 0,
+      "isAmbushed": false,
+      "isPermanentlyAmbushed": false,
+      "pendingAmbush": false,
+      "confusedRound": -1,
+      "genes": {
+        "skepticism": 0.51,
+        "deception": 0.6,
+        "camouflage": 0.49,
+        "assertiveness": 0.62,
+        "conformity": 0.53
+      },
+      "brain": {},
+      "final": {
+        "why": "我以【方震】親手查驗確認橘色【熊寶】是老朝奉陣營，且其老朝奉嫌疑最高",
+        "followId": null,
+        "top": [
+          {
+            "id": "bot_bot_036_1l5419ev",
+            "evil": 228,
+            "probs": {
+              "老朝奉": 98,
+              "藥不然": 1,
+              "許願": 0
+            },
+            "reasons": [
+              "累計 4 票投在已公開的贗品上",
+              "第3輪在第七位宣稱【虎】是真品，開票卻當場翻出【虎】是贗品",
+              "第3輪把 2 票投給已公開的贗品【虎】"
+            ]
+          },
+          {
+            "id": "bot_bot_004_juxllg1s",
+            "evil": 52,
+            "probs": {
+              "老朝奉": 55,
+              "藥不然": 11,
+              "許願": 7
+            },
+            "reasons": [
+              "第3輪把 2 票投給已公開的贗品【虎】",
+              "第2輪第六位把手機控成第八位尾家（六控八）",
+              "第1輪第六位把手機控成第八位尾家（六控八）"
+            ]
+          },
+          {
+            "id": "bot_bot_028_uyt1fr1o",
+            "evil": 34,
+            "probs": {
+              "老朝奉": 0,
+              "藥不然": 0,
+              "許願": 25
+            },
+            "reasons": [
+              "第3輪第六位把手機控成第八位尾家（六控八）",
+              "第2輪把 1 票投給已公開的贗品【龍】",
+              "第2輪我以【方震】親手查驗確認他是好人陣營"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bot_bot_020_o4e66b1e",
+      "name": "昱全",
+      "isBot": true,
+      "botId": "bot_020",
+      "colorId": "green",
+      "seatIndex": 4,
+      "role": "藥不然",
+      "voteBank": 0,
+      "isAmbushed": false,
+      "isPermanentlyAmbushed": false,
+      "pendingAmbush": false,
+      "confusedRound": -1,
+      "genes": {
+        "skepticism": 0.88,
+        "deception": 0.45,
+        "camouflage": 0.51,
+        "assertiveness": 0.42,
+        "conformity": 0.18
+      },
+      "brain": {},
+      "final": {
+        "why": "找出最像方震的人（報陣營查驗、順風附和卻帶隊抓人，或非我偷襲卻驗不到；同伴老朝奉已排除）",
+        "followId": null,
+        "top": [
+          {
+            "id": "bot_bot_013_1q2g3usa",
+            "evil": 137,
+            "probs": {
+              "老朝奉": 95,
+              "許願": 1,
+              "方震": 1
+            },
+            "reasons": [
+              "第3輪把 2 票投給我查驗確認的贗品【鼠】",
+              "第2輪把 2 票投給已公開的贗品【龍】",
+              "第1輪把 2 票投給我查驗確認的贗品【兔】"
+            ]
+          },
+          {
+            "id": "bot_bot_028_uyt1fr1o",
+            "evil": 136,
+            "probs": {
+              "老朝奉": 95,
+              "許願": 1,
+              "方震": 1
+            },
+            "reasons": [
+              "第3輪把 3 票投給我查驗確認的贗品【鼠】",
+              "第2輪把 1 票投給已公開的贗品【龍】",
+              "第1輪把 2 票投給我查驗確認的贗品【兔】"
+            ]
+          },
+          {
+            "id": "bot_bot_036_1l5419ev",
+            "evil": 94,
+            "probs": {
+              "老朝奉": 62,
+              "許願": 23,
+              "方震": 3
+            },
+            "reasons": [
+              "第3輪把 2 票投給已公開的贗品【虎】",
+              "第3輪主動首發開出新獸首真偽線",
+              "第2輪把 2 票投給已公開的贗品【龍】"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bot_bot_028_uyt1fr1o",
+      "name": "克雷爾",
+      "isBot": true,
+      "botId": "bot_028",
+      "colorId": "blue",
+      "seatIndex": 5,
+      "role": "姬雲浮",
+      "voteBank": 0,
+      "isAmbushed": false,
+      "isPermanentlyAmbushed": true,
+      "pendingAmbush": false,
+      "confusedRound": -1,
+      "genes": {
+        "skepticism": 0.67,
+        "deception": 0.58,
+        "camouflage": 0.38,
+        "assertiveness": 0.79,
+        "conformity": 0.27
+      },
+      "brain": {},
+      "final": {
+        "why": "貫徹自己發言時鋪的梗",
+        "followId": null,
+        "top": [
+          {
+            "id": "bot_bot_036_1l5419ev",
+            "evil": 151,
+            "probs": {
+              "老朝奉": 95,
+              "藥不然": 2,
+              "許願": 1,
+              "方震": 0
+            },
+            "reasons": [
+              "累計 4 票投在已公開的贗品上",
+              "第3輪在第七位宣稱【虎】是真品，開票卻當場翻出【虎】是贗品",
+              "第3輪把 2 票投給已公開的贗品【虎】"
+            ]
+          },
+          {
+            "id": "bot_bot_013_1q2g3usa",
+            "evil": 84,
+            "probs": {
+              "老朝奉": 67,
+              "藥不然": 17,
+              "許願": 3,
+              "方震": 3
+            },
+            "reasons": [
+              "第3輪第六位把手機控成第八位尾家（六控八）",
+              "第2輪在第六位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品",
+              "第2輪把 2 票投給已公開的贗品【龍】"
+            ]
+          },
+          {
+            "id": "bot_bot_004_juxllg1s",
+            "evil": 71,
+            "probs": {
+              "老朝奉": 40,
+              "藥不然": 36,
+              "許願": 5,
+              "方震": 5
+            },
+            "reasons": [
+              "第3輪把 2 票投給已公開的贗品【虎】",
+              "第3輪我遭藥不然偷襲致盲，他排在我之前的行動者之列",
+              "第2輪第六位把手機控成第八位尾家（六控八）"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bot_bot_033_9nhhji1y",
+      "name": "Alli",
+      "isBot": true,
+      "botId": "bot_033",
+      "colorId": "purple",
+      "seatIndex": 6,
+      "role": "木戶加奈",
+      "voteBank": 0,
+      "isAmbushed": false,
+      "isPermanentlyAmbushed": false,
+      "pendingAmbush": false,
+      "confusedRound": 0,
+      "genes": {
+        "skepticism": 0.77,
+        "deception": 0.52,
+        "camouflage": 0.48,
+        "assertiveness": 0.68,
+        "conformity": 0.37
+      },
+      "brain": {},
+      "final": {
+        "why": "綜合三輪證據，橘色【熊寶】老朝奉機率最高",
+        "followId": null,
+        "top": [
+          {
+            "id": "bot_bot_036_1l5419ev",
+            "evil": 154,
+            "probs": {
+              "老朝奉": 96,
+              "藥不然": 1,
+              "許願": 1,
+              "方震": 0
+            },
+            "reasons": [
+              "累計 4 票投在已公開的贗品上",
+              "第3輪在第七位宣稱【虎】是真品，開票卻當場翻出【虎】是贗品",
+              "第3輪把 2 票投給已公開的贗品【虎】"
+            ]
+          },
+          {
+            "id": "bot_bot_013_1q2g3usa",
+            "evil": 83,
+            "probs": {
+              "老朝奉": 72,
+              "藥不然": 10,
+              "許願": 3,
+              "方震": 3
+            },
+            "reasons": [
+              "第3輪第六位把手機控成第八位尾家（六控八）",
+              "第2輪在第六位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品",
+              "第2輪把 2 票投給已公開的贗品【龍】"
+            ]
+          },
+          {
+            "id": "bot_bot_004_juxllg1s",
+            "evil": 71,
+            "probs": {
+              "老朝奉": 37,
+              "藥不然": 22,
+              "許願": 22,
+              "方震": 5
+            },
+            "reasons": [
+              "第3輪把 2 票投給已公開的贗品【虎】",
+              "第3輪我遭藥不然偷襲致盲，他排在我之前的行動者之列",
+              "第2輪第六位把手機控成第八位尾家（六控八）"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "bot_bot_003_1itql9hy",
+      "name": "水豚",
+      "isBot": true,
+      "botId": "bot_003",
+      "colorId": "white",
+      "seatIndex": 7,
+      "role": "老朝奉",
+      "voteBank": 0,
+      "isAmbushed": false,
+      "isPermanentlyAmbushed": false,
+      "pendingAmbush": false,
+      "confusedRound": -1,
+      "genes": {
+        "skepticism": 0.49,
+        "deception": 0.71,
+        "camouflage": 0.57,
+        "assertiveness": 0.55,
+        "conformity": 0.46
+      },
+      "brain": {},
+      "final": {
+        "why": "找出最像許願的人（一路說真話、票投得準；同伴藥不然已排除）",
+        "followId": null,
+        "top": [
+          {
+            "id": "bot_bot_036_1l5419ev",
+            "evil": 71,
+            "probs": {
+              "藥不然": 1,
+              "許願": 96,
+              "方震": 1
+            },
+            "reasons": [
+              "行為指紋：多次未宣告卻精準命中真品",
+              "第3輪把 2 票投給已公開的贗品【虎】",
+              "第3輪主動首發開出新獸首真偽線"
+            ]
+          },
+          {
+            "id": "bot_bot_013_1q2g3usa",
+            "evil": 70,
+            "probs": {
+              "藥不然": 14,
+              "許願": 14,
+              "方震": 14
+            },
+            "reasons": [
+              "第3輪把 2 票投給我查驗確認的贗品【鼠】",
+              "第2輪把 2 票投給已公開的贗品【龍】"
+            ]
+          },
+          {
+            "id": "bot_bot_028_uyt1fr1o",
+            "evil": 69,
+            "probs": {
+              "藥不然": 14,
+              "許願": 14,
+              "方震": 14
+            },
+            "reasons": [
+              "第3輪把 3 票投給我查驗確認的贗品【鼠】",
+              "第2輪把 1 票投給已公開的贗品【龍】"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "spectators": [],
+  "rounds": [
+    {
+      "roundNum": 1,
+      "beasts": [
+        {
+          "name": "牛",
+          "isReal": true
+        },
+        {
+          "name": "兔",
+          "isReal": false
+        },
+        {
+          "name": "羊",
+          "isReal": false
+        },
+        {
+          "name": "狗",
+          "isReal": true
+        }
+      ],
+      "passOrder": [
+        "bot_bot_020_o4e66b1e",
+        "bot_bot_003_1itql9hy",
+        "bot_bot_017_1iujtymd",
+        "bot_bot_013_1q2g3usa",
+        "bot_bot_036_1l5419ev",
+        "bot_bot_004_juxllg1s",
+        "bot_bot_033_9nhhji1y",
+        "bot_bot_028_uyt1fr1o"
+      ],
+      "turnLogs": {
+        "bot_bot_020_o4e66b1e": {
+          "inspect": [
+            {
+              "beastName": "兔",
+              "resultText": "【兔】 【贗品】",
+              "displayedReal": false,
+              "kind": "ok",
+              "flipped": false
+            }
+          ],
+          "ability": "暗中偷襲【克雷爾】",
+          "skillTag": "🗡️襲克雷",
+          "blind": false,
+          "step": "c",
+          "ambushIds": [
+            "bot_bot_028_uyt1fr1o"
+          ],
+          "ambushTargetId": "bot_bot_028_uyt1fr1o",
+          "passWhy": "我剛暗中偷襲了目標，絕不能直接把手機交給受害者暴露自己在上一棒，先傳給白色【水豚】墊一棒製造不在場證明",
+          "nextPlayerId": "bot_bot_003_1itql9hy"
+        },
+        "bot_bot_003_1itql9hy": {
+          "inspect": [
+            {
+              "beastName": "牛",
+              "resultText": "【牛】 【真品】",
+              "displayedReal": true,
+              "kind": "ok",
+              "flipped": false
+            }
+          ],
+          "ability": "發動【擾亂】（其後好人查驗真偽反轉）",
+          "skillTag": "🎭擾亂",
+          "blind": false,
+          "step": "c",
+          "passWhy": "擾亂已啟動，把查驗機會送給看起來最像好人的他，讓他看到被反轉的結果並拿去帶偏好人（目前沒有任何可疑紀錄）",
+          "nextPlayerId": "bot_bot_017_1iujtymd"
+        },
+        "bot_bot_017_1iujtymd": {
+          "inspect": [
+            {
+              "beastName": "牛",
+              "resultText": "【牛】 【贗品】",
+              "displayedReal": false,
+              "kind": "ok",
+              "flipped": true
+            },
+            {
+              "beastName": "兔",
+              "resultText": "【兔】 【真品】",
+              "displayedReal": true,
+              "kind": "ok",
+              "flipped": true
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": false,
+          "step": "c",
+          "passWhy": "他是剩下的人裡我最放心的好人人選（目前沒有任何可疑紀錄），先讓他查驗掌握乾淨資訊",
+          "nextPlayerId": "bot_bot_013_1q2g3usa"
+        },
+        "bot_bot_013_1q2g3usa": {
+          "inspect": [],
+          "ability": "查驗【熊寶】陣營為：老朝奉陣營（壞人）",
+          "skillTag": "🔍熊寶👎",
+          "blind": false,
+          "step": "c",
+          "fangTargetId": "bot_bot_036_1l5419ev",
+          "fangCamp": "evil",
+          "passWhy": "我親手查驗出橘色【熊寶】是壞人，為避免他被放到第八位（尾家）白拿下一回合首家優勢與尾家控制權，現在直接把手機傳給他卡死位置",
+          "nextPlayerId": "bot_bot_036_1l5419ev"
+        },
+        "bot_bot_036_1l5419ev": {
+          "inspect": [
+            {
+              "beastName": "牛",
+              "resultText": "【牛】 【真品】",
+              "displayedReal": true,
+              "kind": "ok",
+              "flipped": false
+            }
+          ],
+          "ability": "封鎖【牛】首",
+          "skillTag": "⛓️封牛",
+          "blind": false,
+          "step": "c",
+          "passWhy": "擾亂已啟動，把查驗機會送給看起來最像好人的他，讓他看到被反轉的結果並拿去帶偏好人（目前沒有任何可疑紀錄）",
+          "nextPlayerId": "bot_bot_004_juxllg1s"
+        },
+        "bot_bot_004_juxllg1s": {
+          "inspect": [
+            {
+              "beastName": "牛",
+              "resultText": "【牛】 無法辨別真偽！",
+              "displayedReal": null,
+              "kind": "blocked"
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": false,
+          "step": "c",
+          "passWhy": "他是剩下的人裡我最放心的好人人選（目前沒有任何可疑紀錄），先讓他查驗掌握乾淨資訊",
+          "nextPlayerId": "bot_bot_033_9nhhji1y"
+        },
+        "bot_bot_033_9nhhji1y": {
+          "inspect": [
+            {
+              "beastName": "狗",
+              "resultText": "【狗】 無法辨別真偽！",
+              "displayedReal": null,
+              "kind": "confused"
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": false,
+          "step": "c",
+          "passWhy": "只剩他還沒行動，沒有其他選擇",
+          "nextPlayerId": "bot_bot_028_uyt1fr1o"
+        },
+        "bot_bot_028_uyt1fr1o": {
+          "inspect": [
+            {
+              "beastName": "牛",
+              "resultText": "【牛】 💥 你被偷襲，眼前一片黑！",
+              "displayedReal": null,
+              "kind": "blind"
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": true,
+          "step": "c"
+        }
+      },
+      "laoActive": true,
+      "blockedBeast": "牛",
+      "speechOrder": [
+        "bot_bot_033_9nhhji1y",
+        "bot_bot_003_1itql9hy",
+        "bot_bot_017_1iujtymd",
+        "bot_bot_004_juxllg1s",
+        "bot_bot_036_1l5419ev",
+        "bot_bot_013_1q2g3usa",
+        "bot_bot_020_o4e66b1e",
+        "bot_bot_028_uyt1fr1o"
+      ],
+      "speechIndex": 8,
+      "speeches": [
+        {
+          "playerId": "bot_bot_033_9nhhji1y",
+          "speakerName": "Alli",
+          "colorId": "purple",
+          "text": "我在第七位查驗，看到。",
+          "source": "bot",
+          "summary": "[AI] 我在第七位查驗，看到。（無明確宣稱）",
+          "p": {
+            "claims": [],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_003_1itql9hy",
+          "speakerName": "水豚",
+          "colorId": "white",
+          "text": "我在第二位，目前沒什麼特別的資訊。",
+          "source": "bot",
+          "summary": "[AI] 我在第二位，目前沒什麼特別的資訊。（無明確宣稱）",
+          "p": {
+            "claims": [],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_017_1iujtymd",
+          "speakerName": "薏涵",
+          "colorId": "black",
+          "text": "我驗了，【兔】是真品。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【兔】真",
+          "p": {
+            "claims": [
+              {
+                "beast": "兔",
+                "real": true
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_004_juxllg1s",
+          "speakerName": "順欸",
+          "colorId": "red",
+          "text": "我驗了，。",
+          "source": "bot",
+          "summary": "[AI] 我驗了，。（無明確宣稱）",
+          "p": {
+            "claims": [],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_036_1l5419ev",
+          "speakerName": "熊寶",
+          "colorId": "orange",
+          "text": "我在第五位，目前沒什麼特別的資訊。",
+          "source": "bot",
+          "summary": "[AI] 我在第五位，目前沒什麼特別的資訊。（無明確宣稱）",
+          "p": {
+            "claims": [],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_013_1q2g3usa",
+          "speakerName": "隻貓",
+          "colorId": "yellow",
+          "text": "我在第四位查驗，看到【兔】是真品。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【兔】真",
+          "p": {
+            "claims": [
+              {
+                "beast": "兔",
+                "real": true
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_020_o4e66b1e",
+          "speakerName": "昱全",
+          "colorId": "green",
+          "text": "我在第一位，目前沒什麼特別的資訊。",
+          "source": "bot",
+          "summary": "[AI] 我在第一位，目前沒什麼特別的資訊。（無明確宣稱）",
+          "p": {
+            "claims": [],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_028_uyt1fr1o",
+          "speakerName": "克雷爾",
+          "colorId": "blue",
+          "text": "【兔】我看是真品，大家可以參考。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【兔】真",
+          "p": {
+            "claims": [
+              {
+                "beast": "兔",
+                "real": true
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        }
+      ],
+      "votes": {
+        "bot_bot_017_1iujtymd": {
+          "兔": 2
+        },
+        "bot_bot_004_juxllg1s": {
+          "兔": 1
+        },
+        "bot_bot_036_1l5419ev": {
+          "牛": 2
+        },
+        "bot_bot_013_1q2g3usa": {
+          "兔": 2
+        },
+        "bot_bot_020_o4e66b1e": {
+          "羊": 1,
+          "兔": 1
+        },
+        "bot_bot_028_uyt1fr1o": {
+          "兔": 2
+        },
+        "bot_bot_033_9nhhji1y": {
+          "牛": 2
+        },
+        "bot_bot_003_1itql9hy": {
+          "牛": 2
+        }
+      },
+      "voteResults": {
+        "rank1": {
+          "name": "兔",
+          "votes": 8,
+          "isReal": false,
+          "hidden": true
+        },
+        "rank2": {
+          "name": "牛",
+          "votes": 6,
+          "isReal": true,
+          "hidden": false
+        },
+        "totals": {
+          "牛": 6,
+          "兔": 8,
+          "羊": 1,
+          "狗": 0
+        },
+        "chips": {
+          "牛": [
+            {
+              "voterId": "bot_bot_036_1l5419ev",
+              "voterName": "熊寶",
+              "colorId": "orange"
+            },
+            {
+              "voterId": "bot_bot_036_1l5419ev",
+              "voterName": "熊寶",
+              "colorId": "orange"
+            },
+            {
+              "voterId": "bot_bot_033_9nhhji1y",
+              "voterName": "Alli",
+              "colorId": "purple"
+            },
+            {
+              "voterId": "bot_bot_033_9nhhji1y",
+              "voterName": "Alli",
+              "colorId": "purple"
+            },
+            {
+              "voterId": "bot_bot_003_1itql9hy",
+              "voterName": "水豚",
+              "colorId": "white"
+            },
+            {
+              "voterId": "bot_bot_003_1itql9hy",
+              "voterName": "水豚",
+              "colorId": "white"
+            }
+          ],
+          "兔": [
+            {
+              "voterId": "bot_bot_017_1iujtymd",
+              "voterName": "薏涵",
+              "colorId": "black"
+            },
+            {
+              "voterId": "bot_bot_017_1iujtymd",
+              "voterName": "薏涵",
+              "colorId": "black"
+            },
+            {
+              "voterId": "bot_bot_004_juxllg1s",
+              "voterName": "順欸",
+              "colorId": "red"
+            },
+            {
+              "voterId": "bot_bot_013_1q2g3usa",
+              "voterName": "隻貓",
+              "colorId": "yellow"
+            },
+            {
+              "voterId": "bot_bot_013_1q2g3usa",
+              "voterName": "隻貓",
+              "colorId": "yellow"
+            },
+            {
+              "voterId": "bot_bot_020_o4e66b1e",
+              "voterName": "昱全",
+              "colorId": "green"
+            },
+            {
+              "voterId": "bot_bot_028_uyt1fr1o",
+              "voterName": "克雷爾",
+              "colorId": "blue"
+            },
+            {
+              "voterId": "bot_bot_028_uyt1fr1o",
+              "voterName": "克雷爾",
+              "colorId": "blue"
+            }
+          ],
+          "羊": [
+            {
+              "voterId": "bot_bot_020_o4e66b1e",
+              "voterName": "昱全",
+              "colorId": "green"
+            }
+          ],
+          "狗": []
+        }
+      },
+      "mind": {
+        "bot_bot_033_9nhhji1y": {
+          "pos": 6,
+          "mode": "truth",
+          "beast": "牛",
+          "avoid": [],
+          "claims": [],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": {
+            "targetId": "bot_bot_017_1iujtymd",
+            "isGoodCamp": true
+          },
+          "padBeast": null,
+          "why": [
+            "我是【木戶加奈】（知道自己不是方震），為了保護場上的真方震不被藥不然抓出，我開局主動假跳方震擋刀：不報獸首、改報查驗黑色【薏涵】是好人！"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【狗】 無法辨別真偽！"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "牛",
+              "p": 0.5
+            },
+            {
+              "name": "兔",
+              "p": 0.5
+            },
+            {
+              "name": "羊",
+              "p": 0.5
+            },
+            {
+              "name": "狗",
+              "p": 0.5
+            }
+          ],
+          "laoAt": [
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0,
+            0.111,
+            0.22
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_017_1iujtymd",
+              "evil": 0,
+              "reasons": []
+            },
+            {
+              "id": "bot_bot_004_juxllg1s",
+              "evil": 0,
+              "reasons": []
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_003_1itql9hy": {
+          "pos": 1,
+          "mode": "camouflage",
+          "beast": "牛",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "牛",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我是【老朝奉】，這輪選擇講真話偽裝成好人，票型再分 1 票給假貨"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【牛】 【真品】"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "牛",
+              "p": 0.97
+            },
+            {
+              "name": "兔",
+              "p": 0.343
+            },
+            {
+              "name": "羊",
+              "p": 0.343
+            },
+            {
+              "name": "狗",
+              "p": 0.343
+            }
+          ],
+          "laoAt": [
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_017_1iujtymd",
+              "evil": 0,
+              "reasons": []
+            },
+            {
+              "id": "bot_bot_004_juxllg1s",
+              "evil": 0,
+              "reasons": []
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_017_1iujtymd": {
+          "pos": 2,
+          "mode": "truth",
+          "beast": "兔",
+          "avoid": [
+            "牛"
+          ],
+          "claims": [
+            {
+              "beast": "兔",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "身為許願，雙查驗只報 1 尊以藏住身分",
+            "我親眼看到 【牛】假、【兔】真，結合前手宣稱，後驗最像真品的是【兔】(77%)"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【牛】 【贗品】",
+            "【兔】 【真品】"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "牛",
+              "p": 0.232
+            },
+            {
+              "name": "兔",
+              "p": 0.768
+            },
+            {
+              "name": "羊",
+              "p": 0.5
+            },
+            {
+              "name": "狗",
+              "p": 0.5
+            }
+          ],
+          "laoAt": [
+            0.111,
+            0.111,
+            0,
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0.22
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_004_juxllg1s",
+              "evil": 0,
+              "reasons": []
+            },
+            {
+              "id": "bot_bot_036_1l5419ev",
+              "evil": 0,
+              "reasons": []
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_004_juxllg1s": {
+          "pos": 5,
+          "mode": "truth",
+          "beast": "兔",
+          "avoid": [],
+          "claims": [],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "這輪我無法辨別真偽，只能依前手宣稱的可信度，後驗最像真品的是【兔】"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【牛】 無法辨別真偽！"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "牛",
+              "p": 0.449
+            },
+            {
+              "name": "兔",
+              "p": 0.654
+            },
+            {
+              "name": "羊",
+              "p": 0.449
+            },
+            {
+              "name": "狗",
+              "p": 0.449
+            }
+          ],
+          "laoAt": [
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0,
+            0.111,
+            0.111,
+            0.22
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_017_1iujtymd",
+              "evil": 0,
+              "reasons": []
+            },
+            {
+              "id": "bot_bot_036_1l5419ev",
+              "evil": 0,
+              "reasons": []
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_036_1l5419ev": {
+          "pos": 4,
+          "mode": "camouflage",
+          "beast": "牛",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "牛",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我是【鄭國渠】，這輪選擇講真話偽裝成好人，票型再分 1 票給假貨"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【牛】 【真品】"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "牛",
+              "p": 0.963
+            },
+            {
+              "name": "兔",
+              "p": 0.51
+            },
+            {
+              "name": "羊",
+              "p": 0.263
+            },
+            {
+              "name": "狗",
+              "p": 0.263
+            }
+          ],
+          "laoAt": [
+            0.127,
+            0.127,
+            0.09,
+            0.09,
+            0.09,
+            0.09,
+            0.09,
+            0.09,
+            0.204
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_017_1iujtymd",
+              "evil": 0,
+              "reasons": [
+                "第1輪主動首發開出新獸首真偽線"
+              ]
+            },
+            {
+              "id": "bot_bot_004_juxllg1s",
+              "evil": 0,
+              "reasons": []
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_013_1q2g3usa": {
+          "pos": 3,
+          "mode": "truth",
+          "beast": "兔",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "兔",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": "bot_bot_036_1l5419ev",
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我是方震，看不到獸首。為了不被藥不然靠「驗不到」認出，我把後驗最像真品的【兔】當成自己的查驗結果報出",
+            "我私下查驗出橘色【熊寶】是壞人，但現在才第 1 輪，若直接明踩喊指認會立刻暴露方震身分被藥不然抓而失分；因此我只用輕微話術暗踩提醒大家別盲從他的風向"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [],
+          "blind": false,
+          "post": [
+            {
+              "name": "牛",
+              "p": 0.45
+            },
+            {
+              "name": "兔",
+              "p": 0.65
+            },
+            {
+              "name": "羊",
+              "p": 0.45
+            },
+            {
+              "name": "狗",
+              "p": 0.45
+            }
+          ],
+          "laoAt": [
+            0.111,
+            0.111,
+            0.111,
+            0,
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0.22
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_036_1l5419ev",
+              "evil": 95,
+              "reasons": [
+                "第1輪我以【方震】親手查驗確認他是老朝奉陣營"
+              ]
+            },
+            {
+              "id": "bot_bot_017_1iujtymd",
+              "evil": 0,
+              "reasons": []
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_020_o4e66b1e": {
+          "pos": 0,
+          "mode": "camouflage",
+          "beast": "羊",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "羊",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": "兔",
+          "why": [
+            "我是【藥不然】，這輪選擇講真話偽裝成好人，票型再分 1 票給假貨"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【兔】 【贗品】"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "牛",
+              "p": 0.647
+            },
+            {
+              "name": "兔",
+              "p": 0.06
+            },
+            {
+              "name": "羊",
+              "p": 0.647
+            },
+            {
+              "name": "狗",
+              "p": 0.647
+            }
+          ],
+          "laoAt": [
+            0.241,
+            0.241,
+            0.108,
+            0.057,
+            0.057,
+            0.057,
+            0.057,
+            0.057,
+            0.128
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_017_1iujtymd",
+              "evil": 0,
+              "reasons": []
+            },
+            {
+              "id": "bot_bot_004_juxllg1s",
+              "evil": 0,
+              "reasons": []
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_028_uyt1fr1o": {
+          "pos": 7,
+          "mode": "truth",
+          "beast": "兔",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "兔",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我這輪遭偷襲、什麼都看不到，但不輕易說出被偷襲（說了只會讓壞人確認偷襲有效）；改把後驗最像真品的【兔】當成自己的查驗結果報出"
+          ],
+          "hideBlind": true,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【牛】 💥 你被偷襲，眼前一片黑！"
+          ],
+          "blind": true,
+          "post": [
+            {
+              "name": "牛",
+              "p": 0.444
+            },
+            {
+              "name": "兔",
+              "p": 0.667
+            },
+            {
+              "name": "羊",
+              "p": 0.444
+            },
+            {
+              "name": "狗",
+              "p": 0.444
+            }
+          ],
+          "laoAt": [
+            0.115,
+            0.115,
+            0.08,
+            0.115,
+            0.115,
+            0.115,
+            0.115,
+            0,
+            0.228
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_017_1iujtymd",
+              "evil": 5,
+              "reasons": [
+                "第1輪我遭藥不然偷襲致盲，他排在我之前的行動者之列"
+              ]
+            },
+            {
+              "id": "bot_bot_004_juxllg1s",
+              "evil": 5,
+              "reasons": [
+                "第1輪我遭藥不然偷襲致盲，他排在我之前的行動者之列"
+              ]
+            }
+          ],
+          "ts": 0
+        }
+      }
+    },
+    {
+      "roundNum": 2,
+      "beasts": [
+        {
+          "name": "龍",
+          "isReal": false
+        },
+        {
+          "name": "馬",
+          "isReal": true
+        },
+        {
+          "name": "猴",
+          "isReal": true
+        },
+        {
+          "name": "豬",
+          "isReal": false
+        }
+      ],
+      "passOrder": [
+        "bot_bot_028_uyt1fr1o",
+        "bot_bot_033_9nhhji1y",
+        "bot_bot_036_1l5419ev",
+        "bot_bot_003_1itql9hy",
+        "bot_bot_017_1iujtymd",
+        "bot_bot_013_1q2g3usa",
+        "bot_bot_020_o4e66b1e",
+        "bot_bot_004_juxllg1s"
+      ],
+      "turnLogs": {
+        "bot_bot_028_uyt1fr1o": {
+          "inspect": [
+            {
+              "beastName": "龍",
+              "resultText": "【龍】 💥 你被偷襲，眼前一片黑！",
+              "displayedReal": null,
+              "kind": "blind"
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": true,
+          "step": "c",
+          "passWhy": "他是剩下的人裡我最放心的好人人選（第1輪我遭藥不然偷襲致盲，他排在我之前的行動者之列），先讓他查驗掌握乾淨資訊",
+          "nextPlayerId": "bot_bot_033_9nhhji1y"
+        },
+        "bot_bot_033_9nhhji1y": {
+          "inspect": [
+            {
+              "beastName": "馬",
+              "resultText": "【馬】 【真品】",
+              "displayedReal": true,
+              "kind": "ok",
+              "flipped": false
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": false,
+          "step": "c",
+          "passWhy": "他是剩下的人裡我最放心的好人人選（目前沒有任何可疑紀錄），先讓他查驗掌握乾淨資訊",
+          "nextPlayerId": "bot_bot_036_1l5419ev"
+        },
+        "bot_bot_036_1l5419ev": {
+          "inspect": [
+            {
+              "beastName": "龍",
+              "resultText": "【龍】 【贗品】",
+              "displayedReal": false,
+              "kind": "ok",
+              "flipped": false
+            }
+          ],
+          "ability": "封鎖【龍】首",
+          "skillTag": "⛓️封龍",
+          "blind": false,
+          "step": "c",
+          "passWhy": "沒有特別需要安排的對象，隨機挑他，避免傳遞習慣被看出規律",
+          "nextPlayerId": "bot_bot_003_1itql9hy"
+        },
+        "bot_bot_003_1itql9hy": {
+          "inspect": [
+            {
+              "beastName": "龍",
+              "resultText": "【龍】 無法辨別真偽！",
+              "displayedReal": null,
+              "kind": "blocked"
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": false,
+          "step": "c",
+          "passWhy": "把同伴綠色【昱全】留到後段，爭取讓他當第 2 回合尾家、下一輪拿首家優勢；先送給看起來最像好人的對象（第1輪主動首發開出新獸首真偽線）",
+          "nextPlayerId": "bot_bot_017_1iujtymd"
+        },
+        "bot_bot_017_1iujtymd": {
+          "inspect": [
+            {
+              "beastName": "馬",
+              "resultText": "【馬】 【真品】",
+              "displayedReal": true,
+              "kind": "ok",
+              "flipped": false
+            },
+            {
+              "beastName": "猴",
+              "resultText": "【猴】 【真品】",
+              "displayedReal": true,
+              "kind": "ok",
+              "flipped": false
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": false,
+          "step": "c",
+          "passWhy": "他是剩下的人裡我最放心的好人人選（目前沒有任何可疑紀錄），先讓他查驗掌握乾淨資訊",
+          "nextPlayerId": "bot_bot_013_1q2g3usa"
+        },
+        "bot_bot_013_1q2g3usa": {
+          "inspect": [],
+          "ability": "查驗【克雷爾】陣營為：許願陣營（好人）",
+          "skillTag": "🔍克雷👍",
+          "blind": false,
+          "step": "c",
+          "fangTargetId": "bot_bot_028_uyt1fr1o",
+          "fangCamp": "good",
+          "passWhy": "他是剩下的人裡我最放心的好人人選（目前沒有任何可疑紀錄），先讓他查驗掌握乾淨資訊",
+          "nextPlayerId": "bot_bot_020_o4e66b1e"
+        },
+        "bot_bot_020_o4e66b1e": {
+          "inspect": [
+            {
+              "beastName": "馬",
+              "resultText": "【馬】 【真品】",
+              "displayedReal": true,
+              "kind": "ok",
+              "flipped": false
+            }
+          ],
+          "ability": "暗中偷襲【熊寶】",
+          "skillTag": "🗡️襲熊寶",
+          "blind": false,
+          "step": "c",
+          "ambushIds": [
+            "bot_bot_036_1l5419ev"
+          ],
+          "ambushTargetId": "bot_bot_036_1l5419ev",
+          "passWhy": "只剩他還沒行動，沒有其他選擇",
+          "nextPlayerId": "bot_bot_004_juxllg1s"
+        },
+        "bot_bot_004_juxllg1s": {
+          "inspect": [
+            {
+              "beastName": "龍",
+              "resultText": "【龍】 無法辨別真偽！",
+              "displayedReal": null,
+              "kind": "blocked"
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": false,
+          "step": "c"
+        }
+      },
+      "laoActive": false,
+      "blockedBeast": "龍",
+      "speechOrder": [
+        "bot_bot_036_1l5419ev",
+        "bot_bot_013_1q2g3usa",
+        "bot_bot_020_o4e66b1e",
+        "bot_bot_028_uyt1fr1o",
+        "bot_bot_033_9nhhji1y",
+        "bot_bot_003_1itql9hy",
+        "bot_bot_017_1iujtymd",
+        "bot_bot_004_juxllg1s"
+      ],
+      "speechIndex": 8,
+      "speeches": [
+        {
+          "playerId": "bot_bot_036_1l5419ev",
+          "speakerName": "熊寶",
+          "colorId": "orange",
+          "text": "我在第三位，查驗結果是【龍】是真品。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【龍】真",
+          "p": {
+            "claims": [
+              {
+                "beast": "龍",
+                "real": true
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_013_1q2g3usa",
+          "speakerName": "隻貓",
+          "colorId": "yellow",
+          "text": "我在第六位查驗，看到【龍】是真品。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【龍】真",
+          "p": {
+            "claims": [
+              {
+                "beast": "龍",
+                "real": true
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_020_o4e66b1e",
+          "speakerName": "昱全",
+          "colorId": "green",
+          "text": "我在第七位，目前沒什麼特別的資訊。",
+          "source": "bot",
+          "summary": "[AI] 我在第七位，目前沒什麼特別的資訊。（無明確宣稱）",
+          "p": {
+            "claims": [],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_028_uyt1fr1o",
+          "speakerName": "克雷爾",
+          "colorId": "blue",
+          "text": "我在第一位查驗，看到。",
+          "source": "bot",
+          "summary": "[AI] 我在第一位查驗，看到。（無明確宣稱）",
+          "p": {
+            "claims": [],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_033_9nhhji1y",
+          "speakerName": "Alli",
+          "colorId": "purple",
+          "text": "我在第二位查驗，看到【馬】是真品。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【馬】真",
+          "p": {
+            "claims": [
+              {
+                "beast": "馬",
+                "real": true
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_003_1itql9hy",
+          "speakerName": "水豚",
+          "colorId": "white",
+          "text": "這輪我看到【猴】是真品。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【猴】真",
+          "p": {
+            "claims": [
+              {
+                "beast": "猴",
+                "real": true
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_017_1iujtymd",
+          "speakerName": "薏涵",
+          "colorId": "black",
+          "text": "我在第五位查驗，看到【馬】是真品。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【馬】真",
+          "p": {
+            "claims": [
+              {
+                "beast": "馬",
+                "real": true
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_004_juxllg1s",
+          "speakerName": "順欸",
+          "colorId": "red",
+          "text": "我驗了，。",
+          "source": "bot",
+          "summary": "[AI] 我驗了，。（無明確宣稱）",
+          "p": {
+            "claims": [],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        }
+      ],
+      "votes": {
+        "bot_bot_017_1iujtymd": {
+          "馬": 2
+        },
+        "bot_bot_004_juxllg1s": {
+          "馬": 3
+        },
+        "bot_bot_036_1l5419ev": {
+          "龍": 2
+        },
+        "bot_bot_013_1q2g3usa": {
+          "龍": 2
+        },
+        "bot_bot_020_o4e66b1e": {
+          "馬": 2
+        },
+        "bot_bot_028_uyt1fr1o": {
+          "龍": 1
+        },
+        "bot_bot_033_9nhhji1y": {
+          "馬": 2
+        },
+        "bot_bot_003_1itql9hy": {
+          "猴": 2
+        }
+      },
+      "voteResults": {
+        "rank1": {
+          "name": "馬",
+          "votes": 9,
+          "isReal": true,
+          "hidden": true
+        },
+        "rank2": {
+          "name": "龍",
+          "votes": 5,
+          "isReal": false,
+          "hidden": false
+        },
+        "totals": {
+          "龍": 5,
+          "馬": 9,
+          "猴": 2,
+          "豬": 0
+        },
+        "chips": {
+          "龍": [
+            {
+              "voterId": "bot_bot_036_1l5419ev",
+              "voterName": "熊寶",
+              "colorId": "orange"
+            },
+            {
+              "voterId": "bot_bot_036_1l5419ev",
+              "voterName": "熊寶",
+              "colorId": "orange"
+            },
+            {
+              "voterId": "bot_bot_013_1q2g3usa",
+              "voterName": "隻貓",
+              "colorId": "yellow"
+            },
+            {
+              "voterId": "bot_bot_013_1q2g3usa",
+              "voterName": "隻貓",
+              "colorId": "yellow"
+            },
+            {
+              "voterId": "bot_bot_028_uyt1fr1o",
+              "voterName": "克雷爾",
+              "colorId": "blue"
+            }
+          ],
+          "馬": [
+            {
+              "voterId": "bot_bot_017_1iujtymd",
+              "voterName": "薏涵",
+              "colorId": "black"
+            },
+            {
+              "voterId": "bot_bot_017_1iujtymd",
+              "voterName": "薏涵",
+              "colorId": "black"
+            },
+            {
+              "voterId": "bot_bot_004_juxllg1s",
+              "voterName": "順欸",
+              "colorId": "red"
+            },
+            {
+              "voterId": "bot_bot_004_juxllg1s",
+              "voterName": "順欸",
+              "colorId": "red"
+            },
+            {
+              "voterId": "bot_bot_004_juxllg1s",
+              "voterName": "順欸",
+              "colorId": "red"
+            },
+            {
+              "voterId": "bot_bot_020_o4e66b1e",
+              "voterName": "昱全",
+              "colorId": "green"
+            },
+            {
+              "voterId": "bot_bot_020_o4e66b1e",
+              "voterName": "昱全",
+              "colorId": "green"
+            },
+            {
+              "voterId": "bot_bot_033_9nhhji1y",
+              "voterName": "Alli",
+              "colorId": "purple"
+            },
+            {
+              "voterId": "bot_bot_033_9nhhji1y",
+              "voterName": "Alli",
+              "colorId": "purple"
+            }
+          ],
+          "猴": [
+            {
+              "voterId": "bot_bot_003_1itql9hy",
+              "voterName": "水豚",
+              "colorId": "white"
+            },
+            {
+              "voterId": "bot_bot_003_1itql9hy",
+              "voterName": "水豚",
+              "colorId": "white"
+            }
+          ],
+          "豬": []
+        }
+      },
+      "mind": {
+        "bot_bot_036_1l5419ev": {
+          "pos": 2,
+          "mode": "lie",
+          "beast": "龍",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "龍",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我是【鄭國渠】，這輪帶風向：我看到【龍】是假的，卻宣稱它是真品"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【龍】 【贗品】"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "龍",
+              "p": 0.03
+            },
+            {
+              "name": "馬",
+              "p": 0.657
+            },
+            {
+              "name": "猴",
+              "p": 0.657
+            },
+            {
+              "name": "豬",
+              "p": 0.657
+            }
+          ],
+          "laoAt": [
+            0.098,
+            0.098,
+            0.098,
+            0.098,
+            0.098,
+            0.098,
+            0.098,
+            0.098,
+            0.22
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_017_1iujtymd",
+              "evil": 0,
+              "reasons": [
+                "第1輪主動首發開出新獸首真偽線"
+              ]
+            },
+            {
+              "id": "bot_bot_004_juxllg1s",
+              "evil": 0,
+              "reasons": []
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_013_1q2g3usa": {
+          "pos": 5,
+          "mode": "truth",
+          "beast": "龍",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "龍",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": "bot_bot_036_1l5419ev",
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我是方震，看不到獸首。為了不被藥不然靠「驗不到」認出，我把後驗最像真品的【龍】當成自己的查驗結果報出",
+            "我私下查驗出橘色【熊寶】是壞人，但現在才第 2 輪，若直接明踩喊指認會立刻暴露方震身分被藥不然抓而失分；因此我只用輕微話術暗踩提醒大家別盲從他的風向"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [],
+          "blind": false,
+          "post": [
+            {
+              "name": "龍",
+              "p": 0.518
+            },
+            {
+              "name": "馬",
+              "p": 0.494
+            },
+            {
+              "name": "猴",
+              "p": 0.494
+            },
+            {
+              "name": "豬",
+              "p": 0.494
+            }
+          ],
+          "laoAt": [
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0,
+            0.111,
+            0.111,
+            0.22
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_036_1l5419ev",
+              "evil": 95,
+              "reasons": [
+                "第1輪我以【方震】親手查驗確認他是老朝奉陣營"
+              ]
+            },
+            {
+              "id": "bot_bot_004_juxllg1s",
+              "evil": 8,
+              "reasons": [
+                "第1輪第六位把手機控成第八位尾家（六控八）"
+              ]
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_020_o4e66b1e": {
+          "pos": 6,
+          "mode": "camouflage",
+          "beast": "馬",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "馬",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我是【藥不然】，這輪選擇講真話偽裝成好人，票型再分 1 票給假貨"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【馬】 【真品】"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "龍",
+              "p": 0.492
+            },
+            {
+              "name": "馬",
+              "p": 0.964
+            },
+            {
+              "name": "猴",
+              "p": 0.272
+            },
+            {
+              "name": "豬",
+              "p": 0.272
+            }
+          ],
+          "laoAt": [
+            0.128,
+            0.128,
+            0.089,
+            0.089,
+            0.089,
+            0.091,
+            0.091,
+            0.091,
+            0.205
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_017_1iujtymd",
+              "evil": 45,
+              "reasons": [
+                "第1輪把 2 票投給我查驗確認的贗品【兔】"
+              ]
+            },
+            {
+              "id": "bot_bot_013_1q2g3usa",
+              "evil": 45,
+              "reasons": [
+                "第1輪把 2 票投給我查驗確認的贗品【兔】"
+              ]
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_028_uyt1fr1o": {
+          "pos": 0,
+          "mode": "truth",
+          "beast": "龍",
+          "avoid": [],
+          "claims": [],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我這輪遭偷襲，決定公開說出來，好讓大家知道偷襲者排在我前面的行動者之中",
+            "這輪我遭偷襲，只能依前手宣稱的可信度，後驗最像真品的是【龍】"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【龍】 💥 你被偷襲，眼前一片黑！"
+          ],
+          "blind": true,
+          "post": [
+            {
+              "name": "龍",
+              "p": 0.717
+            },
+            {
+              "name": "馬",
+              "p": 0.428
+            },
+            {
+              "name": "猴",
+              "p": 0.428
+            },
+            {
+              "name": "豬",
+              "p": 0.428
+            }
+          ],
+          "laoAt": [
+            0,
+            0.125,
+            0.085,
+            0.085,
+            0.085,
+            0.125,
+            0.125,
+            0.125,
+            0.246
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_004_juxllg1s",
+              "evil": 14,
+              "reasons": [
+                "第1輪我遭藥不然偷襲致盲，他排在我之前的行動者之列",
+                "第1輪第六位把手機控成第八位尾家（六控八）"
+              ]
+            },
+            {
+              "id": "bot_bot_017_1iujtymd",
+              "evil": 5,
+              "reasons": [
+                "第1輪我遭藥不然偷襲致盲，他排在我之前的行動者之列"
+              ]
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_033_9nhhji1y": {
+          "pos": 1,
+          "mode": "truth",
+          "beast": "馬",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "馬",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我親眼看到 【馬】真，結合前手宣稱，後驗最像真品的是【馬】(85%)"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【馬】 【真品】"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "龍",
+              "p": 0.62
+            },
+            {
+              "name": "馬",
+              "p": 0.849
+            },
+            {
+              "name": "猴",
+              "p": 0.266
+            },
+            {
+              "name": "豬",
+              "p": 0.266
+            }
+          ],
+          "laoAt": [
+            0.118,
+            0,
+            0.098,
+            0.098,
+            0.098,
+            0.118,
+            0.118,
+            0.118,
+            0.233
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_004_juxllg1s",
+              "evil": 9,
+              "reasons": [
+                "第1輪第六位把手機控成第八位尾家（六控八）"
+              ]
+            },
+            {
+              "id": "bot_bot_028_uyt1fr1o",
+              "evil": 9,
+              "reasons": [
+                "第1輪第六位把手機控成第八位尾家（六控八）"
+              ]
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_003_1itql9hy": {
+          "pos": 3,
+          "mode": "lie",
+          "beast": "猴",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "猴",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我是【老朝奉】，這輪帶風向：把票推向後驗最不像真品的【猴】"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【龍】 無法辨別真偽！"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "龍",
+              "p": 0.887
+            },
+            {
+              "name": "馬",
+              "p": 0.747
+            },
+            {
+              "name": "猴",
+              "p": 0.183
+            },
+            {
+              "name": "豬",
+              "p": 0.183
+            }
+          ],
+          "laoAt": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_017_1iujtymd",
+              "evil": 0,
+              "reasons": [
+                "第1輪主動首發開出新獸首真偽線"
+              ]
+            },
+            {
+              "id": "bot_bot_004_juxllg1s",
+              "evil": 0,
+              "reasons": []
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_017_1iujtymd": {
+          "pos": 4,
+          "mode": "truth",
+          "beast": "馬",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "馬",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "身為許願，雙查驗只報 1 尊以藏住身分",
+            "我親眼看到 【馬】真、【猴】真，結合前手宣稱，後驗最像真品的是【馬】(70%)"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【馬】 【真品】",
+            "【猴】 【真品】"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "龍",
+              "p": 0.357
+            },
+            {
+              "name": "馬",
+              "p": 0.695
+            },
+            {
+              "name": "猴",
+              "p": 0.622
+            },
+            {
+              "name": "豬",
+              "p": 0.326
+            }
+          ],
+          "laoAt": [
+            0.132,
+            0.069,
+            0.11,
+            0.032,
+            0,
+            0.132,
+            0.132,
+            0.132,
+            0.26
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_004_juxllg1s",
+              "evil": 9,
+              "reasons": [
+                "第1輪第六位把手機控成第八位尾家（六控八）"
+              ]
+            },
+            {
+              "id": "bot_bot_028_uyt1fr1o",
+              "evil": 9,
+              "reasons": [
+                "第1輪第六位把手機控成第八位尾家（六控八）"
+              ]
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_004_juxllg1s": {
+          "pos": 7,
+          "mode": "truth",
+          "beast": "馬",
+          "avoid": [],
+          "claims": [],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "這輪我無法辨別真偽，只能依前手宣稱的可信度，後驗最像真品的是【馬】"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【龍】 無法辨別真偽！"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "龍",
+              "p": 0.522
+            },
+            {
+              "name": "馬",
+              "p": 0.72
+            },
+            {
+              "name": "猴",
+              "p": 0.411
+            },
+            {
+              "name": "豬",
+              "p": 0.347
+            }
+          ],
+          "laoAt": [
+            0.118,
+            0.146,
+            0.088,
+            0.069,
+            0.11,
+            0.118,
+            0.118,
+            0,
+            0.233
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_028_uyt1fr1o",
+              "evil": 8,
+              "reasons": [
+                "第1輪第六位把手機控成第八位尾家（六控八）"
+              ]
+            },
+            {
+              "id": "bot_bot_017_1iujtymd",
+              "evil": 0,
+              "reasons": []
+            }
+          ],
+          "ts": 0
+        }
+      }
+    },
+    {
+      "roundNum": 3,
+      "beasts": [
+        {
+          "name": "鼠",
+          "isReal": false
+        },
+        {
+          "name": "虎",
+          "isReal": false
+        },
+        {
+          "name": "蛇",
+          "isReal": true
+        },
+        {
+          "name": "雞",
+          "isReal": true
+        }
+      ],
+      "passOrder": [
+        "bot_bot_004_juxllg1s",
+        "bot_bot_003_1itql9hy",
+        "bot_bot_020_o4e66b1e",
+        "bot_bot_017_1iujtymd",
+        "bot_bot_033_9nhhji1y",
+        "bot_bot_028_uyt1fr1o",
+        "bot_bot_036_1l5419ev",
+        "bot_bot_013_1q2g3usa"
+      ],
+      "turnLogs": {
+        "bot_bot_004_juxllg1s": {
+          "inspect": [
+            {
+              "beastName": "鼠",
+              "resultText": "【鼠】 【贗品】",
+              "displayedReal": false,
+              "kind": "ok",
+              "flipped": false
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": false,
+          "step": "c",
+          "passWhy": "他是剩下的人裡我最放心的好人人選（目前沒有任何可疑紀錄），先讓他查驗掌握乾淨資訊",
+          "nextPlayerId": "bot_bot_003_1itql9hy"
+        },
+        "bot_bot_003_1itql9hy": {
+          "inspect": [
+            {
+              "beastName": "鼠",
+              "resultText": "【鼠】 【贗品】",
+              "displayedReal": false,
+              "kind": "ok",
+              "flipped": false
+            }
+          ],
+          "ability": "發動【擾亂】（其後好人查驗真偽反轉）",
+          "skillTag": "🎭擾亂",
+          "blind": false,
+          "step": "c",
+          "passWhy": "擾亂已啟動，把查驗機會送給看起來最像好人的他，讓他看到被反轉的結果並拿去帶偏好人（我的秘密同伴）",
+          "nextPlayerId": "bot_bot_020_o4e66b1e"
+        },
+        "bot_bot_020_o4e66b1e": {
+          "inspect": [
+            {
+              "beastName": "鼠",
+              "resultText": "【鼠】 【贗品】",
+              "displayedReal": false,
+              "kind": "ok",
+              "flipped": false
+            }
+          ],
+          "ability": "暗中偷襲【Alli】",
+          "skillTag": "🗡️襲Al",
+          "blind": false,
+          "step": "c",
+          "ambushIds": [
+            "bot_bot_033_9nhhji1y"
+          ],
+          "ambushTargetId": "bot_bot_033_9nhhji1y",
+          "passWhy": "我剛暗中偷襲了目標，絕不能直接把手機交給受害者暴露自己在上一棒，先傳給黑色【薏涵】墊一棒製造不在場證明",
+          "nextPlayerId": "bot_bot_017_1iujtymd"
+        },
+        "bot_bot_017_1iujtymd": {
+          "inspect": [
+            {
+              "beastName": "虎",
+              "resultText": "【虎】 【真品】",
+              "displayedReal": true,
+              "kind": "ok",
+              "flipped": true
+            },
+            {
+              "beastName": "鼠",
+              "resultText": "【鼠】 【真品】",
+              "displayedReal": true,
+              "kind": "ok",
+              "flipped": true
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": false,
+          "step": "c",
+          "passWhy": "他是剩下的人裡我最放心的好人人選（目前沒有任何可疑紀錄），先讓他查驗掌握乾淨資訊",
+          "nextPlayerId": "bot_bot_033_9nhhji1y"
+        },
+        "bot_bot_033_9nhhji1y": {
+          "inspect": [
+            {
+              "beastName": "鼠",
+              "resultText": "【鼠】 💥 你被偷襲，眼前一片黑！",
+              "displayedReal": null,
+              "kind": "blind"
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": true,
+          "step": "c",
+          "passWhy": "他是剩下的人裡我最放心的好人人選（第2輪把 1 票投給已公開的贗品【龍】），先讓他查驗掌握乾淨資訊",
+          "nextPlayerId": "bot_bot_028_uyt1fr1o"
+        },
+        "bot_bot_028_uyt1fr1o": {
+          "inspect": [
+            {
+              "beastName": "鼠",
+              "resultText": "【鼠】 💥 你被偷襲，眼前一片黑！",
+              "displayedReal": null,
+              "kind": "blind"
+            }
+          ],
+          "ability": "無技能操作",
+          "skillTag": "",
+          "blind": true,
+          "step": "c",
+          "passWhy": "他是剩下的人裡我最放心的好人人選（第2輪在第三位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品），先讓他查驗掌握乾淨資訊",
+          "nextPlayerId": "bot_bot_036_1l5419ev"
+        },
+        "bot_bot_036_1l5419ev": {
+          "inspect": [
+            {
+              "beastName": "鼠",
+              "resultText": "【鼠】 💥 你被偷襲，眼前一片黑！",
+              "displayedReal": null,
+              "kind": "blind"
+            }
+          ],
+          "ability": "技能被偷襲封鎖",
+          "skillTag": "",
+          "blind": true,
+          "step": "c",
+          "passWhy": "只剩他還沒行動，沒有其他選擇",
+          "nextPlayerId": "bot_bot_013_1q2g3usa"
+        },
+        "bot_bot_013_1q2g3usa": {
+          "inspect": [],
+          "ability": "查驗【薏涵】陣營為：許願陣營（好人）",
+          "skillTag": "🔍薏涵👍",
+          "blind": false,
+          "step": "c",
+          "fangTargetId": "bot_bot_017_1iujtymd",
+          "fangCamp": "good"
+        }
+      },
+      "laoActive": true,
+      "blockedBeast": null,
+      "speechOrder": [
+        "bot_bot_020_o4e66b1e",
+        "bot_bot_028_uyt1fr1o",
+        "bot_bot_033_9nhhji1y",
+        "bot_bot_003_1itql9hy",
+        "bot_bot_017_1iujtymd",
+        "bot_bot_004_juxllg1s",
+        "bot_bot_036_1l5419ev",
+        "bot_bot_013_1q2g3usa"
+      ],
+      "speechIndex": 8,
+      "speeches": [
+        {
+          "playerId": "bot_bot_020_o4e66b1e",
+          "speakerName": "昱全",
+          "colorId": "green",
+          "text": "我在第三位，目前沒什麼特別的資訊。",
+          "source": "bot",
+          "summary": "[AI] 我在第三位，目前沒什麼特別的資訊。（無明確宣稱）",
+          "p": {
+            "claims": [],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_028_uyt1fr1o",
+          "speakerName": "克雷爾",
+          "colorId": "blue",
+          "text": "我驗了，。",
+          "source": "bot",
+          "summary": "[AI] 我驗了，。（無明確宣稱）",
+          "p": {
+            "claims": [],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_033_9nhhji1y",
+          "speakerName": "Alli",
+          "colorId": "purple",
+          "text": "我驗了，。",
+          "source": "bot",
+          "summary": "[AI] 我驗了，。（無明確宣稱）",
+          "p": {
+            "claims": [],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_003_1itql9hy",
+          "speakerName": "水豚",
+          "colorId": "white",
+          "text": "我在第二位，查驗結果是【鼠】是真品。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【鼠】真",
+          "p": {
+            "claims": [
+              {
+                "beast": "鼠",
+                "real": true
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_017_1iujtymd",
+          "speakerName": "薏涵",
+          "colorId": "black",
+          "text": "我在第四位查驗，看到【鼠】是真品。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【鼠】真",
+          "p": {
+            "claims": [
+              {
+                "beast": "鼠",
+                "real": true
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_004_juxllg1s",
+          "speakerName": "順欸",
+          "colorId": "red",
+          "text": "我在第一位查驗，看到【鼠】是贗品。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【鼠】假",
+          "p": {
+            "claims": [
+              {
+                "beast": "鼠",
+                "real": false
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_036_1l5419ev",
+          "speakerName": "熊寶",
+          "colorId": "orange",
+          "text": "我在第七位，查驗結果是【虎】是真品。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【虎】真",
+          "p": {
+            "claims": [
+              {
+                "beast": "虎",
+                "real": true
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        },
+        {
+          "playerId": "bot_bot_013_1q2g3usa",
+          "speakerName": "隻貓",
+          "colorId": "yellow",
+          "text": "我在第八位查驗，看到【鼠】是真品。",
+          "source": "bot",
+          "summary": "[AI] 宣稱【鼠】真",
+          "p": {
+            "claims": [
+              {
+                "beast": "鼠",
+                "real": true
+              }
+            ],
+            "callBeast": null,
+            "callBeasts": [],
+            "callSuspectId": null,
+            "accuse": [],
+            "campChecks": [],
+            "blind": false,
+            "unsure": false,
+            "selfRole": null,
+            "asked": [],
+            "selfEvil": false
+          },
+          "time": ""
+        }
+      ],
+      "votes": {
+        "bot_bot_017_1iujtymd": {
+          "鼠": 1,
+          "虎": 1
+        },
+        "bot_bot_004_juxllg1s": {
+          "虎": 2
+        },
+        "bot_bot_036_1l5419ev": {
+          "虎": 2
+        },
+        "bot_bot_013_1q2g3usa": {
+          "鼠": 2
+        },
+        "bot_bot_020_o4e66b1e": {
+          "虎": 1,
+          "鼠": 1
+        },
+        "bot_bot_028_uyt1fr1o": {
+          "鼠": 3
+        },
+        "bot_bot_033_9nhhji1y": {
+          "鼠": 2
+        },
+        "bot_bot_003_1itql9hy": {
+          "鼠": 2
+        }
+      },
+      "voteResults": {
+        "rank1": {
+          "name": "鼠",
+          "votes": 11,
+          "isReal": false,
+          "hidden": true
+        },
+        "rank2": {
+          "name": "虎",
+          "votes": 6,
+          "isReal": false,
+          "hidden": false
+        },
+        "totals": {
+          "鼠": 11,
+          "虎": 6,
+          "蛇": 0,
+          "雞": 0
+        },
+        "chips": {
+          "鼠": [
+            {
+              "voterId": "bot_bot_017_1iujtymd",
+              "voterName": "薏涵",
+              "colorId": "black"
+            },
+            {
+              "voterId": "bot_bot_013_1q2g3usa",
+              "voterName": "隻貓",
+              "colorId": "yellow"
+            },
+            {
+              "voterId": "bot_bot_013_1q2g3usa",
+              "voterName": "隻貓",
+              "colorId": "yellow"
+            },
+            {
+              "voterId": "bot_bot_020_o4e66b1e",
+              "voterName": "昱全",
+              "colorId": "green"
+            },
+            {
+              "voterId": "bot_bot_028_uyt1fr1o",
+              "voterName": "克雷爾",
+              "colorId": "blue"
+            },
+            {
+              "voterId": "bot_bot_028_uyt1fr1o",
+              "voterName": "克雷爾",
+              "colorId": "blue"
+            },
+            {
+              "voterId": "bot_bot_028_uyt1fr1o",
+              "voterName": "克雷爾",
+              "colorId": "blue"
+            },
+            {
+              "voterId": "bot_bot_033_9nhhji1y",
+              "voterName": "Alli",
+              "colorId": "purple"
+            },
+            {
+              "voterId": "bot_bot_033_9nhhji1y",
+              "voterName": "Alli",
+              "colorId": "purple"
+            },
+            {
+              "voterId": "bot_bot_003_1itql9hy",
+              "voterName": "水豚",
+              "colorId": "white"
+            },
+            {
+              "voterId": "bot_bot_003_1itql9hy",
+              "voterName": "水豚",
+              "colorId": "white"
+            }
+          ],
+          "虎": [
+            {
+              "voterId": "bot_bot_017_1iujtymd",
+              "voterName": "薏涵",
+              "colorId": "black"
+            },
+            {
+              "voterId": "bot_bot_004_juxllg1s",
+              "voterName": "順欸",
+              "colorId": "red"
+            },
+            {
+              "voterId": "bot_bot_004_juxllg1s",
+              "voterName": "順欸",
+              "colorId": "red"
+            },
+            {
+              "voterId": "bot_bot_036_1l5419ev",
+              "voterName": "熊寶",
+              "colorId": "orange"
+            },
+            {
+              "voterId": "bot_bot_036_1l5419ev",
+              "voterName": "熊寶",
+              "colorId": "orange"
+            },
+            {
+              "voterId": "bot_bot_020_o4e66b1e",
+              "voterName": "昱全",
+              "colorId": "green"
+            }
+          ],
+          "蛇": [],
+          "雞": []
+        }
+      },
+      "mind": {
+        "bot_bot_020_o4e66b1e": {
+          "pos": 2,
+          "mode": "camouflage",
+          "beast": "虎",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "虎",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": "鼠",
+          "why": [
+            "我是【藥不然】，這輪選擇講真話偽裝成好人，票型再分 1 票給假貨"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【鼠】 【贗品】"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "鼠",
+              "p": 0.03
+            },
+            {
+              "name": "虎",
+              "p": 0.657
+            },
+            {
+              "name": "蛇",
+              "p": 0.657
+            },
+            {
+              "name": "雞",
+              "p": 0.657
+            }
+          ],
+          "laoAt": [
+            0.098,
+            0.098,
+            0.098,
+            0.098,
+            0.098,
+            0.098,
+            0.098,
+            0.098,
+            0.22
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_013_1q2g3usa",
+              "evil": 92,
+              "reasons": [
+                "第2輪把 2 票投給已公開的贗品【龍】",
+                "第1輪把 2 票投給我查驗確認的贗品【兔】"
+              ]
+            },
+            {
+              "id": "bot_bot_028_uyt1fr1o",
+              "evil": 69,
+              "reasons": [
+                "第2輪把 1 票投給已公開的贗品【龍】",
+                "第1輪把 2 票投給我查驗確認的贗品【兔】"
+              ]
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_028_uyt1fr1o": {
+          "pos": 5,
+          "mode": "truth",
+          "beast": "鼠",
+          "avoid": [],
+          "claims": [],
+          "suspectId": "bot_bot_013_1q2g3usa",
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我這輪遭偷襲，決定公開說出來，好讓大家知道偷襲者排在我前面的行動者之中",
+            "這輪我遭偷襲，只能依前手宣稱的可信度，後驗最像真品的是【鼠】",
+            "橘色【熊寶】累計 2 票投在已公開的贗品上（最近一次第 2 輪的【龍】），票型全場看得到，先請他說明。他解釋得通就放過，解釋不通或閃躲就升高嫌疑",
+            "黃色【隻貓】嫌疑最高（第2輪在第六位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品），先為鑑人鋪梗"
+          ],
+          "hideBlind": false,
+          "askId": "bot_bot_036_1l5419ev",
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【鼠】 💥 你被偷襲，眼前一片黑！"
+          ],
+          "blind": true,
+          "post": [
+            {
+              "name": "鼠",
+              "p": 0.5
+            },
+            {
+              "name": "虎",
+              "p": 0.5
+            },
+            {
+              "name": "蛇",
+              "p": 0.5
+            },
+            {
+              "name": "雞",
+              "p": 0.5
+            }
+          ],
+          "laoAt": [
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0,
+            0.111,
+            0.111,
+            0.22
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_013_1q2g3usa",
+              "evil": 75,
+              "reasons": [
+                "第2輪在第六位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品",
+                "第2輪把 2 票投給已公開的贗品【龍】",
+                "第2輪第六位把手機控成第八位尾家（六控八）"
+              ]
+            },
+            {
+              "id": "bot_bot_036_1l5419ev",
+              "evil": 66,
+              "reasons": [
+                "第2輪在第三位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品",
+                "第2輪把 2 票投給已公開的贗品【龍】",
+                "第1輪我遭藥不然偷襲致盲，他排在我之前的行動者之列"
+              ]
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_033_9nhhji1y": {
+          "pos": 4,
+          "mode": "truth",
+          "beast": "鼠",
+          "avoid": [],
+          "claims": [],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我這輪遭偷襲，決定公開說出來，好讓大家知道偷襲者排在我前面的行動者之中",
+            "這輪我遭偷襲，只能依前手宣稱的可信度，後驗最像真品的是【鼠】",
+            "橘色【熊寶】累計 2 票投在已公開的贗品上（最近一次第 2 輪的【龍】），票型全場看得到，先請他說明。他解釋得通就放過，解釋不通或閃躲就升高嫌疑"
+          ],
+          "hideBlind": false,
+          "askId": "bot_bot_036_1l5419ev",
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【鼠】 💥 你被偷襲，眼前一片黑！"
+          ],
+          "blind": true,
+          "post": [
+            {
+              "name": "鼠",
+              "p": 0.5
+            },
+            {
+              "name": "虎",
+              "p": 0.5
+            },
+            {
+              "name": "蛇",
+              "p": 0.5
+            },
+            {
+              "name": "雞",
+              "p": 0.5
+            }
+          ],
+          "laoAt": [
+            0.111,
+            0.111,
+            0.111,
+            0.111,
+            0,
+            0.111,
+            0.111,
+            0.111,
+            0.22
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_013_1q2g3usa",
+              "evil": 74,
+              "reasons": [
+                "第2輪在第六位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品",
+                "第2輪把 2 票投給已公開的贗品【龍】",
+                "第2輪第六位把手機控成第八位尾家（六控八）"
+              ]
+            },
+            {
+              "id": "bot_bot_036_1l5419ev",
+              "evil": 65,
+              "reasons": [
+                "第2輪在第三位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品",
+                "第2輪把 2 票投給已公開的贗品【龍】"
+              ]
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_003_1itql9hy": {
+          "pos": 1,
+          "mode": "lie",
+          "beast": "鼠",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "鼠",
+              "real": true
+            }
+          ],
+          "suspectId": null,
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我是【老朝奉】，這輪帶風向：我看到【鼠】是假的，卻宣稱它是真品"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【鼠】 【贗品】"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "鼠",
+              "p": 0.03
+            },
+            {
+              "name": "虎",
+              "p": 0.657
+            },
+            {
+              "name": "蛇",
+              "p": 0.657
+            },
+            {
+              "name": "雞",
+              "p": 0.657
+            }
+          ],
+          "laoAt": [
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_036_1l5419ev",
+              "evil": 36,
+              "reasons": [
+                "行為指紋：多次未宣告卻精準命中真品",
+                "第2輪把 2 票投給已公開的贗品【龍】",
+                "第2輪主動首發開出新獸首真偽線"
+              ]
+            },
+            {
+              "id": "bot_bot_013_1q2g3usa",
+              "evil": 36,
+              "reasons": [
+                "第2輪把 2 票投給已公開的贗品【龍】"
+              ]
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_017_1iujtymd": {
+          "pos": 3,
+          "mode": "truth",
+          "beast": "鼠",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "鼠",
+              "real": true
+            }
+          ],
+          "suspectId": "bot_bot_013_1q2g3usa",
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "身為許願，雙查驗只報 1 尊以藏住身分",
+            "我親眼看到 【虎】真、【鼠】真，結合前手宣稱，後驗最像真品的是【鼠】(82%)",
+            "黃色【隻貓】嫌疑最高（第3輪世界線推演：14% 機率他在第八位啟動了擾亂），先為鑑人鋪梗"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【虎】 【真品】",
+            "【鼠】 【真品】"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "鼠",
+              "p": 0.822
+            },
+            {
+              "name": "虎",
+              "p": 0.775
+            },
+            {
+              "name": "蛇",
+              "p": 0.202
+            },
+            {
+              "name": "雞",
+              "p": 0.202
+            }
+          ],
+          "laoAt": [
+            0.136,
+            0.026,
+            0.026,
+            0,
+            0.136,
+            0.136,
+            0.136,
+            0.136,
+            0.268
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_013_1q2g3usa",
+              "evil": 75,
+              "reasons": [
+                "第3輪世界線推演：14% 機率他在第八位啟動了擾亂",
+                "第2輪在第六位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品",
+                "第2輪把 2 票投給已公開的贗品【龍】"
+              ]
+            },
+            {
+              "id": "bot_bot_036_1l5419ev",
+              "evil": 66,
+              "reasons": [
+                "第3輪世界線推演：14% 機率他在第七位啟動了擾亂",
+                "第2輪在第三位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品",
+                "第2輪把 2 票投給已公開的贗品【龍】"
+              ]
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_004_juxllg1s": {
+          "pos": 0,
+          "mode": "truth",
+          "beast": "虎",
+          "avoid": [
+            "鼠"
+          ],
+          "claims": [
+            {
+              "beast": "鼠",
+              "real": false
+            }
+          ],
+          "suspectId": "bot_bot_013_1q2g3usa",
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我親眼看到 【鼠】假，結合前手宣稱，後驗最像真品的是【虎】(63%)",
+            "橘色【熊寶】累計 2 票投在已公開的贗品上（最近一次第 2 輪的【龍】），票型全場看得到，先請他說明。他解釋得通就放過，解釋不通或閃躲就升高嫌疑",
+            "黃色【隻貓】嫌疑最高（第2輪在第六位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品），先為鑑人鋪梗"
+          ],
+          "hideBlind": false,
+          "askId": "bot_bot_036_1l5419ev",
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【鼠】 【贗品】"
+          ],
+          "blind": false,
+          "post": [
+            {
+              "name": "鼠",
+              "p": 0.114
+            },
+            {
+              "name": "虎",
+              "p": 0.629
+            },
+            {
+              "name": "蛇",
+              "p": 0.629
+            },
+            {
+              "name": "雞",
+              "p": 0.629
+            }
+          ],
+          "laoAt": [
+            0,
+            0.176,
+            0.176,
+            0.093,
+            0.093,
+            0.093,
+            0.093,
+            0.093,
+            0.183
+          ],
+          "conflicts": [
+            {
+              "round": 3,
+              "beast": "鼠",
+              "speakerId": "bot_bot_017_1iujtymd",
+              "speakerPos": 3,
+              "claim": true,
+              "myPos": 0,
+              "saw": false,
+              "between": [
+                "bot_bot_003_1itql9hy",
+                "bot_bot_020_o4e66b1e",
+                "bot_bot_017_1iujtymd"
+              ]
+            },
+            {
+              "round": 3,
+              "beast": "鼠",
+              "speakerId": "bot_bot_003_1itql9hy",
+              "speakerPos": 1,
+              "claim": true,
+              "myPos": 0,
+              "saw": false,
+              "between": [
+                "bot_bot_003_1itql9hy"
+              ]
+            }
+          ],
+          "suspects": [
+            {
+              "id": "bot_bot_013_1q2g3usa",
+              "evil": 61,
+              "reasons": [
+                "第2輪在第六位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品",
+                "第2輪把 2 票投給已公開的贗品【龍】",
+                "第2輪第六位把手機控成第八位尾家（六控八）"
+              ]
+            },
+            {
+              "id": "bot_bot_036_1l5419ev",
+              "evil": 53,
+              "reasons": [
+                "第2輪在第三位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品",
+                "第2輪把 2 票投給已公開的贗品【龍】"
+              ]
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_036_1l5419ev": {
+          "pos": 6,
+          "mode": "lie",
+          "beast": "虎",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "虎",
+              "real": true
+            }
+          ],
+          "suspectId": "bot_bot_033_9nhhji1y",
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我是【鄭國渠】，這輪帶風向：把票推向後驗最不像真品的【虎】",
+            "嫁禍給最像好人的紫色【Alli】，轉移對我方的注意"
+          ],
+          "hideBlind": false,
+          "askId": null,
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [
+            "【鼠】 💥 你被偷襲，眼前一片黑！"
+          ],
+          "blind": true,
+          "post": [
+            {
+              "name": "鼠",
+              "p": 0.523
+            },
+            {
+              "name": "虎",
+              "p": 0.492
+            },
+            {
+              "name": "蛇",
+              "p": 0.492
+            },
+            {
+              "name": "雞",
+              "p": 0.492
+            }
+          ],
+          "laoAt": [
+            0.242,
+            0.075,
+            0.075,
+            0.084,
+            0.084,
+            0.084,
+            0.084,
+            0.084,
+            0.189
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_013_1q2g3usa",
+              "evil": 36,
+              "reasons": [
+                "第2輪把 2 票投給已公開的贗品【龍】",
+                "第2輪主動首發開出新獸首真偽線"
+              ]
+            },
+            {
+              "id": "bot_bot_028_uyt1fr1o",
+              "evil": 24,
+              "reasons": [
+                "第3輪我遭藥不然偷襲致盲，他排在我之前的行動者之列",
+                "第2輪把 1 票投給已公開的贗品【龍】"
+              ]
+            }
+          ],
+          "ts": 0
+        },
+        "bot_bot_013_1q2g3usa": {
+          "pos": 7,
+          "mode": "truth",
+          "beast": "鼠",
+          "avoid": [],
+          "claims": [
+            {
+              "beast": "鼠",
+              "real": true
+            }
+          ],
+          "suspectId": "bot_bot_036_1l5419ev",
+          "softShadeId": null,
+          "fakeFangClaim": null,
+          "padBeast": null,
+          "why": [
+            "我私下用【方震】確認過黑色【薏涵】是鐵好人，直接跟隨他報的【鼠】真品線衝票",
+            "我是方震，看不到獸首。為了不被藥不然靠「驗不到」認出，我把後驗最像真品的【鼠】當成自己的查驗結果報出",
+            "橘色【熊寶】累計 2 票投在已公開的贗品上（最近一次第 2 輪的【龍】），票型全場看得到，先請他說明。他解釋得通就放過，解釋不通或閃躲就升高嫌疑",
+            "已進入決戰階段（或場上已有人先踩橘色【熊寶】），我順著公開的票型與時序理由帶大家在鑑人時集火橘色【熊寶】"
+          ],
+          "hideBlind": false,
+          "askId": "bot_bot_036_1l5419ev",
+          "confess": false,
+          "explained": false,
+          "followHuman": null,
+          "insText": [],
+          "blind": false,
+          "post": [
+            {
+              "name": "鼠",
+              "p": 0.576
+            },
+            {
+              "name": "虎",
+              "p": 0.463
+            },
+            {
+              "name": "蛇",
+              "p": 0.481
+            },
+            {
+              "name": "雞",
+              "p": 0.481
+            }
+          ],
+          "laoAt": [
+            0.276,
+            0.066,
+            0.066,
+            0.101,
+            0.101,
+            0.101,
+            0.097,
+            0,
+            0.192
+          ],
+          "conflicts": [],
+          "suspects": [
+            {
+              "id": "bot_bot_036_1l5419ev",
+              "evil": 149,
+              "reasons": [
+                "第2輪在第三位宣稱【龍】是真品，開票卻當場翻出【龍】是贗品",
+                "第2輪把 2 票投給已公開的贗品【龍】",
+                "第1輪我以【方震】親手查驗確認他是老朝奉陣營"
+              ]
+            },
+            {
+              "id": "bot_bot_028_uyt1fr1o",
+              "evil": 26,
+              "reasons": [
+                "第2輪把 1 票投給已公開的贗品【龍】",
+                "第2輪我以【方震】親手查驗確認他是好人陣營",
+                "第1輪第六位把手機控成第八位尾家（六控八）"
+              ]
+            }
+          ],
+          "ts": 0
+        }
+      }
+    }
+  ],
+  "personVotes": {
+    "bot_bot_017_1iujtymd": "bot_bot_013_1q2g3usa",
+    "bot_bot_004_juxllg1s": "bot_bot_013_1q2g3usa",
+    "bot_bot_036_1l5419ev": "bot_bot_033_9nhhji1y",
+    "bot_bot_013_1q2g3usa": "bot_bot_036_1l5419ev",
+    "bot_bot_020_o4e66b1e": "bot_bot_033_9nhhji1y",
+    "bot_bot_028_uyt1fr1o": "bot_bot_013_1q2g3usa",
+    "bot_bot_033_9nhhji1y": "bot_bot_036_1l5419ev",
+    "bot_bot_003_1itql9hy": "bot_bot_036_1l5419ev"
+  },
+  "gameOver": {
+    "totalScore": 5,
+    "savedReal": 2,
+    "laoCaught": false,
+    "votesForLao": 0,
+    "goodCount": 5,
+    "fangCaught": false,
+    "xuCaught": false,
+    "xuWon": false,
+    "winningCamp": "老朝奉陣營"
+  },
+  "learning": null,
+  "plan": {
+    "rounds": [
+      {
+        "beasts": [
+          {
+            "name": "牛",
+            "isReal": true
+          },
+          {
+            "name": "兔",
+            "isReal": false
+          },
+          {
+            "name": "羊",
+            "isReal": false
+          },
+          {
+            "name": "狗",
+            "isReal": true
+          }
+        ]
+      },
+      {
+        "beasts": [
+          {
+            "name": "龍",
+            "isReal": false
+          },
+          {
+            "name": "馬",
+            "isReal": true
+          },
+          {
+            "name": "猴",
+            "isReal": true
+          },
+          {
+            "name": "豬",
+            "isReal": false
+          }
+        ]
+      },
+      {
+        "beasts": [
+          {
+            "name": "鼠",
+            "isReal": false
+          },
+          {
+            "name": "虎",
+            "isReal": false
+          },
+          {
+            "name": "蛇",
+            "isReal": true
+          },
+          {
+            "name": "雞",
+            "isReal": true
+          }
+        ]
+      }
+    ],
+    "starterId": "bot_bot_020_o4e66b1e"
+  },
+  "rev": 0,
+  "createdAt": 0,
+  "updatedAt": 0,
+  "mode": "solo",
+  "startedAt": 0
+}
