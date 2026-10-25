@@ -1,5 +1,5 @@
 /* ============================================================================
- * ui/board.js — 牌桌渲染（修正第一名獸首封存顯示、原生捕獲踢人按鈕、AFK 電腦接管）
+ * ui/board.js — 牌桌渲染（修正偷襲即時暴雷漏洞、第一名獸首封存顯示、原生捕獲踢人按鈕、AFK 電腦接管與觀戰座標修復）
  * ========================================================================== */
 (function (GD) {
   'use strict';
@@ -15,7 +15,7 @@
     gameover: '🏆 終局揭曉與對局覆盤'
   };
 
-  /* ★ 全螢幕 AFK 警告彈窗元件（確保 document.body 就緒後掛載） */
+  /* ★ 全螢幕 AFK 警告彈窗元件 */
   function ensureAFKModal() {
     let ov = document.getElementById('afkOverlay');
     if (ov) return ov;
@@ -27,7 +27,7 @@
       <div style="font-size:2rem;margin-bottom:15px;font-weight:bold">你還在嗎？</div>
       <div style="font-size:1.1rem;margin-bottom:25px;color:#d1d5db">由於閒置過久，即將轉交電腦接管</div>
       <div id="afkCount" style="font-size:6rem;font-weight:900;color:#ef4444;line-height:1;margin-bottom:30px">10</div>
-      <button type="button" class="btn gold big" id="afkAliveBtn" style="padding:15px 40px;font-size:1.3rem;font-weight:bold;box-shadow:0 0 15px rgba(245,208,138,0.5)">我還在！（延長時間）</button>
+      <button type="button" class="btn gold big" id="afkAliveBtn" style="padding:15px 40px;font-size:1.3rem;font-weight:bold;box-shadow:0 0 15px rgba(245,208,138,0.5)">我還在這！（延長時間）</button>
     `;
     document.body.appendChild(ov);
     ov.querySelector('#afkAliveBtn').addEventListener('click', e => {
@@ -39,7 +39,6 @@
     return ov;
   }
 
-  /* ★ AFK 120秒閒置偵測 ＋ 10秒讀秒換電腦（含本地時間保底，防止舊房間無 turnStartTime 失效） */
   let afkInterval = null;
   let isProcessingAFK = false;
   let lastActionKey = '';
@@ -87,9 +86,8 @@
 
     const startT = room.turnStartTime || localTurnFallbackTime;
     const elapsed = Math.max(0, Date.now() - startT);
-    const remaining = 130 - Math.floor(elapsed / 1000); // 120秒後開始 10~0 秒倒數
+    const remaining = 130 - Math.floor(elapsed / 1000); 
 
-    // 1. 若輪到自己且進入最後 10 秒，跳出全螢幕「你還在嗎？」讀秒視窗
     if (targets.includes(Net.myId) && remaining <= 10 && remaining >= 0) {
       if (ov) {
         ov.style.display = 'flex';
@@ -100,7 +98,6 @@
       ov.style.display = 'none';
     }
 
-    // 2. 其他玩家在座位頭上看到讀秒紅標
     targets.forEach(id => {
       const seat = document.querySelector(`.seat[data-arg="${id}"]`);
       if (seat) {
@@ -124,7 +121,6 @@
       if (!targets.includes(pid) || remaining < 0 || remaining > 10) el.remove();
     });
 
-    // 3. 倒數歸零（remaining < 0）：立刻將發呆玩家請到觀戰席，並由隨機電腦接管！
     if (remaining < 0 && targets.length > 0 && !isProcessingAFK) {
       isProcessingAFK = true;
       if (ov) ov.style.display = 'none';
@@ -147,7 +143,6 @@
     }
   }
 
-  /* ★ 計算筆畫與傳遞時序代表字 */
   function strokeOf(ch) {
     if (!ch) return 0;
     const mini = {'彥':9,'凡':3,'大':3,'鈞':12,'哥':10,'皓':12,'柚':9,'子':3,'修':10,'宏':7,'特':10,'朗':10,'普':12,'孫':10,'終':11,'山':3,'習':11,'近':7,'平':5,'馬':10,'陰':10,'久':3,'金':8,'正':5,'恩':10,'甄':14,'雪':11,'浮':10,'藥':18,'不':4,'然':12,'許':11,'願':19,'姬':10,'雲':12,'黃':12,'煙':13,'木':4,'戶':4,'加':5,'奈':8};
@@ -263,7 +258,6 @@
     handleKickAction(targetId);
   });
 
-  // ★ 原生 Capture 攔截器：確保點擊座位右上角「✕」踢人按鈕時，100% 不會誤觸下層的 seat 點擊事件！
   document.addEventListener('click', e => {
     const kBtn = e.target && e.target.closest && e.target.closest('.gd-kick-btn');
     if (!kBtn) return;
@@ -278,11 +272,13 @@
     const room = Net.room();
     if (!room || UI.byId('board').hidden) return;
     const me = UI.me(), rd = room.rounds[room.currentRoundIdx];
+    
+    // ★ 關鍵防呆：判斷目前使用者是否在座位上（排除已轉觀戰的幽靈狀態）
+    const isPlayer = me && typeof me.seatIndex === 'number';
 
     if (S.lastGame !== room.gameId) { S.lastGame = room.gameId; S.voteRound = S.speechRound = room.currentRoundIdx; S.ballot = {}; }
     if (S.lastRound !== room.currentRoundIdx) { S.lastRound = room.currentRoundIdx; S.voteRound = S.speechRound = room.currentRoundIdx; S.ballot = {}; }
 
-    // ★ 在「房號 9233・連線」旁邊顯示灰色觀戰者標籤
     const specs = room.spectators || [];
     const specHtml = specs.length
       ? `<span class="xs" style="margin-left:8px;color:#e5e7eb;font-weight:700;background:#6b7280;padding:2px 8px;border-radius:999px;display:inline-flex;align-items:center;gap:4px">👀 觀戰者：${specs.map(s => U.esc(s.name)).join('、')}</span>`
@@ -291,17 +287,18 @@
 
     UI.text('bRound', rd ? `第 ${rd.roundNum} 回合` : '大廳準備中');
     UI.text('bPhase', PHASE[room.status] || '');
-    UI.show('bFill', room.status === 'waiting' && !!me);
+    UI.show('bFill', room.status === 'waiting' && isPlayer);
     if (room.status === 'waiting') {
       UI.text('bFill', room.players.length >= 8 ? '🎮 立即開始遊戲' : '🤖 補電腦開局');
     }
-    UI.show('seatShift', room.status === 'waiting' && !!me);
-    UI.show('colorBar', room.status === 'waiting' && !!me);
+    UI.show('seatShift', room.status === 'waiting' && isPlayer);
+    UI.show('colorBar', room.status === 'waiting' && isPlayer);
 
     const chips = UI.byId('bChips');
-    chips.hidden = !(me && room.status !== 'waiting' && room.status !== 'gameover');
-    if (me) chips.textContent = `🎟️ 可用籌碼 ${me.voteBank}`;
-    UI.text('bRole', me && me.role ? (S.peek ? `🎴 我的身分：【${me.role}】` : '🎴 身分已隱藏（點擊查看）') : (me ? '🎴 等待發牌' : '👀 觀戰模式（無底牌）'));
+    chips.hidden = !(isPlayer && room.status !== 'waiting' && room.status !== 'gameover');
+    if (isPlayer) chips.textContent = `🎟️ 可用籌碼 ${me.voteBank}`;
+    
+    UI.text('bRole', me && me.role ? (S.peek ? `🎴 我的身分：【${me.role}】` : '🎴 身分已隱藏（點擊查看）') : (isPlayer ? '🎴 等待發牌' : '👀 觀戰模式（無底牌）'));
 
     renderIntel(room, me);
     renderOval(room, me, rd);
@@ -328,7 +325,11 @@
       if (pt) h += `<div class="note evil">🤝 秘密同伴：${U.tag(pt)} 是【${pr}】</div>`;
     }
     if (Rules.isBlind(me)) h += `<div class="note evil">💥 你目前${me.isPermanentlyAmbushed ? '永久失明' : '遭偷襲'}，無法查驗與施放技能</div>`;
-    if (me.pendingAmbush) h += '<div class="note evil">⚠️ 你已被偷襲，效果將在下回合生效</div>';
+    
+    if (room.status === 'gameover' && me.pendingAmbush) {
+      h += '<div class="note evil">⚠️ 你已被偷襲，效果將在下回合生效</div>';
+    }
+
     room.rounds.forEach(rd => {
       const l = rd.turnLogs[me.id]; if (!l) return;
       if (l.inspect.length) h += `<div class="note"><b>R${rd.roundNum} 查驗</b>：${U.esc(l.inspect.map(i => i.resultText).join('、'))}</div>`;
@@ -338,7 +339,10 @@
   }
 
   function renderOval(room, me, rd) {
-    const players = U.seated(room), mySeat = me ? me.seatIndex : 0;
+    const players = U.seated(room);
+    const isPlayer = me && typeof me.seatIndex === 'number';
+    const mySeat = isPlayer ? me.seatIndex : 0; // ★ 防止觀戰者抽出 NaN 導致圓形崩潰
+    
     let status = '等待開局', tip = '中央四獸首鑑定台';
     const find = id => U.byId(room, id);
     if (room.status === 'playing' && rd) { const a = find(room.currentTurnPlayerId); status = a ? `📢 ${a.name} 查驗中` : '查驗中'; tip = `已驗 ${rd.passOrder.length}/8`; }
@@ -364,23 +368,18 @@
         <div class="mono b" style="font-size:16px;margin-top:4px;color:var(--ink)">總分 ${room.gameOver.totalScore} 分</div>
       </div>`;
     } else if (rd) {
-      const log = (me && rd.turnLogs[me.id]) || { inspect: [], step: 'a' };
-      const mine = me && room.status === 'playing' && room.currentTurnPlayerId === me.id && log.step === 'a';
-      const quota = me ? Rules.inspectQuota(me) : 0;
+      const log = (isPlayer && rd.turnLogs[me.id]) || { inspect: [], step: 'a' };
+      const mine = isPlayer && room.status === 'playing' && room.currentTurnPlayerId === me.id && log.step === 'a';
+      const quota = isPlayer ? Rules.inspectQuota(me) : 0;
 
-      // ★ 關鍵修正（問題 3）：
-      // 當該回合已開票 (rd.voteResults 存在) 時，中央牌桌必須嚴格依照「開票公開狀態」渲染：
-      //   - 第一名 (rank1)：在桌上強制顯示「🥇封存」（絕不套用 real/fake 顏色，避免誤以為第一名被公開！）
-      //   - 第二名 (rank2)：在桌上公開顯示「🥈公開真 / 假」與對應綠/紅底色。
-      // 未開票前，才顯示玩家自己私下查驗的結果。
       const beastsHtml = rd.beasts.map(b => {
-        const seen = me ? (log.inspect || []).find(i => i.beastName === b.name) : null;
+        const seen = isPlayer ? (log.inspect || []).find(i => i.beastName === b.name) : null;
         const canPick = mine && !seen && log.inspect.length < quota;
         let cls = '', sub = '未查驗';
 
         if (rd.voteResults) {
           if (rd.voteResults.rank1.name === b.name) {
-            cls = ''; // 嚴格封存，不亮綠/紅底色
+            cls = ''; 
             sub = '🥇封存';
           } else if (rd.voteResults.rank2.name === b.name) {
             cls = rd.voteResults.rank2.isReal ? 'real' : 'fake';
@@ -407,10 +406,10 @@
       const p = players[i], rel = (i - mySeat + 8) % 8, ang = (90 + rel * 45) * Math.PI / 180;
       const left = 50 + 45 * Math.cos(ang), top = 50 + 43 * Math.sin(ang);
       if (!p) { seats += `<div class="seat empty" style="left:${left}%;top:${top}%"><div class="chip"><span>空席</span></div></div>`; continue; }
-      const c = U.colorOf(p), isMe = me && p.id === me.id;
+      const c = U.colorOf(p), isMe = isPlayer && p.id === me.id;
       const acting = (room.status === 'playing' && room.currentTurnPlayerId === p.id) || (room.status === 'discussion' && room.currentSpeakerId === p.id);
       const done = rd && rd.passOrder.includes(p.id) && room.status === 'playing';
-      const partner = me && ((me.role === '老朝奉' && p.role === '藥不然') || (me.role === '藥不然' && p.role === '老朝奉'));
+      const partner = isPlayer && ((me.role === '老朝奉' && p.role === '藥不然') || (me.role === '藥不然' && p.role === '老朝奉'));
       const showRole = p.role && (room.status === 'gameover' || (isMe && S.peek) || partner);
       const tail = rd && rd.passOrder.length === 8 && rd.passOrder[7] === p.id, first = rd && rd.passOrder[0] === p.id;
 
@@ -424,13 +423,12 @@
         } else {
           winnerSeatHalo = 'background:radial-gradient(circle, rgba(239,68,68,0.58) 0%, rgba(185,28,28,0.3) 55%, transparent 76%);padding:6px;border-radius:16px;';
           winnerChipGlow = 'box-shadow:0 0 14px 4px rgba(239,68,68,0.92), 0 0 26px 8px rgba(185,28,28,0.6);outline:2.5px solid #f87171;';
-          winnerRoleStyle = 'background:#7f1d1d;color:#fef3c7;border:1px solid #f87171;box-shadow:0 0 8px rgba(239,68,68,0.8);';
+          winnerRoleStyle = 'background:#7f1d1d;color:#fef3c7;border:1px solid #7f1d1d;box-shadow:0 0 8px rgba(239,68,68,0.8);';
         }
       }
 
-      // ★ 踢除按鈕：等待中可踢任何座位（清分身/電腦）；遊戲進行中房主也可點 ✕ 將斷線真人轉為電腦代打
       const canShowKick = (room.status === 'waiting') ||
-                          (room.status !== 'gameover' && !p.isBot && me && (room.hostId === me.id || !isMe));
+                          (room.status !== 'gameover' && !p.isBot && isPlayer && (room.hostId === me.id || !isMe));
       const kickBtn = canShowKick
         ? `<button type="button" class="btn red gd-kick-btn" data-kick-id="${p.id}" title="${room.status === 'waiting' ? '踢除此座位玩家' : '將離線玩家轉交電腦接管'}" style="position:absolute;top:-10px;right:-10px;width:22px;height:22px;padding:0;line-height:20px;text-align:center;border-radius:50%;z-index:30;font-size:11px;font-weight:900;box-shadow:0 2px 5px rgba(0,0,0,0.45);cursor:pointer">✕</button>`
         : '';
@@ -447,6 +445,9 @@
   UI.on('inspect', name => {
     const room = Net.room(), me = UI.me();
     if (!room || !me) return;
+    const isPlayer = typeof me.seatIndex === 'number';
+    if (!isPlayer) return;
+    
     const rd = U.curRound(room);
     const log = (rd && rd.turnLogs && rd.turnLogs[me.id]) || { inspect: [], step: 'a' };
     const quota = Rules.inspectQuota(me);
@@ -458,7 +459,8 @@
   });
 
   function renderColors(room, me) {
-    if (room.status !== 'waiting' || !me) return;
+    const isPlayer = me && typeof me.seatIndex === 'number';
+    if (room.status !== 'waiting' || !isPlayer) return;
     const used = {}; room.players.forEach(p => { used[p.colorId] = p; });
     UI.html('colors', GD.SEAL_COLORS.map(c => {
       const o = used[c.id], blocked = o && o.id !== me.id && !o.isBot;
@@ -468,6 +470,7 @@
 
   function renderChains(room, me) {
     const over = room.status === 'gameover';
+    const isPlayer = me && typeof me.seatIndex === 'number';
     const charMap = buildPlayerCharMap(room);
     const colsHtml = [0, 1, 2].map(i => {
       const rd = room.rounds[i];
@@ -481,7 +484,7 @@
         const p = U.byId(room, pid); if (!p) return '';
         const c = U.colorOf(p);
         const ch = charMap[p.id] || rankedCharsOf(p)[0];
-        const l = rd.turnLogs[pid], see = over || (me && me.id === pid);
+        const l = rd.turnLogs[pid], see = over || (isPlayer && me.id === pid);
         const cur = room.status === 'playing' && room.currentRoundIdx === i && room.currentTurnPlayerId === pid;
         const ringStyle = cur
           ? 'outline:2.5px solid #dc2626;box-shadow:0 0 8px rgba(220,38,38,0.85);transform:scale(1.08);'
@@ -571,7 +574,6 @@
     }).join('') : `<div class="xs mute center" style="padding:20px 0">第 ${rd.roundNum} 回合尚無發言</div>`);
   }
 
-  /* ★ 啟動 AFK 防發呆倒數與換人系統 */
   clearInterval(afkInterval);
   afkInterval = setInterval(checkAFK, 1000);
 
