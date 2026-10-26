@@ -1,5 +1,5 @@
 /* ============================================================================
- * utils.js — 純函式工具（雙環境相容，支援亂數流隔離）
+ * utils.js — 純函式工具（雙環境相容，支援環境與決策雙軌亂數流隔離）
  * ========================================================================== */
 (function (root) {
   'use strict';
@@ -32,6 +32,32 @@
 
   U.rngStream = function (subSeedStr) {
     return U.mulberry32(U.seedHash(String(subSeedStr)));
+  };
+
+  /**
+   * 同步測試專用：
+   * - U.rng() 使用環境亂數流（角色分配、獸首真偽、座位洗牌）
+   * - Math.random() 使用 Bot 決策亂數流（策略與發言抽樣）
+   * - callback 結束後於 finally 區塊嚴格還原原有亂數狀態
+   */
+  U.withPRNG = function (seedStr, fn) {
+    if (typeof fn !== 'function') {
+      throw new TypeError('withPRNG 需要函式 callback');
+    }
+
+    const originalRandom = Math.random;
+    const previousStream = activeStream;
+    const seed = String(seedStr);
+
+    activeStream = U.rngStream(`${seed}::environment`);
+    Math.random = U.rngStream(`${seed}::decision`);
+
+    try {
+      return fn();
+    } finally {
+      Math.random = originalRandom;
+      activeStream = previousStream;
+    }
   };
 
   /* --- 原版工具函式（將 Math.random 換成 U.rng()） --- */

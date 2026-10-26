@@ -1,8 +1,9 @@
 /* ============================================================================
- * js/net.js — 房間存取、同步與大廳清理（支援大廳背景自動認領 & 離房自動跑完版）
+ * js/net.js — 房間存取、同步與大廳清理（防作弊加密封裝與高併發重試優化版）
  * ========================================================================== */
-(function (GD) {
+(function (root) {
   'use strict';
+  const GD = root.GD || (root.GD = {});
   const { U, Engine } = GD;
   const C = GD.CONFIG;
 
@@ -24,6 +25,69 @@
       sessionStorage.setItem('gudong_v9_pid', id);
       return id;
     } catch (e) { return U.uid('p'); }
+  }
+
+  /* --- 防窺探混淆機制 (Obfuscation) --- */
+  // 用簡單 XOR + Base64 讓 F12 看起來是亂碼，鹽值綁定 gameId
+  function xorCodec(str, key) {
+    if (!key || !str) return str;
+    let out = '';
+    for (let i = 0; i < str.length; i++) {
+      out += String.fromCharCode(str.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+    }
+    return out;
+  }
+
+  // 將房間物件打包：提取公開欄位，機密欄位塞進 _sealed 加密
+  function packRoom(r) {
+    if (!r) return r;
+    const pub = {
+      roomId: r.roomId, gameId: r.gameId, status: r.status, mode: r.mode,
+      closed: !!r.closed, rev: r.rev || 0, updatedAt: r.updatedAt || Date.now(),
+      hostId: r.hostId, hostBeat: r.hostBeat,
+      currentRoundIdx: r.currentRoundIdx || 0,
+      spectators: r.spectators || [],
+      // 大廳需要的人數與名單
+      lobbyPlayers: (r.players || []).map(p => ({ id: p.id, name: p.name, isBot: p.isBot }))
+    };
+    
+    // 把不想被看光的欄位（如底牌 role, 獸首真偽 isReal, mind, turnLogs 等）全部獨立抽出來
+    const secret = { ...r };
+    ['roomId', 'gameId', 'status', 'mode', 'closed', 'rev', 'updatedAt', 'hostId', 'hostBeat', 'currentRoundIdx', 'spectators'].forEach(k => delete secret[k]);
+    
+    try {
+      const jsonStr = JSON.stringify(secret);
+      // 以 roomId + gameId 作為簡單的動態鹽值
+      const salt = r.roomId + (r.gameId || 'v9');
+      const b64 = btoa(unescape(encodeURIComponent(xorCodec(jsonStr, salt))));
+      pub._sealed = b64;
+    } catch (e) {
+      console.warn('[net] 打包加密失敗，退回明文', e);
+      return r;
+    }
+    return pub;
+  }
+
+  // 將打包的房間還原回完整明文
+  function unpackRoom(d) {
+    if (!d) return d;
+    if (!d._sealed) return clone(d); // 兼容舊版明文紀錄
+    try {
+      const salt = d.roomId + (d.gameId || 'v9');
+      const jsonStr = xorCodec(decodeURIComponent(escape(atob(d._sealed))), salt);
+      const secret = JSON.parse(jsonStr);
+      const full = { ...secret };
+      // 覆寫回公開欄位，確保資料一致
+      ['roomId', 'gameId', 'status', 'mode', 'closed', 'rev', 'updatedAt', 'hostId', 'hostBeat', 'currentRoundIdx', 'spectators'].forEach(k => {
+        if (d[k] !== undefined) full[k] = d[k];
+      });
+      // 確保陣列還原
+      if (!full.players && d.lobbyPlayers) full.players = d.lobbyPlayers;
+      return full;
+    } catch (e) {
+      console.warn('[net] 解包失敗，可能資料已損毀', e);
+      return clone(d); // 如果解不開，盡量退回它原本的樣子
+    }
   }
 
   const Net = {
@@ -60,16 +124,17 @@
 
     persistLocal() {
       const target = room || bgRoom;
-      if (target) GD.store.set(C.STORAGE.room + target.roomId, target);
+      if (target) GD.store.set(C.STORAGE.room + target.roomId, packRoom(target));
     },
 
     commit(next) {
-      if (room && next && next.roomId === room.roomId) {
+      if (!next) return;
+      if (room && next.roomId === room.roomId) {
         room = next;
-      } else if (bgRoom && next && next.roomId === bgRoom.roomId) {
+      } else if (bgRoom && next.roomId === bgRoom.roomId) {
         bgRoom = next;
         if (bgRoom.status === 'gameover' && bgRoom.learning) {
-          if (mode === 'solo') GD.store.set(C.STORAGE.room + bgRoom.roomId, bgRoom);
+          if (mode === 'solo') GD.store.set(C.STORAGE.room + bgRoom.roomId, packRoom(bgRoom));
         }
       }
       Net.persistLocal();
@@ -92,13 +157,13 @@
       if (mode === 'online') {
         try {
           const snap = await withTimeout(db.doc(`${C.ROOM_COLLECTION}/${key}`).get(), 7000);
-          existing = snap.exists ? snap.data() : null;
+          existing = snap.exists ? unpackRoom(snap.data()) : null;
         } catch (e) {
           console.warn('[net] 讀取遠端房間失敗，改用單人模式', e);
           mode = 'solo';
         }
       }
-      if (mode === 'solo') existing = GD.store.get(C.STORAGE.room + code, null);
+      if (mode === 'solo') existing = unpackRoom(GD.store.get(C.STORAGE.room + code, null));
 
       if (existing && (existing.closed || Date.now() - (existing.updatedAt || 0) > C.ROOM_STALE_MS)) existing = null;
       room = existing || Engine.newRoom(code, Net.myId);
@@ -188,15 +253,18 @@
     adoptInBackground(data, srcMode) {
       if (room || !data || !data.roomId) return;
       if (data.status === 'waiting' || (data.status === 'gameover' && data.learning)) return;
-      if (bgRoom && bgRoom.roomId === data.roomId) {
-        if ((data.rev || 0) > (bgRoom.rev || 0)) bgRoom = data;
+      
+      const unpackedData = unpackRoom(data); // 解包還原
+
+      if (bgRoom && bgRoom.roomId === unpackedData.roomId) {
+        if ((unpackedData.rev || 0) > (bgRoom.rev || 0)) bgRoom = unpackedData;
         if (GD.Driver && GD.Driver.schedule) GD.Driver.schedule();
         return;
       }
       if (!bgRoom || bgRoom.status === 'gameover') {
         if (unsub) { unsub(); unsub = null; }
         mode = (srcMode === 'online' && db) ? 'online' : 'solo';
-        bgRoom = clone(data);
+        bgRoom = clone(unpackedData);
         if (mode === 'online') subscribe(docId(bgRoom.roomId));
         startBeat();
         const idleMs = Date.now() - (bgRoom.updatedAt || 0);
@@ -226,10 +294,14 @@
         if (!data || !data.roomId) return;
         const stale = now - (data.updatedAt || 0) > C.ROOM_STALE_MS;
         if (stale || data.closed) return;
-        const humans = (data.players || []).filter(p => !p.isBot).map(p => p.name);
+        
+        // 由於我們改寫了 packRoom，現在可以直接從 lobbyPlayers 讀取人類玩家名單，不需解密
+        const pList = data.lobbyPlayers || data.players || [];
+        const humans = pList.filter(p => !p.isBot).map(p => p.name);
+        
         out.push({
           code: data.roomId, source, status: data.status, round: (data.currentRoundIdx || 0) + 1,
-          humans, total: (data.players || []).length, updatedAt: data.updatedAt || 0, mode: data.mode || source
+          humans, total: pList.length, updatedAt: data.updatedAt || 0, mode: data.mode || source
         });
 
         if (!room && data.status !== 'waiting' && data.status !== 'gameover') {
@@ -239,6 +311,7 @@
           }
         }
       };
+      
       const staleOnline = [];
 
       if (db) {
@@ -253,9 +326,9 @@
         } catch (e) { console.warn('[net] 大廳讀取失敗', e && e.message); }
       }
       GD.store.keys(C.STORAGE.room).forEach(k => {
-        const data = GD.store.get(k, null);
+        const data = unpackRoom(GD.store.get(k, null));
         if (!data) return;
-        if (!data.closed && now - (data.updatedAt || 0) > C.ROOM_STALE_MS) { data.closed = true; GD.store.set(k, data); return; }
+        if (!data.closed && now - (data.updatedAt || 0) > C.ROOM_STALE_MS) { data.closed = true; GD.store.set(k, packRoom(data)); return; }
         if (!(db && out.some(o => o.code === data.roomId && o.source === 'online'))) consider(data, 'solo');
       });
       staleOnline.forEach(ref => ref.set({ closed: true }, { merge: true }).catch(() => {}));
@@ -273,11 +346,12 @@
     if (!active) return false;
     if (mode === 'online' && db) {
       const ref = db.doc(`${C.ROOM_COLLECTION}/${docId(active.roomId)}`);
-      for (let attempt = 0; attempt < 4; attempt++) {
+      // ★ 防撞車升級：拉高重試上限至 8 次，並加入隨機退避 Jitter 錯開各玩家撞擊時間
+      for (let attempt = 0; attempt < 8; attempt++) {
         try {
           const result = await withTimeout(db.runTransaction(async tx => {
             const snap = await tx.get(ref);
-            const base = snap.exists ? snap.data() : active;
+            const base = snap.exists ? unpackRoom(snap.data()) : active;
             const draft = clone(base);
             let ok = false;
             try { ok = fn(draft); } catch (e) { console.error('[act]', e); }
@@ -285,7 +359,7 @@
             draft.rev = (base.rev || 0) + 1;
             draft.updatedAt = Date.now();
             const clean = clone(draft);
-            tx.set(ref, clean);
+            tx.set(ref, packRoom(clean)); // 送出前加密封裝
             return { aborted: false, clean };
           }), 10000);
 
@@ -298,8 +372,9 @@
           Net.commit(result.clean);
           return true;
         } catch (e) {
-          console.warn(`[net] 遠端交易重試 (${attempt + 1}/4)：`, e && e.message);
-          if (attempt < 3) await sleep(220 * (attempt + 1));
+          console.warn(`[net] 遠端交易重試 (${attempt + 1}/8)：`, e && e.message);
+          // 隨機抖動 (Jitter) 讓同時卡住的 Client 錯開
+          if (attempt < 7) await sleep(150 * (attempt + 1) + Math.random() * 200);
         }
       }
       if (room) GD.bus.emit('netwarn', '網路延遲過高，請再點擊一次確認動作');
@@ -320,7 +395,7 @@
     unsub = db.doc(`${C.ROOM_COLLECTION}/${key}`).onSnapshot(snap => {
       const active = room || bgRoom;
       if (!snap.exists || !active) return;
-      const remote = snap.data();
+      const remote = unpackRoom(snap.data()); // 即時接收並解包
       if (remote.closed) {
         if (room) GD.bus.emit('closed');
         bgRoom = null;
@@ -355,4 +430,7 @@
   }
 
   GD.Net = Net;
-})(window.GD);
+  
+  // 雙環境相容，確保測試不受影響
+  if (typeof module !== 'undefined' && module.exports) module.exports = GD.Net;
+})(typeof window !== 'undefined' ? window : global);
