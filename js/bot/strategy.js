@@ -1,5 +1,5 @@
 /* ============================================================================
- * bot/strategy.js — 電腦玩家的決策（六控八保尾家、智慧查驗與決策亂數流隔離版）
+ * bot/strategy.js — 電腦玩家的決策（v9.0 Strategy Separation Patch v1）
  * ========================================================================== */
 (function (root) {
   'use strict';
@@ -21,7 +21,6 @@
     const rd = U.curRound(room);
     const quota = Rules.inspectQuota(bot);
     
-    // 計算場上獸首的「關注度」(Attention)：前手剛宣稱過的、或是話題度高的，優先查驗來抓語病！
     const attention = {};
     rd.beasts.forEach(b => { attention[b.name] = 0; });
     
@@ -128,7 +127,7 @@
         }
       }
 
-      /* ★ 修正 2 核心：第六位（myPos === 5，場上剛好剩 2 人未行動）的「六控八」精準控場！ */
+      /* ★ 第六位（myPos === 5，場上剛好剩 2 人未行動）的「六控八」精準控場 */
       if (A.ctx.myPos === 5 && left.length === 2) {
         const [pA, pB] = left;
         const rA = recOf(pA), rB = recOf(pB);
@@ -280,13 +279,13 @@
         }
       }
 
+      /* ★ 定案 6：收斂無證據的開局假跳機率，移除原本 0.45 的固定隨機假跳分支 */
       const canFakeFang = (bot.role === '黃煙煙' || bot.role === '木戶加奈' || bot.role === '姬雲浮');
       const suspectedFangId = canFakeFang ? detectSuspectedFangOnBoard(room, bot.id) : null;
       const alreadyFakeJumped = (rd.speeches || []).some(sp => /我驗了|查驗.*是好人|查驗.*是壞人|看不到獸首/.test(sp.text || ''));
       const wantToProtectFang = canFakeFang && !alreadyFakeJumped && (
-        (suspectedFangId && rnd() < 0.28 + 0.35 * genes.assertiveness) ||
-        (t === 0 && myIns.length === 0 && rnd() < 0.45) ||
-        (t === 0 && bot.role !== '姬雲浮' && rnd() < 0.16 * genes.assertiveness)
+        (suspectedFangId && rnd() < 0.25 + 0.35 * genes.assertiveness) ||
+        (!suspectedFangId && t === 0 && myIns.length === 0 && rnd() < 0.08 + 0.08 * genes.assertiveness)
       );
 
       if (wantToProtectFang) {
@@ -324,26 +323,47 @@
         why.push(A.reEvalNote);
       }
     } else {
+      /* ★ 定案 1 & 2：pLie 僅由 deception 控制；雙重宣稱以 camouflage = 0.5 為基準中心進行調節 */
       const knownReal = myIns.filter(i => i.displayedReal).map(i => i.beastName);
       const knownFake = myIns.filter(i => !i.displayedReal).map(i => i.beastName);
       const partnerMind = ctx.partner && rd.mind[ctx.partner.id];
-      const pLie = U.clamp(0.25 + 0.6 * genes.deception - 0.25 * genes.camouflage + (t === 2 ? 0.2 : 0), 0.12, 0.95);
+
+      const pLie = U.clamp(
+        0.125 + 0.6 * genes.deception + (t === 2 ? 0.2 : 0),
+        0.12,
+        0.95
+      );
 
       if (partnerMind && partnerMind.mode === 'lie' && !knownReal.includes(partnerMind.beast) && rnd() < 0.75) {
-        plan.mode = 'follow'; plan.beast = partnerMind.beast; plan.partnerBeast = partnerMind.beast;
+        plan.mode = 'follow';
+        plan.beast = partnerMind.beast;
+        plan.partnerBeast = partnerMind.beast;
         plan.claims = [{ beast: plan.beast, real: true }];
         why.push(`同伴已帶風向推【${plan.beast}】，我順著他附和以加固假線`);
       } else if (rnd() < pLie) {
         const fakeCands = [...A.post].filter(b => !knownReal.includes(b.name)).sort((a, b) => (a.pReal - b.pReal) || (zIdx(a.name) - zIdx(b.name)));
         const lie = knownFake[0] || (fakeCands[0] && fakeCands[0].name) || ranked[ranked.length - 1].name;
-        plan.mode = 'lie'; plan.beast = lie; plan.claims = [{ beast: lie, real: true }];
-        if (knownReal.length && rnd() < 0.2 + 0.6 * genes.deception) {
+        plan.mode = 'lie';
+        plan.beast = lie;
+        plan.claims = [{ beast: lie, real: true }];
+
+        const pDoubleClaimBase = 0.2 + 0.6 * genes.deception;
+        const pDoubleClaim = U.clamp(
+          pDoubleClaimBase * (1.5 - genes.camouflage),
+          0,
+          1
+        );
+        if (knownReal.length && rnd() < pDoubleClaim) {
           plan.claims.push({ beast: knownReal[0], real: false });
           plan.avoid = [knownReal[0]];
         }
         why.push(`我是【${bot.role}】，這輪帶風向：${knownFake.length ? `我看到【${lie}】是假的，卻宣稱它是真品` : `把票推向後驗最不像真品的【${lie}】`}`);
       } else {
-        plan.mode = 'camouflage'; plan.beast = knownReal[0] || ranked[0].name; plan.padBeast = knownFake[0] || null; plan.claims = [{ beast: plan.beast, real: true }]; why.push(`我是【${bot.role}】，這輪選擇講真話偽裝成好人，票型再分 1 票給假貨`);
+        plan.mode = 'camouflage';
+        plan.beast = knownReal[0] || ranked[0].name;
+        plan.padBeast = knownFake[0] || null;
+        plan.claims = [{ beast: plan.beast, real: true }];
+        why.push(`我是【${bot.role}】，這輪選擇講真話偽裝成好人，票型再視偽裝策略配置`);
       }
     }
 
@@ -355,12 +375,17 @@
       why.push(`${U.tag(q.player)}累計 ${q.pubFake} 票投在已公開的贗品上（最近一次第 ${last.round} 輪的【${last.beast}】），票型全場看得到，先請他說明。他解釋得通就放過，解釋不通或閃躲就升高嫌疑`);
     }
 
-    /* 被點名要說明為什麼把票投在贗品上 */
+    /* ★ 定案 4：被點名要說明為什麼把票投在贗品上（保留抗壓，加入第三輪 cantExplain 退讓例外） */
     if (A.askedMe && A.myFake.length) {
       plan.explain = { callerName: A.askedMe.callerName, votes: A.myFake };
       const canConfess = !ctx.isGood && (bot.role === '藥不然' || bot.role === '鄭國渠');
       const cantExplain = A.myFake.some(f => { const m = room.rounds[f.round - 1].mind[bot.id]; return m && m.mode === 'lie'; });
-      const pConfess = canConfess ? U.clamp((cantExplain ? 0.35 : 0.08) + 0.4 * (1 - genes.camouflage), 0.05, 0.8) : 0;
+      let pConfess = canConfess
+        ? U.clamp((cantExplain ? 0.35 : 0.08) + 0.4 * (1 - genes.camouflage), 0.05, 0.8)
+        : 0;
+      if (canConfess && cantExplain && t === 2) {
+        pConfess = Math.max(pConfess, 0.45);
+      }
       if (rnd() < pConfess) {
         const truthful = myIns.map(i => ({ beast: i.beastName, real: i.displayedReal }));
         const realIns = myIns.find(i => i.displayedReal);
@@ -395,7 +420,7 @@
       }
     }
 
-    /* ---- 鑑人佈局（包含緊鄰順位直接衝突鎖定） ---- */
+    /* ---- 鑑人佈局（定案 5：封住第三輪無條件放行漏洞，改為動態嫌疑門檻＋領先幅度雙重判定） ---- */
     const myConflicts = conflictsOf(A);
     const adjConflict = ctx.isGood ? myConflicts.find(c => c.isAdjacent && c.speakerPos < c.myPos) : null;
     if (adjConflict && bot.role !== '方震') {
@@ -405,12 +430,27 @@
 
     if (!plan.suspectId && !plan.softShadeId) {
       const hc = A.humanCall;
+      const sortedSuspects = Object.values(A.prof).sort((a, b) => b.evil - a.evil);
+      const topEvil = sortedSuspects[0] ? sortedSuspects[0].evil : 0;
+      const secondEvil = sortedSuspects[1] ? sortedSuspects[1].evil : 0;
+      const leadMargin = topEvil - secondEvil;
+      const hasDirectConflict = A.topSuspect && Array.isArray(A.topSuspect.conflicts) && A.topSuspect.conflicts.length > 0;
+
+      const suspectThreshold = 55 + 25 * genes.skepticism;
+      const minLead = 8 + 15 * genes.skepticism;
+      const round3Threshold = 40 + 25 * genes.skepticism;
+      const round3MinLead = 6 + 12 * genes.skepticism;
+
+      const canAccuseNow = t < 2
+        ? (topEvil >= suspectThreshold && (leadMargin >= minLead || hasDirectConflict))
+        : (topEvil >= round3Threshold && (leadMargin >= round3MinLead || hasDirectConflict));
+
       if (ctx.isGood && hc && (A.prof[hc.targetId]?.ally || 0) < 85 && rnd() < 0.3 + 0.65 * genes.conformity) {
         plan.suspectId = hc.targetId; plan.followHuman = hc;
         why.push(`真人【${hc.callerName}】號召集火，其發言可信度夠，我附議`);
-      } else if (ctx.isGood && bot.role !== '方震' && A.topSuspect && (t === 2 || A.topSuspect.evil >= 65) && rnd() < 0.35 + 0.6 * genes.assertiveness) {
+      } else if (ctx.isGood && bot.role !== '方震' && A.topSuspect && canAccuseNow && rnd() < 0.35 + 0.6 * genes.assertiveness) {
         plan.suspectId = A.topSuspect.player.id;
-        why.push(`${U.tag(A.topSuspect.player)}嫌疑最高（${A.topSuspect.reasons[0] || '票型與發言矛盾'}），先為鑑人鋪梗`);
+        why.push(`${U.tag(A.topSuspect.player)}嫌疑最高且明顯領先（${A.topSuspect.reasons[0] || '票型與發言矛盾'}），先為鑑人鋪梗`);
       } else if (!ctx.isGood && t === 2 && rnd() < 0.3 + 0.5 * genes.deception) {
         const scapegoat = Object.values(A.prof).filter(r => (!ctx.partner || r.player.id !== ctx.partner.id) && !r.knownEvil).sort((a, b) => (b.ally - b.evil) - (a.ally - a.evil))[0];
         if (scapegoat) {
@@ -443,7 +483,7 @@
     return { plan, A };
   };
 
-  /* ---------------------------------------------------------------- 投票 */
+  /* ---------------------------------------------------------------- 投票（定案 3：由 camouflage 控制分票執行與言行一致破綻） */
 
   S.ballot = function (bot, room) {
     const rd = U.curRound(room), t = room.currentRoundIdx;
@@ -457,11 +497,21 @@
     const ballot = {};
 
     if (!GD.isGood(bot.role)) {
+      // A. 偽裝講真話模式：如何在「維持口頭真品宣稱一致」與「偷墊假貨」之間取捨
       if (m.mode === 'camouflage' && m.padBeast && spend >= 2 && m.padBeast !== m.beast) {
-        ballot[m.beast] = 1;
-        ballot[m.padBeast] = spend - 1;
-        return ballot;
+        if (rnd() < 0.25 + 0.65 * genes.camouflage) {
+          // 具備偽裝執行力：留 1 票護航口頭宣稱的真品（避免 0 票矛盾），其餘墊給假貨
+          ballot[m.beast] = 1;
+          ballot[m.padBeast] = spend - 1;
+          return ballot;
+        } else if (rnd() < 0.55 * (1 - genes.camouflage)) {
+          // 低偽裝力露出明顯破綻：嘴上報真品 m.beast，卻把全部籌碼灌給假貨 m.padBeast（產生 0 票言行矛盾）
+          ballot[m.padBeast] = spend;
+          return ballot;
+        }
       }
+
+      // B. 說謊／跟風模式：當自己喊的假貨在場上孤立無援時，如何處理選票
       const callCounts = {};
       (rd.speeches || []).forEach(sp => {
         const cb = sp.p && sp.p.callBeast;
@@ -472,9 +522,16 @@
           .filter(b => b.name !== m.beast && b.p <= 0.48 && (callCounts[b.name] || 0) >= 1)
           .sort((a, b) => (callCounts[b.name] || 0) - (callCounts[a.name] || 0) || (zIdx(a.name) - zIdx(b.name)))[0];
         if (rallyFake) {
-          ballot[m.beast] = 1;
-          ballot[rallyFake.name] = spend - 1;
-          return ballot;
+          if (rnd() < 0.25 + 0.65 * genes.camouflage) {
+            // 高偽裝力：留 1 票支持自己口頭喊的獸首，其餘合流別隻假貨
+            ballot[m.beast] = 1;
+            ballot[rallyFake.name] = spend - 1;
+            return ballot;
+          } else if (rnd() < 0.60 * (1 - genes.camouflage)) {
+            // 低偽裝力：直接棄守自己口頭宣稱的獸首（0 票矛盾），全票轉投別隻
+            ballot[rallyFake.name] = spend;
+            return ballot;
+          }
         }
       }
     }
