@@ -1,5 +1,5 @@
 /* ============================================================================
- * js/net.js — 房間存取、同步與大廳清理（防作弊加密封裝與高併發重試優化版）
+ * js/net.js — 房間存取、同步與大廳清理（移除背景接管批次替換真人路徑）
  * ========================================================================== */
 (function (root) {
   'use strict';
@@ -17,6 +17,14 @@
   const sleep = ms => new Promise(res => setTimeout(res, ms));
   const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 
+  const HOST_STALE_MS = 25000;
+  function isHostStale(data, now = Date.now()) {
+    if (!data) return true;
+    const beat = Number(data.hostBeat || 0);
+    const lastSeen = beat || Number(data.updatedAt || 0);
+    return !lastSeen || now - lastSeen > HOST_STALE_MS;
+  }
+
   function persistentPlayerId() {
     try {
       let id = localStorage.getItem('gudong_v9_pid') || sessionStorage.getItem('gudong_v9_pid');
@@ -28,7 +36,6 @@
   }
 
   /* --- 防窺探混淆機制 (Obfuscation) --- */
-  // 用簡單 XOR + Base64 讓 F12 看起來是亂碼，鹽值綁定 gameId
   function xorCodec(str, key) {
     if (!key || !str) return str;
     let out = '';
@@ -38,55 +45,54 @@
     return out;
   }
 
-  // 將房間物件打包：提取公開欄位，機密欄位塞進 _sealed 加密
+  const PUBLIC_KEYS = [
+    'roomId', 'gameId', 'status', 'mode', 'closed', 'rev',
+    'updatedAt', 'hostId', 'hostBeat', 'currentRoundIdx',
+    'turnStartTime', 'spectators'
+  ];
+
   function packRoom(r) {
     if (!r) return r;
     const pub = {
       roomId: r.roomId, gameId: r.gameId, status: r.status, mode: r.mode,
       closed: !!r.closed, rev: r.rev || 0, updatedAt: r.updatedAt || Date.now(),
-      hostId: r.hostId, hostBeat: r.hostBeat,
+      hostId: r.hostId, hostBeat: r.hostBeat || Date.now(),
       currentRoundIdx: r.currentRoundIdx || 0,
+      turnStartTime: r.turnStartTime || Date.now(),
       spectators: r.spectators || [],
-      // 大廳需要的人數與名單
       lobbyPlayers: (r.players || []).map(p => ({ id: p.id, name: p.name, isBot: p.isBot }))
     };
-    
-    // 把不想被看光的欄位（如底牌 role, 獸首真偽 isReal, mind, turnLogs 等）全部獨立抽出來
+
     const secret = { ...r };
-    ['roomId', 'gameId', 'status', 'mode', 'closed', 'rev', 'updatedAt', 'hostId', 'hostBeat', 'currentRoundIdx', 'spectators'].forEach(k => delete secret[k]);
-    
+    PUBLIC_KEYS.forEach(k => delete secret[k]);
+
     try {
       const jsonStr = JSON.stringify(secret);
-      // 以 roomId + gameId 作為簡單的動態鹽值
       const salt = r.roomId + (r.gameId || 'v9');
       const b64 = btoa(unescape(encodeURIComponent(xorCodec(jsonStr, salt))));
       pub._sealed = b64;
     } catch (e) {
-      console.warn('[net] 打包加密失敗，退回明文', e);
       return r;
     }
     return pub;
   }
 
-  // 將打包的房間還原回完整明文
   function unpackRoom(d) {
     if (!d) return d;
-    if (!d._sealed) return clone(d); // 兼容舊版明文紀錄
+    if (!d._sealed) return clone(d);
     try {
       const salt = d.roomId + (d.gameId || 'v9');
       const jsonStr = xorCodec(decodeURIComponent(escape(atob(d._sealed))), salt);
       const secret = JSON.parse(jsonStr);
       const full = { ...secret };
-      // 覆寫回公開欄位，確保資料一致
-      ['roomId', 'gameId', 'status', 'mode', 'closed', 'rev', 'updatedAt', 'hostId', 'hostBeat', 'currentRoundIdx', 'spectators'].forEach(k => {
+      PUBLIC_KEYS.forEach(k => {
         if (d[k] !== undefined) full[k] = d[k];
       });
-      // 確保陣列還原
       if (!full.players && d.lobbyPlayers) full.players = d.lobbyPlayers;
+      if (!full.turnStartTime) full.turnStartTime = d.updatedAt || Date.now();
       return full;
     } catch (e) {
-      console.warn('[net] 解包失敗，可能資料已損毀', e);
-      return clone(d); // 如果解不開，盡量退回它原本的樣子
+      return clone(d);
     }
   }
 
@@ -227,12 +233,14 @@
         room = null;
         if (Engine.replaceWithBot) {
           Net.act(r => {
-            let changed = false;
             const meInSeat = r.players.find(p => p.id === Net.myId && !p.isBot);
-            if (meInSeat && Engine.replaceWithBot(r, Net.myId)) changed = true;
-            r.hostId = Net.myId;
+            if (!meInSeat) return false;
+            Engine.replaceWithBot(r, Net.myId);
+            // 放棄主機權給場上其他真人
+            const remainingHuman = r.players.find(p => !p.isBot);
+            r.hostId = remainingHuman ? remainingHuman.id : Net.myId;
             r.hostBeat = Date.now();
-            return changed || true;
+            return true;
           }).then(() => {
             if (GD.Driver && GD.Driver.schedule) GD.Driver.schedule();
           });
@@ -253,8 +261,8 @@
     adoptInBackground(data, srcMode) {
       if (room || !data || !data.roomId) return;
       if (data.status === 'waiting' || (data.status === 'gameover' && data.learning)) return;
-      
-      const unpackedData = unpackRoom(data); // 解包還原
+
+      const unpackedData = unpackRoom(data);
 
       if (bgRoom && bgRoom.roomId === unpackedData.roomId) {
         if ((unpackedData.rev || 0) > (bgRoom.rev || 0)) bgRoom = unpackedData;
@@ -267,16 +275,15 @@
         bgRoom = clone(unpackedData);
         if (mode === 'online') subscribe(docId(bgRoom.roomId));
         startBeat();
-        const idleMs = Date.now() - (bgRoom.updatedAt || 0);
-        if (idleMs > 12000 && Engine.replaceWithBot) {
+
+        if (isHostStale(bgRoom)) {
           Net.act(r => {
-            let changed = false;
-            (r.players || []).forEach(p => {
-              if (!p.isBot && Engine.replaceWithBot(r, p.id)) changed = true;
-            });
+            if (!isHostStale(r)) return false;
             r.hostId = Net.myId;
             r.hostBeat = Date.now();
-            return changed || true;
+            // ★ 移除對場上真人呼叫 replaceWithBot 的危險批次替換，
+            // 背景接管純粹只負責轉移主機權以維持系統運作，真人由真實的 AFK 流程處理。
+            return true;
           }).then(() => {
             if (GD.Driver && GD.Driver.schedule) GD.Driver.schedule();
           });
@@ -294,24 +301,23 @@
         if (!data || !data.roomId) return;
         const stale = now - (data.updatedAt || 0) > C.ROOM_STALE_MS;
         if (stale || data.closed) return;
-        
-        // 由於我們改寫了 packRoom，現在可以直接從 lobbyPlayers 讀取人類玩家名單，不需解密
+
         const pList = data.lobbyPlayers || data.players || [];
         const humans = pList.filter(p => !p.isBot).map(p => p.name);
-        
+
         out.push({
           code: data.roomId, source, status: data.status, round: (data.currentRoundIdx || 0) + 1,
           humans, total: pList.length, updatedAt: data.updatedAt || 0, mode: data.mode || source
         });
 
         if (!room && data.status !== 'waiting' && data.status !== 'gameover') {
-          const idleMs = now - (data.updatedAt || 0);
-          if (humans.length === 0 || idleMs > 10000 || (bgRoom && bgRoom.roomId === data.roomId)) {
+          const sameBackgroundRoom = bgRoom && bgRoom.roomId === data.roomId;
+          if (humans.length === 0 || isHostStale(data, now) || sameBackgroundRoom) {
             if (!candidateToAdopt) candidateToAdopt = { data, source };
           }
         }
       };
-      
+
       const staleOnline = [];
 
       if (db) {
@@ -346,7 +352,6 @@
     if (!active) return false;
     if (mode === 'online' && db) {
       const ref = db.doc(`${C.ROOM_COLLECTION}/${docId(active.roomId)}`);
-      // ★ 防撞車升級：拉高重試上限至 8 次，並加入隨機退避 Jitter 錯開各玩家撞擊時間
       for (let attempt = 0; attempt < 8; attempt++) {
         try {
           const result = await withTimeout(db.runTransaction(async tx => {
@@ -359,7 +364,7 @@
             draft.rev = (base.rev || 0) + 1;
             draft.updatedAt = Date.now();
             const clean = clone(draft);
-            tx.set(ref, packRoom(clean)); // 送出前加密封裝
+            tx.set(ref, packRoom(clean));
             return { aborted: false, clean };
           }), 10000);
 
@@ -373,7 +378,6 @@
           return true;
         } catch (e) {
           console.warn(`[net] 遠端交易重試 (${attempt + 1}/8)：`, e && e.message);
-          // 隨機抖動 (Jitter) 讓同時卡住的 Client 錯開
           if (attempt < 7) await sleep(150 * (attempt + 1) + Math.random() * 200);
         }
       }
@@ -395,7 +399,12 @@
     unsub = db.doc(`${C.ROOM_COLLECTION}/${key}`).onSnapshot(snap => {
       const active = room || bgRoom;
       if (!snap.exists || !active) return;
-      const remote = unpackRoom(snap.data()); // 即時接收並解包
+      const raw = snap.data();
+      if (raw && raw.hostBeat && raw.hostBeat > (active.hostBeat || 0)) {
+        active.hostBeat = raw.hostBeat;
+        if (raw.hostId) active.hostId = raw.hostId;
+      }
+      const remote = unpackRoom(raw);
       if (remote.closed) {
         if (room) GD.bus.emit('closed');
         bgRoom = null;
@@ -413,7 +422,7 @@
       const active = room || bgRoom;
       if (!active || active.status === 'gameover') return;
       const isHost = active.hostId === Net.myId;
-      const hostStale = Date.now() - (active.hostBeat || 0) > 25000;
+      const hostStale = Date.now() - (active.hostBeat || 0) > HOST_STALE_MS;
       const firstHuman = (active.players || []).find(p => !p.isBot) || (active.spectators || [])[0];
       if (!isHost && !(hostStale && (!firstHuman || firstHuman.id === Net.myId))) return;
 
@@ -430,7 +439,6 @@
   }
 
   GD.Net = Net;
-  
-  // 雙環境相容，確保測試不受影響
+
   if (typeof module !== 'undefined' && module.exports) module.exports = GD.Net;
 })(typeof window !== 'undefined' ? window : global);
