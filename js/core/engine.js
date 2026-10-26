@@ -1,5 +1,5 @@
 /* ============================================================================
- * core/engine.js — 遊戲狀態機（預抽計畫版，拔除時間與亂數污染）
+ * core/engine.js — 遊戲狀態機（修復計時基準，恢復真實時間戳）
  * ========================================================================== */
 (function (GD) {
   'use strict';
@@ -74,12 +74,13 @@
   }
 
   Engine.newRoom = function (code, hostId) {
+    const now = Date.now();
     return {
-      v: 9, roomId: code, hostId: hostId || null, hostBeat: 0,
+      v: 9, roomId: code, hostId: hostId || null, hostBeat: now,
       gameId: null, status: 'waiting', closed: false,
       currentRoundIdx: 0, currentTurnPlayerId: null, currentSpeakerId: null,
-      turnStartTime: 0, deck: [...GD.ZODIAC], players: [], spectators: [], rounds: [], personVotes: {},
-      gameOver: null, learning: null, plan: null, rev: 0, createdAt: 0, updatedAt: 0
+      turnStartTime: now, deck: [...GD.ZODIAC], players: [], spectators: [], rounds: [], personVotes: {},
+      gameOver: null, learning: null, plan: null, rev: 0, createdAt: now, updatedAt: now
     };
   };
 
@@ -140,7 +141,6 @@
 
   Engine.fillBots = function (room) {
     const used = new Set(room.players.map(p => p.name));
-    // 改用 U.shuffle 與 U.uid（受發牌流 rng 控制）
     const pool = U.shuffle(GD.Roster.list.filter(b => !used.has(b.name)));
     while (room.players.length < 8 && pool.length) {
       const b = pool.pop();
@@ -197,7 +197,6 @@
     if (!p || p.isBot) return false;
     const used = new Set(room.players.map(x => x.name));
     const pool = GD.Roster.list.filter(b => !used.has(b.name));
-    // 注意：因已進入對局，此處 pick 不受發牌流嚴格限制，但基準對局無真人斷線，故不影響 A/A。
     const botDef = pool.length ? U.pick(pool) : GD.Roster.list[0];
 
     if (!room.spectators) room.spectators = [];
@@ -217,7 +216,6 @@
     return true;
   };
 
-  /* ★ 新增：從 room.plan 中抽離真偽與首家，不依賴後續抽牌時機消耗亂數 */
   Engine.drawRound = function (room, roundNum) {
     if (!room.plan || !room.plan.rounds || !room.plan.rounds[roundNum - 1]) {
         if (!room.deck || room.deck.length < 4) room.deck = [...GD.ZODIAC];
@@ -228,7 +226,6 @@
         const beasts = names.map((name, i) => ({ name, isReal: flags[i] })).sort((a, b) => GD.ZODIAC.indexOf(a.name) - GD.ZODIAC.indexOf(b.name));
         return { roundNum, beasts, passOrder: [], turnLogs: {}, laoActive: false, blockedBeast: null, speechOrder: [], speechIndex: 0, speeches: [], votes: {}, voteResults: null, mind: {} };
     }
-    // 從開局已產生的 plan 提取
     const plannedRound = room.plan.rounds[roundNum - 1];
     return {
       roundNum, beasts: JSON.parse(JSON.stringify(plannedRound.beasts)), passOrder: [], turnLogs: {}, laoActive: false, blockedBeast: null,
@@ -236,12 +233,10 @@
     };
   };
 
-  /* ★ 修改：Engine.start 階段一次抽完所有全域亂數（角色、獸首、首家、困惑回合），存入 room.plan */
   Engine.start = function (room) {
     if (room.players.length !== 8 || (room.status !== 'waiting' && room.status !== 'gameover')) return false;
     U.seated(room).forEach((p, i) => { p.seatIndex = i; });
     
-    // 一次性抽好三回合獸首並凍結順序
     const deck = U.shuffle([...GD.ZODIAC]);
     const roundPlans = [];
     let currentDeck = deck;
@@ -266,9 +261,9 @@
     });
 
     room.gameId = U.uid('g');
-    // 拔除實際時間賦值，改塞 0，避免影響 A/A 校驗
-    room.startedAt = 0; 
-    room.turnStartTime = 0;
+    const now = Date.now();
+    room.startedAt = now;
+    room.turnStartTime = now;
     
     const r1 = Engine.drawRound(room, 1);
     r1.passOrder = [room.plan.starterId];
@@ -319,7 +314,10 @@
     if (log.inspect.length >= Rules.inspectQuota(p)) return false;
     const res = Rules.inspect(beast, p, rd, room.currentRoundIdx);
     log.inspect.push(res);
-    if (log.inspect.length >= Rules.inspectQuota(p)) log.step = 'b';
+    if (log.inspect.length >= Rules.inspectQuota(p)) {
+      log.step = 'b';
+      room.turnStartTime = Date.now();
+    }
     return res;
   };
 
@@ -327,7 +325,7 @@
     if (!myTurn(room, pid, 'b')) return false;
     const rd = U.curRound(room), p = U.byId(room, pid), log = Engine.log(room, pid);
     ensureInPassOrder(rd, pid);
-    const done = () => { log.step = 'c'; return true; };
+    const done = () => { log.step = 'c'; room.turnStartTime = Date.now(); return true; };
     if (!action || action.kind === 'skip') return done();
     if (Rules.isBlind(p)) { log.ability = '技能被偷襲封鎖'; return done(); }
 
@@ -382,6 +380,7 @@
       rd.passOrder.push(actualNextId);
       log.nextPlayerId = actualNextId;
       room.currentTurnPlayerId = actualNextId;
+      room.turnStartTime = Date.now();
     } else {
       startDiscussion(room, rd, pid);
     }
@@ -397,6 +396,7 @@
     rd.speechIndex = 0;
     room.currentSpeakerId = rd.speechOrder[0];
     room.currentTurnPlayerId = null;
+    room.turnStartTime = Date.now();
     room.status = 'discussion';
   }
 
@@ -412,12 +412,12 @@
       playerId: pid, speakerName: p.name, colorId: p.colorId, text: body, source: isHuman ? 'human' : source,
       summary: pass ? `${label} 選擇先過` : (summary || Claims.summarize(parsed, label, room, body)),
       p: parsed, 
-      // 拔除 Date 以免污染 JSON，填入固定的空字串
       time: ''
     });
     rd.speechIndex++;
     if (rd.speechIndex >= rd.speechOrder.length) { room.status = 'voting'; room.currentSpeakerId = null; }
     else room.currentSpeakerId = rd.speechOrder[rd.speechIndex];
+    room.turnStartTime = Date.now();
     return true;
   };
 
@@ -461,6 +461,7 @@
 
     if (room.players.length === 8 && room.players.every(x => rd.votes[x.id] !== undefined)) {
       rd.voteResults = Rules.tally(room, rd);
+      room.turnStartTime = Date.now();
     }
     return true;
   };
@@ -468,7 +469,7 @@
   Engine.advance = function (room) {
     if (room.status !== 'voting' || !U.curRound(room).voteResults) return false;
     const idx = room.currentRoundIdx, rd = U.curRound(room);
-    if (idx >= 2) { room.status = 'person_voting'; return true; }
+    if (idx >= 2) { room.status = 'person_voting'; room.turnStartTime = Date.now(); return true; }
     const tail = rd.passOrder[rd.passOrder.length - 1] || room.players[0].id;
     const next = Engine.drawRound(room, idx + 2);
     next.passOrder = [tail];
@@ -483,6 +484,7 @@
     });
     room.currentRoundIdx = idx + 1;
     room.currentTurnPlayerId = tail;
+    room.turnStartTime = Date.now();
     room.status = 'playing';
     return true;
   };
@@ -495,6 +497,7 @@
     if (room.players.length === 8 && room.players.every(x => room.personVotes[x.id])) {
       room.gameOver = Rules.score(room);
       room.status = 'gameover';
+      room.turnStartTime = Date.now();
     }
     return true;
   };
