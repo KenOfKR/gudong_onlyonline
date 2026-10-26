@@ -17,15 +17,6 @@
   const sleep = ms => new Promise(res => setTimeout(res, ms));
   const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 
-  // 以主機 heartbeat 判斷是否真的需要接管；不能只看遊戲操作造成的 updatedAt。
-  const HOST_STALE_MS = 25000;
-  function isHostStale(data, now = Date.now()) {
-    if (!data) return true;
-    const beat = Number(data.hostBeat || 0);
-    const lastSeen = beat || Number(data.updatedAt || 0);
-    return !lastSeen || now - lastSeen > HOST_STALE_MS;
-  }
-
   function persistentPlayerId() {
     try {
       let id = localStorage.getItem('gudong_v9_pid') || sessionStorage.getItem('gudong_v9_pid');
@@ -59,11 +50,11 @@
       // 大廳需要的人數與名單
       lobbyPlayers: (r.players || []).map(p => ({ id: p.id, name: p.name, isBot: p.isBot }))
     };
-
+    
     // 把不想被看光的欄位（如底牌 role, 獸首真偽 isReal, mind, turnLogs 等）全部獨立抽出來
     const secret = { ...r };
     ['roomId', 'gameId', 'status', 'mode', 'closed', 'rev', 'updatedAt', 'hostId', 'hostBeat', 'currentRoundIdx', 'spectators'].forEach(k => delete secret[k]);
-
+    
     try {
       const jsonStr = JSON.stringify(secret);
       // 以 roomId + gameId 作為簡單的動態鹽值
@@ -262,7 +253,7 @@
     adoptInBackground(data, srcMode) {
       if (room || !data || !data.roomId) return;
       if (data.status === 'waiting' || (data.status === 'gameover' && data.learning)) return;
-
+      
       const unpackedData = unpackRoom(data); // 解包還原
 
       if (bgRoom && bgRoom.roomId === unpackedData.roomId) {
@@ -276,16 +267,16 @@
         bgRoom = clone(unpackedData);
         if (mode === 'online') subscribe(docId(bgRoom.roomId));
         startBeat();
-
-        // 背景載入不能因為遊戲暫時沒有操作，就把所有真人座位換成電腦。
-        // 只有主機 heartbeat 確實逾時，才嘗試移交主機權；玩家座位保持不變。
-        if (isHostStale(bgRoom)) {
+        const idleMs = Date.now() - (bgRoom.updatedAt || 0);
+        if (idleMs > 12000 && Engine.replaceWithBot) {
           Net.act(r => {
-            // 交易內再檢查一次最新遠端資料，避免舊快照覆蓋仍在線的主機。
-            if (!isHostStale(r)) return false;
+            let changed = false;
+            (r.players || []).forEach(p => {
+              if (!p.isBot && Engine.replaceWithBot(r, p.id)) changed = true;
+            });
             r.hostId = Net.myId;
             r.hostBeat = Date.now();
-            return true;
+            return changed || true;
           }).then(() => {
             if (GD.Driver && GD.Driver.schedule) GD.Driver.schedule();
           });
@@ -303,26 +294,24 @@
         if (!data || !data.roomId) return;
         const stale = now - (data.updatedAt || 0) > C.ROOM_STALE_MS;
         if (stale || data.closed) return;
-
+        
         // 由於我們改寫了 packRoom，現在可以直接從 lobbyPlayers 讀取人類玩家名單，不需解密
         const pList = data.lobbyPlayers || data.players || [];
         const humans = pList.filter(p => !p.isBot).map(p => p.name);
-
+        
         out.push({
           code: data.roomId, source, status: data.status, round: (data.currentRoundIdx || 0) + 1,
           humans, total: pList.length, updatedAt: data.updatedAt || 0, mode: data.mode || source
         });
 
         if (!room && data.status !== 'waiting' && data.status !== 'gameover') {
-          // 真人房間只有在主機 heartbeat 逾時時才允許背景接管。
-          // 全電腦房間仍可由背景驅動；已接管的背景房間允許持續更新。
-          const sameBackgroundRoom = bgRoom && bgRoom.roomId === data.roomId;
-          if (humans.length === 0 || isHostStale(data, now) || sameBackgroundRoom) {
+          const idleMs = now - (data.updatedAt || 0);
+          if (humans.length === 0 || idleMs > 10000 || (bgRoom && bgRoom.roomId === data.roomId)) {
             if (!candidateToAdopt) candidateToAdopt = { data, source };
           }
         }
       };
-
+      
       const staleOnline = [];
 
       if (db) {
@@ -441,7 +430,7 @@
   }
 
   GD.Net = Net;
-
+  
   // 雙環境相容，確保測試不受影響
   if (typeof module !== 'undefined' && module.exports) module.exports = GD.Net;
 })(typeof window !== 'undefined' ? window : global);
