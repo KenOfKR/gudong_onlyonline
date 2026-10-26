@@ -1,0 +1,1763 @@
+{
+  "targetName": "水豚",
+  "targetBotId": "bot_003",
+  "low": 0.4,
+  "high": 0.6,
+  "manifestSummary": {
+    "attemptedSeeds": 1888,
+    "validSeedsCount": 304,
+    "roleQuota": 30,
+    "roleCounts": {
+      "許願": 42,
+      "方震": 47,
+      "姬雲浮": 30,
+      "黃煙煙": 36,
+      "木戶加奈": 33,
+      "老朝奉": 46,
+      "藥不然": 40,
+      "鄭國渠": 30
+    }
+  },
+  "genes": {
+    "skepticism": {
+      "validPairs": 304,
+      "skippedNotPresent": 0,
+      "skippedRole": 0,
+      "skippedEnvironment": 0,
+      "skippedManifestSig": 0,
+      "roles": {
+        "許願": {
+          "pairs": 42,
+          "underQuota": false,
+          "metrics": {
+            "profileRiskGap": {
+              "pooledLow": 16.633835603382646,
+              "pooledHigh": 16.955160639897855,
+              "lowDenom": 126,
+              "highDenom": 126,
+              "pooledDelta": 0.3213250365152085,
+              "pairedGameN": 42,
+              "pairedGameMeanDelta": 0.3213250365152162
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.40476190476190477,
+              "pooledHigh": 0.47619047619047616,
+              "lowDenom": 126,
+              "highDenom": 126,
+              "pooledDelta": 0.0714285714285714,
+              "pairedGameN": 42,
+              "pairedGameMeanDelta": 0.07142857142857142
+            },
+            "falseAccusationRate": {
+              "pooledLow": 0.37254901960784315,
+              "pooledHigh": 0.4,
+              "lowDenom": 51,
+              "highDenom": 60,
+              "pooledDelta": 0.027450980392156876,
+              "pairedGameN": 36,
+              "pairedGameMeanDelta": 0.00925925925925926
+            },
+            "askRate": {
+              "pooledLow": 0.07142857142857142,
+              "pooledHigh": 0.0873015873015873,
+              "lowDenom": 126,
+              "highDenom": 126,
+              "pooledDelta": 0.015873015873015872,
+              "pairedGameN": 42,
+              "pairedGameMeanDelta": 0.015873015873015872
+            }
+          }
+        },
+        "方震": {
+          "pairs": 47,
+          "underQuota": false,
+          "metrics": {
+            "profileRiskGap": {
+              "pooledLow": 55.60335517292677,
+              "pooledHigh": 57.67002923647019,
+              "lowDenom": 141,
+              "highDenom": 141,
+              "pooledDelta": 2.0666740635434238,
+              "pairedGameN": 47,
+              "pairedGameMeanDelta": 2.066674063543421
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.5886524822695035,
+              "pooledHigh": 0.5886524822695035,
+              "lowDenom": 141,
+              "highDenom": 141,
+              "pooledDelta": 0,
+              "pairedGameN": 47,
+              "pairedGameMeanDelta": 0
+            },
+            "falseAccusationRate": {
+              "pooledLow": 0.012048192771084338,
+              "pooledHigh": 0.012048192771084338,
+              "lowDenom": 83,
+              "highDenom": 83,
+              "pooledDelta": 0,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0
+            },
+            "askRate": {
+              "pooledLow": 0.0851063829787234,
+              "pooledHigh": 0.09219858156028368,
+              "lowDenom": 141,
+              "highDenom": 141,
+              "pooledDelta": 0.00709219858156028,
+              "pairedGameN": 47,
+              "pairedGameMeanDelta": 0.0070921985815602835
+            }
+          }
+        },
+        "姬雲浮": {
+          "pairs": 30,
+          "underQuota": false,
+          "metrics": {
+            "profileRiskGap": {
+              "pooledLow": 20.627026846973738,
+              "pooledHigh": 22.693089568355497,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": 2.0660627213817584,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 2.06606272138176
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.4222222222222222,
+              "pooledHigh": 0.4,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": -0.0222222222222222,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": -0.02222222222222222
+            },
+            "falseAccusationRate": {
+              "pooledLow": 0.3157894736842105,
+              "pooledHigh": 0.3333333333333333,
+              "lowDenom": 38,
+              "highDenom": 36,
+              "pooledDelta": 0.017543859649122806,
+              "pairedGameN": 25,
+              "pairedGameMeanDelta": 0
+            },
+            "askRate": {
+              "pooledLow": 0.07777777777777778,
+              "pooledHigh": 0.06666666666666667,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": -0.011111111111111113,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": -0.01111111111111111
+            }
+          }
+        },
+        "黃煙煙": {
+          "pairs": 36,
+          "underQuota": false,
+          "metrics": {
+            "profileRiskGap": {
+              "pooledLow": 22.764820231466448,
+              "pooledHigh": 25.250589465126033,
+              "lowDenom": 108,
+              "highDenom": 108,
+              "pooledDelta": 2.4857692336595854,
+              "pairedGameN": 36,
+              "pairedGameMeanDelta": 2.4857692336595774
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.3611111111111111,
+              "pooledHigh": 0.39814814814814814,
+              "lowDenom": 108,
+              "highDenom": 108,
+              "pooledDelta": 0.037037037037037035,
+              "pairedGameN": 36,
+              "pairedGameMeanDelta": 0.037037037037037035
+            },
+            "falseAccusationRate": {
+              "pooledLow": 0.28205128205128205,
+              "pooledHigh": 0.3488372093023256,
+              "lowDenom": 39,
+              "highDenom": 43,
+              "pooledDelta": 0.06678592725104354,
+              "pairedGameN": 29,
+              "pairedGameMeanDelta": 0.05172413793103448
+            },
+            "askRate": {
+              "pooledLow": 0.10185185185185185,
+              "pooledHigh": 0.12962962962962962,
+              "lowDenom": 108,
+              "highDenom": 108,
+              "pooledDelta": 0.027777777777777776,
+              "pairedGameN": 36,
+              "pairedGameMeanDelta": 0.027777777777777776
+            }
+          }
+        },
+        "木戶加奈": {
+          "pairs": 33,
+          "underQuota": false,
+          "metrics": {
+            "profileRiskGap": {
+              "pooledLow": 23.40083336902987,
+              "pooledHigh": 25.62407931291785,
+              "lowDenom": 99,
+              "highDenom": 99,
+              "pooledDelta": 2.2232459438879815,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 2.223245943887982
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.29292929292929293,
+              "pooledHigh": 0.31313131313131315,
+              "lowDenom": 99,
+              "highDenom": 99,
+              "pooledDelta": 0.02020202020202022,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 0.020202020202020204
+            },
+            "falseAccusationRate": {
+              "pooledLow": 0.1724137931034483,
+              "pooledHigh": 0.22580645161290322,
+              "lowDenom": 29,
+              "highDenom": 31,
+              "pooledDelta": 0.05339265850945493,
+              "pairedGameN": 24,
+              "pairedGameMeanDelta": 0.041666666666666664
+            },
+            "askRate": {
+              "pooledLow": 0.0707070707070707,
+              "pooledHigh": 0.08080808080808081,
+              "lowDenom": 99,
+              "highDenom": 99,
+              "pooledDelta": 0.01010101010101011,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 0.0101010101010101
+            }
+          }
+        },
+        "老朝奉": {
+          "pairs": 46,
+          "underQuota": false,
+          "metrics": {
+            "publicSuspectRate": {
+              "pooledLow": 0.2463768115942029,
+              "pooledHigh": 0.2463768115942029,
+              "lowDenom": 138,
+              "highDenom": 138,
+              "pooledDelta": 0,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": 0
+            },
+            "askRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 138,
+              "highDenom": 138,
+              "pooledDelta": 0,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        },
+        "藥不然": {
+          "pairs": 40,
+          "underQuota": false,
+          "metrics": {
+            "publicSuspectRate": {
+              "pooledLow": 0.23333333333333334,
+              "pooledHigh": 0.23333333333333334,
+              "lowDenom": 120,
+              "highDenom": 120,
+              "pooledDelta": 0,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0
+            },
+            "askRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 120,
+              "highDenom": 120,
+              "pooledDelta": 0,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        },
+        "鄭國渠": {
+          "pairs": 30,
+          "underQuota": false,
+          "metrics": {
+            "publicSuspectRate": {
+              "pooledLow": 0.26666666666666666,
+              "pooledHigh": 0.26666666666666666,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": 0,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0
+            },
+            "askRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": 0,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        }
+      },
+      "overall": {
+        "profileRiskGap": {
+          "pooledLow": 29.375269273349026,
+          "pooledHigh": 31.159663011230315,
+          "lowDenom": 564,
+          "highDenom": 564,
+          "pooledDelta": 1.7843937378812882,
+          "pairedGameN": 188,
+          "pairedGameMeanDelta": 1.7843937378812804
+        },
+        "publicSuspectRate": {
+          "pooledLow": 0.3574561403508772,
+          "pooledHigh": 0.3717105263157895,
+          "lowDenom": 912,
+          "highDenom": 912,
+          "pooledDelta": 0.014254385964912297,
+          "pairedGameN": 304,
+          "pairedGameMeanDelta": 0.014254385964912285
+        },
+        "falseAccusationRate": {
+          "pooledLow": 0.2,
+          "pooledHigh": 0.233201581027668,
+          "lowDenom": 240,
+          "highDenom": 253,
+          "pooledDelta": 0.03320158102766799,
+          "pairedGameN": 154,
+          "pairedGameMeanDelta": 0.0183982683982684
+        },
+        "askRate": {
+          "pooledLow": 0.05043859649122807,
+          "pooledHigh": 0.05701754385964912,
+          "lowDenom": 912,
+          "highDenom": 912,
+          "pooledDelta": 0.006578947368421052,
+          "pairedGameN": 304,
+          "pairedGameMeanDelta": 0.006578947368421052
+        }
+      }
+    },
+    "deception": {
+      "validPairs": 304,
+      "skippedNotPresent": 0,
+      "skippedRole": 0,
+      "skippedEnvironment": 0,
+      "skippedManifestSig": 0,
+      "roles": {
+        "許願": {
+          "pairs": 42,
+          "underQuota": false,
+          "metrics": {}
+        },
+        "方震": {
+          "pairs": 47,
+          "underQuota": false,
+          "metrics": {}
+        },
+        "姬雲浮": {
+          "pairs": 30,
+          "underQuota": false,
+          "metrics": {}
+        },
+        "黃煙煙": {
+          "pairs": 36,
+          "underQuota": false,
+          "metrics": {}
+        },
+        "木戶加奈": {
+          "pairs": 33,
+          "underQuota": false,
+          "metrics": {}
+        },
+        "老朝奉": {
+          "pairs": 46,
+          "underQuota": false,
+          "metrics": {
+            "lieRate": {
+              "pooledLow": 0.3115942028985507,
+              "pooledHigh": 0.4057971014492754,
+              "lowDenom": 138,
+              "highDenom": 138,
+              "pooledDelta": 0.09420289855072467,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": 0.09420289855072463
+            },
+            "doubleClaimRate": {
+              "pooledLow": 0.09302325581395349,
+              "pooledHigh": 0.16071428571428573,
+              "lowDenom": 43,
+              "highDenom": 56,
+              "pooledDelta": 0.06769102990033224,
+              "pairedGameN": 32,
+              "pairedGameMeanDelta": 0.06770833333333331
+            },
+            "round3SuspectRate": {
+              "pooledLow": 0.6086956521739131,
+              "pooledHigh": 0.6956521739130435,
+              "lowDenom": 46,
+              "highDenom": 46,
+              "pooledDelta": 0.08695652173913038,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": 0.08695652173913043
+            },
+            "laoSkillActivationRate": {
+              "pooledLow": 0.4927536231884058,
+              "pooledHigh": 0.5289855072463768,
+              "lowDenom": 138,
+              "highDenom": 138,
+              "pooledDelta": 0.03623188405797101,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": 0.03623188405797101
+            },
+            "passToPartnerRate": {
+              "pooledLow": 0.17073170731707318,
+              "pooledHigh": 0.17073170731707318,
+              "lowDenom": 123,
+              "highDenom": 123,
+              "pooledDelta": 0,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": -0.003623188405797102
+            }
+          }
+        },
+        "藥不然": {
+          "pairs": 40,
+          "underQuota": false,
+          "metrics": {
+            "lieRate": {
+              "pooledLow": 0.35,
+              "pooledHigh": 0.44166666666666665,
+              "lowDenom": 120,
+              "highDenom": 120,
+              "pooledDelta": 0.09166666666666667,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0.09166666666666667
+            },
+            "doubleClaimRate": {
+              "pooledLow": 0.19047619047619047,
+              "pooledHigh": 0.33962264150943394,
+              "lowDenom": 42,
+              "highDenom": 53,
+              "pooledDelta": 0.14914645103324348,
+              "pairedGameN": 27,
+              "pairedGameMeanDelta": 0.1419753086419753
+            },
+            "round3SuspectRate": {
+              "pooledLow": 0.6,
+              "pooledHigh": 0.625,
+              "lowDenom": 40,
+              "highDenom": 40,
+              "pooledDelta": 0.025000000000000022,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0.025
+            },
+            "passToPartnerRate": {
+              "pooledLow": 0.20212765957446807,
+              "pooledHigh": 0.1702127659574468,
+              "lowDenom": 94,
+              "highDenom": 94,
+              "pooledDelta": -0.03191489361702127,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": -0.029166666666666664
+            }
+          }
+        },
+        "鄭國渠": {
+          "pairs": 30,
+          "underQuota": false,
+          "metrics": {
+            "lieRate": {
+              "pooledLow": 0.4666666666666667,
+              "pooledHigh": 0.6555555555555556,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": 0.18888888888888888,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0.1888888888888889
+            },
+            "doubleClaimRate": {
+              "pooledLow": 0.23809523809523808,
+              "pooledHigh": 0.288135593220339,
+              "lowDenom": 42,
+              "highDenom": 59,
+              "pooledDelta": 0.05004035512510091,
+              "pairedGameN": 25,
+              "pairedGameMeanDelta": 0.04666666666666666
+            },
+            "round3SuspectRate": {
+              "pooledLow": 0.6333333333333333,
+              "pooledHigh": 0.6333333333333333,
+              "lowDenom": 30,
+              "highDenom": 30,
+              "pooledDelta": 0,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0
+            },
+            "passToPartnerRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 74,
+              "highDenom": 75,
+              "pooledDelta": 0,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        }
+      },
+      "overall": {
+        "lieRate": {
+          "pooledLow": 0.3649425287356322,
+          "pooledHigh": 0.4827586206896552,
+          "lowDenom": 348,
+          "highDenom": 348,
+          "pooledDelta": 0.11781609195402298,
+          "pairedGameN": 116,
+          "pairedGameMeanDelta": 0.11781609195402301
+        },
+        "doubleClaimRate": {
+          "pooledLow": 0.1732283464566929,
+          "pooledHigh": 0.2619047619047619,
+          "lowDenom": 127,
+          "highDenom": 168,
+          "pooledDelta": 0.08867641544806901,
+          "pairedGameN": 84,
+          "pairedGameMeanDelta": 0.0853174603174603
+        },
+        "round3SuspectRate": {
+          "pooledLow": 0.6120689655172413,
+          "pooledHigh": 0.6551724137931034,
+          "lowDenom": 116,
+          "highDenom": 116,
+          "pooledDelta": 0.0431034482758621,
+          "pairedGameN": 116,
+          "pairedGameMeanDelta": 0.04310344827586207
+        },
+        "laoSkillActivationRate": {
+          "pooledLow": 0.4927536231884058,
+          "pooledHigh": 0.5289855072463768,
+          "lowDenom": 138,
+          "highDenom": 138,
+          "pooledDelta": 0.03623188405797101,
+          "pairedGameN": 46,
+          "pairedGameMeanDelta": 0.03623188405797101
+        },
+        "passToPartnerRate": {
+          "pooledLow": 0.13745704467353953,
+          "pooledHigh": 0.1267123287671233,
+          "lowDenom": 291,
+          "highDenom": 292,
+          "pooledDelta": -0.010744715906416236,
+          "pairedGameN": 116,
+          "pairedGameMeanDelta": -0.011494252873563218
+        }
+      }
+    },
+    "camouflage": {
+      "validPairs": 304,
+      "skippedNotPresent": 0,
+      "skippedRole": 0,
+      "skippedEnvironment": 0,
+      "skippedManifestSig": 0,
+      "roles": {
+        "許願": {
+          "pairs": 42,
+          "underQuota": false,
+          "metrics": {
+            "fakeVoteChipShare": {
+              "pooledLow": 0.32142857142857145,
+              "pooledHigh": 0.32142857142857145,
+              "lowDenom": 252,
+              "highDenom": 252,
+              "pooledDelta": 0,
+              "pairedGameN": 42,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        },
+        "方震": {
+          "pairs": 47,
+          "underQuota": false,
+          "metrics": {
+            "fakeVoteChipShare": {
+              "pooledLow": 0.4397163120567376,
+              "pooledHigh": 0.4397163120567376,
+              "lowDenom": 282,
+              "highDenom": 282,
+              "pooledDelta": 0,
+              "pairedGameN": 47,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        },
+        "姬雲浮": {
+          "pairs": 30,
+          "underQuota": false,
+          "metrics": {
+            "fakeVoteChipShare": {
+              "pooledLow": 0.3055555555555556,
+              "pooledHigh": 0.3055555555555556,
+              "lowDenom": 180,
+              "highDenom": 180,
+              "pooledDelta": 0,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        },
+        "黃煙煙": {
+          "pairs": 36,
+          "underQuota": false,
+          "metrics": {
+            "fakeVoteChipShare": {
+              "pooledLow": 0.4027777777777778,
+              "pooledHigh": 0.4027777777777778,
+              "lowDenom": 216,
+              "highDenom": 216,
+              "pooledDelta": 0,
+              "pairedGameN": 36,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        },
+        "木戶加奈": {
+          "pairs": 33,
+          "underQuota": false,
+          "metrics": {
+            "fakeVoteChipShare": {
+              "pooledLow": 0.40404040404040403,
+              "pooledHigh": 0.40404040404040403,
+              "lowDenom": 198,
+              "highDenom": 198,
+              "pooledDelta": 0,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        },
+        "老朝奉": {
+          "pairs": 46,
+          "underQuota": false,
+          "metrics": {
+            "camouflageRate": {
+              "pooledLow": 0.2318840579710145,
+              "pooledHigh": 0.2826086956521739,
+              "lowDenom": 138,
+              "highDenom": 138,
+              "pooledDelta": 0.050724637681159396,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": 0.05072463768115942
+            },
+            "lieRate": {
+              "pooledLow": 0.5579710144927537,
+              "pooledHigh": 0.4782608695652174,
+              "lowDenom": 138,
+              "highDenom": 138,
+              "pooledDelta": -0.07971014492753625,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": -0.07971014492753624
+            },
+            "doubleClaimRate": {
+              "pooledLow": 0.16883116883116883,
+              "pooledHigh": 0.19696969696969696,
+              "lowDenom": 77,
+              "highDenom": 66,
+              "pooledDelta": 0.02813852813852813,
+              "pairedGameN": 38,
+              "pairedGameMeanDelta": 0.004385964912280702
+            },
+            "splitVoteRate": {
+              "pooledLow": 0.17391304347826086,
+              "pooledHigh": 0.21014492753623187,
+              "lowDenom": 138,
+              "highDenom": 138,
+              "pooledDelta": 0.03623188405797101,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": 0.03623188405797101
+            },
+            "claimChipShare": {
+              "pooledLow": 0.8817204301075269,
+              "pooledHigh": 0.8563829787234043,
+              "lowDenom": 186,
+              "highDenom": 188,
+              "pooledDelta": -0.025337451384122578,
+              "pairedGameN": 45,
+              "pairedGameMeanDelta": -0.029629629629629624
+            },
+            "claimZeroVoteRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 93,
+              "highDenom": 94,
+              "pooledDelta": 0,
+              "pairedGameN": 45,
+              "pairedGameMeanDelta": 0
+            },
+            "claimMajorityVoteRate": {
+              "pooledLow": 1,
+              "pooledHigh": 1,
+              "lowDenom": 93,
+              "highDenom": 94,
+              "pooledDelta": 0,
+              "pairedGameN": 45,
+              "pairedGameMeanDelta": 0
+            },
+            "camoClaimChipShare": {
+              "pooledLow": 0.75,
+              "pooledHigh": 0.7307692307692307,
+              "lowDenom": 64,
+              "highDenom": 78,
+              "pooledDelta": -0.019230769230769273,
+              "pairedGameN": 24,
+              "pairedGameMeanDelta": 0
+            },
+            "lieClaimChipShare": {
+              "pooledLow": 0.9508196721311475,
+              "pooledHigh": 0.9454545454545454,
+              "lowDenom": 122,
+              "highDenom": 110,
+              "pooledDelta": -0.00536512667660205,
+              "pairedGameN": 37,
+              "pairedGameMeanDelta": 0
+            },
+            "fakeVoteChipShare": {
+              "pooledLow": 0.7137681159420289,
+              "pooledHigh": 0.6992753623188406,
+              "lowDenom": 276,
+              "highDenom": 276,
+              "pooledDelta": -0.01449275362318836,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": -0.014492753623188404
+            }
+          }
+        },
+        "藥不然": {
+          "pairs": 40,
+          "underQuota": false,
+          "metrics": {
+            "camouflageRate": {
+              "pooledLow": 0.23333333333333334,
+              "pooledHigh": 0.26666666666666666,
+              "lowDenom": 120,
+              "highDenom": 120,
+              "pooledDelta": 0.033333333333333326,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0.03333333333333333
+            },
+            "lieRate": {
+              "pooledLow": 0.4583333333333333,
+              "pooledHigh": 0.4666666666666667,
+              "lowDenom": 120,
+              "highDenom": 120,
+              "pooledDelta": 0.00833333333333336,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0.008333333333333333
+            },
+            "doubleClaimRate": {
+              "pooledLow": 0.32727272727272727,
+              "pooledHigh": 0.35714285714285715,
+              "lowDenom": 55,
+              "highDenom": 56,
+              "pooledDelta": 0.02987012987012988,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 0.030303030303030304
+            },
+            "splitVoteRate": {
+              "pooledLow": 0.21666666666666667,
+              "pooledHigh": 0.25,
+              "lowDenom": 120,
+              "highDenom": 120,
+              "pooledDelta": 0.033333333333333326,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0.03333333333333333
+            },
+            "claimChipShare": {
+              "pooledLow": 0.8715083798882681,
+              "pooledHigh": 0.8540540540540541,
+              "lowDenom": 179,
+              "highDenom": 185,
+              "pooledDelta": -0.017454325834214024,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": -0.020833333333333332
+            },
+            "claimZeroVoteRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 89,
+              "highDenom": 92,
+              "pooledDelta": 0,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0
+            },
+            "claimMajorityVoteRate": {
+              "pooledLow": 0.9887640449438202,
+              "pooledHigh": 0.9891304347826086,
+              "lowDenom": 89,
+              "highDenom": 92,
+              "pooledDelta": 0.0003663898387884501,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0
+            },
+            "camoClaimChipShare": {
+              "pooledLow": 0.7017543859649122,
+              "pooledHigh": 0.6923076923076923,
+              "lowDenom": 57,
+              "highDenom": 65,
+              "pooledDelta": -0.009446693657219951,
+              "pairedGameN": 25,
+              "pairedGameMeanDelta": -0.006666666666666665
+            },
+            "lieClaimChipShare": {
+              "pooledLow": 0.9482758620689655,
+              "pooledHigh": 0.940677966101695,
+              "lowDenom": 116,
+              "highDenom": 118,
+              "pooledDelta": -0.007597895967270563,
+              "pairedGameN": 34,
+              "pairedGameMeanDelta": -0.014705882352941176
+            },
+            "confessRate": {
+              "pooledLow": 0.7,
+              "pooledHigh": 0.3333333333333333,
+              "lowDenom": 10,
+              "highDenom": 6,
+              "pooledDelta": -0.36666666666666664,
+              "pairedGameN": 5,
+              "pairedGameMeanDelta": -0.2
+            },
+            "fakeVoteChipShare": {
+              "pooledLow": 0.6708333333333333,
+              "pooledHigh": 0.6666666666666666,
+              "lowDenom": 240,
+              "highDenom": 240,
+              "pooledDelta": -0.004166666666666652,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": -0.004166666666666665
+            }
+          }
+        },
+        "鄭國渠": {
+          "pairs": 30,
+          "underQuota": false,
+          "metrics": {
+            "camouflageRate": {
+              "pooledLow": 0.2222222222222222,
+              "pooledHigh": 0.26666666666666666,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": 0.04444444444444445,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0.04444444444444444
+            },
+            "lieRate": {
+              "pooledLow": 0.7111111111111111,
+              "pooledHigh": 0.7,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": -0.011111111111111183,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": -0.011111111111111112
+            },
+            "doubleClaimRate": {
+              "pooledLow": 0.34375,
+              "pooledHigh": 0.3333333333333333,
+              "lowDenom": 64,
+              "highDenom": 63,
+              "pooledDelta": -0.010416666666666685,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": -0.03333333333333333
+            },
+            "splitVoteRate": {
+              "pooledLow": 0.28888888888888886,
+              "pooledHigh": 0.32222222222222224,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": 0.03333333333333338,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0.03333333333333333
+            },
+            "claimChipShare": {
+              "pooledLow": 0.8445945945945946,
+              "pooledHigh": 0.8266666666666667,
+              "lowDenom": 148,
+              "highDenom": 150,
+              "pooledDelta": -0.017927927927927967,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": -0.013888888888888888
+            },
+            "claimZeroVoteRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 74,
+              "highDenom": 75,
+              "pooledDelta": 0,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0
+            },
+            "claimMajorityVoteRate": {
+              "pooledLow": 1,
+              "pooledHigh": 1,
+              "lowDenom": 74,
+              "highDenom": 75,
+              "pooledDelta": 0,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0
+            },
+            "camoClaimChipShare": {
+              "pooledLow": 0.65,
+              "pooledHigh": 0.6458333333333334,
+              "lowDenom": 40,
+              "highDenom": 48,
+              "pooledDelta": -0.004166666666666652,
+              "pairedGameN": 18,
+              "pairedGameMeanDelta": 0.013888888888888888
+            },
+            "lieClaimChipShare": {
+              "pooledLow": 0.9081632653061225,
+              "pooledHigh": 0.90625,
+              "lowDenom": 98,
+              "highDenom": 96,
+              "pooledDelta": -0.001913265306122458,
+              "pairedGameN": 28,
+              "pairedGameMeanDelta": 0
+            },
+            "confessRate": {
+              "pooledLow": 0.6666666666666666,
+              "pooledHigh": 0.42857142857142855,
+              "lowDenom": 9,
+              "highDenom": 7,
+              "pooledDelta": -0.23809523809523808,
+              "pairedGameN": 5,
+              "pairedGameMeanDelta": -0.2
+            },
+            "fakeVoteChipShare": {
+              "pooledLow": 0.6833333333333333,
+              "pooledHigh": 0.6777777777777778,
+              "lowDenom": 180,
+              "highDenom": 180,
+              "pooledDelta": -0.005555555555555536,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": -0.005555555555555552
+            }
+          }
+        }
+      },
+      "overall": {
+        "camouflageRate": {
+          "pooledLow": 0.22988505747126436,
+          "pooledHigh": 0.27298850574712646,
+          "lowDenom": 348,
+          "highDenom": 348,
+          "pooledDelta": 0.0431034482758621,
+          "pairedGameN": 116,
+          "pairedGameMeanDelta": 0.04310344827586206
+        },
+        "lieRate": {
+          "pooledLow": 0.5632183908045977,
+          "pooledHigh": 0.5316091954022989,
+          "lowDenom": 348,
+          "highDenom": 348,
+          "pooledDelta": -0.031609195402298784,
+          "pairedGameN": 116,
+          "pairedGameMeanDelta": -0.031609195402298854
+        },
+        "doubleClaimRate": {
+          "pooledLow": 0.27040816326530615,
+          "pooledHigh": 0.2918918918918919,
+          "lowDenom": 196,
+          "highDenom": 185,
+          "pooledDelta": 0.021483728626585763,
+          "pairedGameN": 101,
+          "pairedGameMeanDelta": 0.0016501650165016504
+        },
+        "splitVoteRate": {
+          "pooledLow": 0.21839080459770116,
+          "pooledHigh": 0.25287356321839083,
+          "lowDenom": 348,
+          "highDenom": 348,
+          "pooledDelta": 0.03448275862068967,
+          "pairedGameN": 116,
+          "pairedGameMeanDelta": 0.034482758620689655
+        },
+        "claimChipShare": {
+          "pooledLow": 0.8674463937621832,
+          "pooledHigh": 0.847036328871893,
+          "lowDenom": 513,
+          "highDenom": 523,
+          "pooledDelta": -0.02041006489029029,
+          "pairedGameN": 115,
+          "pairedGameMeanDelta": -0.022463768115942022
+        },
+        "claimZeroVoteRate": {
+          "pooledLow": 0,
+          "pooledHigh": 0,
+          "lowDenom": 256,
+          "highDenom": 261,
+          "pooledDelta": 0,
+          "pairedGameN": 115,
+          "pairedGameMeanDelta": 0
+        },
+        "claimMajorityVoteRate": {
+          "pooledLow": 0.99609375,
+          "pooledHigh": 0.9961685823754789,
+          "lowDenom": 256,
+          "highDenom": 261,
+          "pooledDelta": 0.00007483237547889487,
+          "pairedGameN": 115,
+          "pairedGameMeanDelta": 0
+        },
+        "camoClaimChipShare": {
+          "pooledLow": 0.7080745341614907,
+          "pooledHigh": 0.6963350785340314,
+          "lowDenom": 161,
+          "highDenom": 191,
+          "pooledDelta": -0.011739455627459261,
+          "pairedGameN": 67,
+          "pairedGameMeanDelta": 0.0012437810945273638
+        },
+        "lieClaimChipShare": {
+          "pooledLow": 0.9375,
+          "pooledHigh": 0.9320987654320988,
+          "lowDenom": 336,
+          "highDenom": 324,
+          "pooledDelta": -0.005401234567901203,
+          "pairedGameN": 99,
+          "pairedGameMeanDelta": -0.005050505050505051
+        },
+        "confessRate": {
+          "pooledLow": 0.6842105263157895,
+          "pooledHigh": 0.38461538461538464,
+          "lowDenom": 19,
+          "highDenom": 13,
+          "pooledDelta": -0.29959514170040485,
+          "pairedGameN": 10,
+          "pairedGameMeanDelta": -0.2
+        },
+        "fakeVoteChipShare": {
+          "pooledLow": 0.49780701754385964,
+          "pooledHigh": 0.49451754385964913,
+          "lowDenom": 1824,
+          "highDenom": 1824,
+          "pooledDelta": -0.003289473684210509,
+          "pairedGameN": 304,
+          "pairedGameMeanDelta": -0.0032894736842105257
+        }
+      }
+    },
+    "assertiveness": {
+      "validPairs": 304,
+      "skippedNotPresent": 0,
+      "skippedRole": 0,
+      "skippedEnvironment": 0,
+      "skippedManifestSig": 0,
+      "roles": {
+        "許願": {
+          "pairs": 42,
+          "underQuota": false,
+          "metrics": {
+            "publicSuspectRate": {
+              "pooledLow": 0.40476190476190477,
+              "pooledHigh": 0.4603174603174603,
+              "lowDenom": 126,
+              "highDenom": 126,
+              "pooledDelta": 0.055555555555555525,
+              "pairedGameN": 42,
+              "pairedGameMeanDelta": 0.05555555555555556
+            },
+            "askRate": {
+              "pooledLow": 0.0873015873015873,
+              "pooledHigh": 0.07936507936507936,
+              "lowDenom": 126,
+              "highDenom": 126,
+              "pooledDelta": -0.007936507936507936,
+              "pairedGameN": 42,
+              "pairedGameMeanDelta": -0.007936507936507936
+            },
+            "voteSpendRate": {
+              "pooledLow": 0.972972972972973,
+              "pooledHigh": 0.984375,
+              "lowDenom": 259,
+              "highDenom": 256,
+              "pooledDelta": 0.011402027027026973,
+              "pairedGameN": 42,
+              "pairedGameMeanDelta": 0.010204081632653064
+            }
+          }
+        },
+        "方震": {
+          "pairs": 47,
+          "underQuota": false,
+          "metrics": {
+            "publicSuspectRate": {
+              "pooledLow": 0.5602836879432624,
+              "pooledHigh": 0.6170212765957447,
+              "lowDenom": 141,
+              "highDenom": 141,
+              "pooledDelta": 0.05673758865248224,
+              "pairedGameN": 47,
+              "pairedGameMeanDelta": 0.056737588652482275
+            },
+            "askRate": {
+              "pooledLow": 0.07801418439716312,
+              "pooledHigh": 0.07801418439716312,
+              "lowDenom": 141,
+              "highDenom": 141,
+              "pooledDelta": 0,
+              "pairedGameN": 47,
+              "pairedGameMeanDelta": 0
+            },
+            "voteSpendRate": {
+              "pooledLow": 0.94,
+              "pooledHigh": 0.9527027027027027,
+              "lowDenom": 300,
+              "highDenom": 296,
+              "pooledDelta": 0.012702702702702795,
+              "pairedGameN": 47,
+              "pairedGameMeanDelta": 0.012158054711246204
+            }
+          }
+        },
+        "姬雲浮": {
+          "pairs": 30,
+          "underQuota": false,
+          "metrics": {
+            "publicSuspectRate": {
+              "pooledLow": 0.4,
+              "pooledHigh": 0.4222222222222222,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": 0.0222222222222222,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0.02222222222222222
+            },
+            "askRate": {
+              "pooledLow": 0.05555555555555555,
+              "pooledHigh": 0.06666666666666667,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": 0.011111111111111113,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0.01111111111111111
+            },
+            "voteSpendRate": {
+              "pooledLow": 0.967741935483871,
+              "pooledHigh": 0.9782608695652174,
+              "lowDenom": 186,
+              "highDenom": 184,
+              "pooledDelta": 0.01051893408134641,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0.009523809523809526
+            },
+            "fakeFangRate": {
+              "pooledLow": 0.24444444444444444,
+              "pooledHigh": 0.3,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": 0.05555555555555555,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0.05555555555555555
+            },
+            "fakeFangCluedRate": {
+              "pooledLow": 0.3090909090909091,
+              "pooledHigh": 0.4,
+              "lowDenom": 55,
+              "highDenom": 55,
+              "pooledDelta": 0.09090909090909094,
+              "pairedGameN": 29,
+              "pairedGameMeanDelta": 0.09195402298850575
+            },
+            "fakeFangBlindRate": {
+              "pooledLow": 0.14285714285714285,
+              "pooledHigh": 0.14285714285714285,
+              "lowDenom": 35,
+              "highDenom": 35,
+              "pooledDelta": 0,
+              "pairedGameN": 25,
+              "pairedGameMeanDelta": 0
+            },
+            "fakeFangR1Rate": {
+              "pooledLow": 0.26666666666666666,
+              "pooledHigh": 0.26666666666666666,
+              "lowDenom": 30,
+              "highDenom": 30,
+              "pooledDelta": 0,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0
+            },
+            "fakeFangLaterRate": {
+              "pooledLow": 0.23333333333333334,
+              "pooledHigh": 0.31666666666666665,
+              "lowDenom": 60,
+              "highDenom": 60,
+              "pooledDelta": 0.08333333333333331,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0.08333333333333333
+            }
+          }
+        },
+        "黃煙煙": {
+          "pairs": 36,
+          "underQuota": false,
+          "metrics": {
+            "publicSuspectRate": {
+              "pooledLow": 0.3425925925925926,
+              "pooledHigh": 0.37037037037037035,
+              "lowDenom": 108,
+              "highDenom": 108,
+              "pooledDelta": 0.027777777777777735,
+              "pairedGameN": 36,
+              "pairedGameMeanDelta": 0.027777777777777776
+            },
+            "askRate": {
+              "pooledLow": 0.12037037037037036,
+              "pooledHigh": 0.12962962962962962,
+              "lowDenom": 108,
+              "highDenom": 108,
+              "pooledDelta": 0.009259259259259259,
+              "pairedGameN": 36,
+              "pairedGameMeanDelta": 0.009259259259259259
+            },
+            "voteSpendRate": {
+              "pooledLow": 0.9391304347826087,
+              "pooledHigh": 0.96,
+              "lowDenom": 230,
+              "highDenom": 225,
+              "pooledDelta": 0.02086956521739125,
+              "pairedGameN": 36,
+              "pairedGameMeanDelta": 0.01884920634920635
+            },
+            "fakeFangRate": {
+              "pooledLow": 0.24074074074074073,
+              "pooledHigh": 0.28703703703703703,
+              "lowDenom": 108,
+              "highDenom": 108,
+              "pooledDelta": 0.04629629629629631,
+              "pairedGameN": 36,
+              "pairedGameMeanDelta": 0.046296296296296294
+            },
+            "fakeFangCluedRate": {
+              "pooledLow": 0.3442622950819672,
+              "pooledHigh": 0.4262295081967213,
+              "lowDenom": 61,
+              "highDenom": 61,
+              "pooledDelta": 0.08196721311475408,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 0.07575757575757576
+            },
+            "fakeFangBlindRate": {
+              "pooledLow": 0.10638297872340426,
+              "pooledHigh": 0.10638297872340426,
+              "lowDenom": 47,
+              "highDenom": 47,
+              "pooledDelta": 0,
+              "pairedGameN": 31,
+              "pairedGameMeanDelta": 0
+            },
+            "fakeFangR1Rate": {
+              "pooledLow": 0.2222222222222222,
+              "pooledHigh": 0.2222222222222222,
+              "lowDenom": 36,
+              "highDenom": 36,
+              "pooledDelta": 0,
+              "pairedGameN": 36,
+              "pairedGameMeanDelta": 0
+            },
+            "fakeFangLaterRate": {
+              "pooledLow": 0.25,
+              "pooledHigh": 0.3194444444444444,
+              "lowDenom": 72,
+              "highDenom": 72,
+              "pooledDelta": 0.06944444444444442,
+              "pairedGameN": 36,
+              "pairedGameMeanDelta": 0.06944444444444445
+            }
+          }
+        },
+        "木戶加奈": {
+          "pairs": 33,
+          "underQuota": false,
+          "metrics": {
+            "publicSuspectRate": {
+              "pooledLow": 0.25252525252525254,
+              "pooledHigh": 0.31313131313131315,
+              "lowDenom": 99,
+              "highDenom": 99,
+              "pooledDelta": 0.06060606060606061,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 0.0606060606060606
+            },
+            "askRate": {
+              "pooledLow": 0.050505050505050504,
+              "pooledHigh": 0.10101010101010101,
+              "lowDenom": 99,
+              "highDenom": 99,
+              "pooledDelta": 0.050505050505050504,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 0.0505050505050505
+            },
+            "voteSpendRate": {
+              "pooledLow": 0.9658536585365853,
+              "pooledHigh": 0.9705882352941176,
+              "lowDenom": 205,
+              "highDenom": 204,
+              "pooledDelta": 0.004734576757532305,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 0.004329004329004331
+            },
+            "fakeFangRate": {
+              "pooledLow": 0.2727272727272727,
+              "pooledHigh": 0.3434343434343434,
+              "lowDenom": 99,
+              "highDenom": 99,
+              "pooledDelta": 0.07070707070707072,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 0.0707070707070707
+            },
+            "fakeFangCluedRate": {
+              "pooledLow": 0.3392857142857143,
+              "pooledHigh": 0.44642857142857145,
+              "lowDenom": 56,
+              "highDenom": 56,
+              "pooledDelta": 0.10714285714285715,
+              "pairedGameN": 32,
+              "pairedGameMeanDelta": 0.057291666666666664
+            },
+            "fakeFangBlindRate": {
+              "pooledLow": 0.18604651162790697,
+              "pooledHigh": 0.20930232558139536,
+              "lowDenom": 43,
+              "highDenom": 43,
+              "pooledDelta": 0.023255813953488386,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0.03333333333333333
+            },
+            "fakeFangR1Rate": {
+              "pooledLow": 0.2727272727272727,
+              "pooledHigh": 0.36363636363636365,
+              "lowDenom": 33,
+              "highDenom": 33,
+              "pooledDelta": 0.09090909090909094,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 0.09090909090909091
+            },
+            "fakeFangLaterRate": {
+              "pooledLow": 0.2727272727272727,
+              "pooledHigh": 0.3333333333333333,
+              "lowDenom": 66,
+              "highDenom": 66,
+              "pooledDelta": 0.06060606060606061,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 0.06060606060606061
+            }
+          }
+        },
+        "老朝奉": {
+          "pairs": 46,
+          "underQuota": false,
+          "metrics": {
+            "publicSuspectRate": {
+              "pooledLow": 0.2391304347826087,
+              "pooledHigh": 0.2463768115942029,
+              "lowDenom": 138,
+              "highDenom": 138,
+              "pooledDelta": 0.007246376811594207,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": 0.007246376811594202
+            },
+            "askRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 138,
+              "highDenom": 138,
+              "pooledDelta": 0,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": 0
+            },
+            "voteSpendRate": {
+              "pooledLow": 0.9963898916967509,
+              "pooledHigh": 1,
+              "lowDenom": 277,
+              "highDenom": 276,
+              "pooledDelta": 0.0036101083032491488,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": 0.0031055900621118023
+            }
+          }
+        },
+        "藥不然": {
+          "pairs": 40,
+          "underQuota": false,
+          "metrics": {
+            "publicSuspectRate": {
+              "pooledLow": 0.23333333333333334,
+              "pooledHigh": 0.23333333333333334,
+              "lowDenom": 120,
+              "highDenom": 120,
+              "pooledDelta": 0,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0
+            },
+            "askRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 120,
+              "highDenom": 120,
+              "pooledDelta": 0,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0
+            },
+            "voteSpendRate": {
+              "pooledLow": 0.9876543209876543,
+              "pooledHigh": 0.9917355371900827,
+              "lowDenom": 243,
+              "highDenom": 242,
+              "pooledDelta": 0.004081216202428406,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0.0035714285714285726
+            }
+          }
+        },
+        "鄭國渠": {
+          "pairs": 30,
+          "underQuota": false,
+          "metrics": {
+            "publicSuspectRate": {
+              "pooledLow": 0.26666666666666666,
+              "pooledHigh": 0.26666666666666666,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": 0,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0
+            },
+            "askRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": 0,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0
+            },
+            "voteSpendRate": {
+              "pooledLow": 1,
+              "pooledHigh": 1,
+              "lowDenom": 180,
+              "highDenom": 180,
+              "pooledDelta": 0,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        }
+      },
+      "overall": {
+        "publicSuspectRate": {
+          "pooledLow": 0.3432017543859649,
+          "pooledHigh": 0.37280701754385964,
+          "lowDenom": 912,
+          "highDenom": 912,
+          "pooledDelta": 0.029605263157894746,
+          "pairedGameN": 304,
+          "pairedGameMeanDelta": 0.029605263157894735
+        },
+        "askRate": {
+          "pooledLow": 0.049342105263157895,
+          "pooledHigh": 0.05592105263157895,
+          "lowDenom": 912,
+          "highDenom": 912,
+          "pooledDelta": 0.006578947368421052,
+          "pairedGameN": 304,
+          "pairedGameMeanDelta": 0.006578947368421052
+        },
+        "voteSpendRate": {
+          "pooledLow": 0.9702127659574468,
+          "pooledHigh": 0.9790660225442834,
+          "lowDenom": 1880,
+          "highDenom": 1863,
+          "pooledDelta": 0.008853256586836666,
+          "pairedGameN": 304,
+          "pairedGameMeanDelta": 0.00787124060150376
+        },
+        "fakeFangRate": {
+          "pooledLow": 0.25252525252525254,
+          "pooledHigh": 0.30976430976430974,
+          "lowDenom": 297,
+          "highDenom": 297,
+          "pooledDelta": 0.0572390572390572,
+          "pairedGameN": 99,
+          "pairedGameMeanDelta": 0.057239057239057235
+        },
+        "fakeFangCluedRate": {
+          "pooledLow": 0.3313953488372093,
+          "pooledHigh": 0.42441860465116277,
+          "lowDenom": 172,
+          "highDenom": 172,
+          "pooledDelta": 0.09302325581395349,
+          "pairedGameN": 94,
+          "pairedGameMeanDelta": 0.07446808510638298
+        },
+        "fakeFangBlindRate": {
+          "pooledLow": 0.144,
+          "pooledHigh": 0.152,
+          "lowDenom": 125,
+          "highDenom": 125,
+          "pooledDelta": 0.008000000000000007,
+          "pairedGameN": 86,
+          "pairedGameMeanDelta": 0.011627906976744186
+        },
+        "fakeFangR1Rate": {
+          "pooledLow": 0.25252525252525254,
+          "pooledHigh": 0.2828282828282828,
+          "lowDenom": 99,
+          "highDenom": 99,
+          "pooledDelta": 0.030303030303030276,
+          "pairedGameN": 99,
+          "pairedGameMeanDelta": 0.030303030303030304
+        },
+        "fakeFangLaterRate": {
+          "pooledLow": 0.25252525252525254,
+          "pooledHigh": 0.32323232323232326,
+          "lowDenom": 198,
+          "highDenom": 198,
+          "pooledDelta": 0.07070707070707072,
+          "pairedGameN": 99,
+          "pairedGameMeanDelta": 0.0707070707070707
+        }
+      }
+    },
+    "conformity": {
+      "validPairs": 304,
+      "skippedNotPresent": 0,
+      "skippedRole": 0,
+      "skippedEnvironment": 0,
+      "skippedManifestSig": 0,
+      "roles": {
+        "許願": {
+          "pairs": 42,
+          "underQuota": false,
+          "metrics": {
+            "humanCallFollowRate": {
+              "pooledLow": 0.48,
+              "pooledHigh": 0.76,
+              "lowDenom": 25,
+              "highDenom": 25,
+              "pooledDelta": 0.28,
+              "pairedGameN": 19,
+              "pairedGameMeanDelta": 0.3157894736842105
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.42063492063492064,
+              "pooledHigh": 0.4444444444444444,
+              "lowDenom": 126,
+              "highDenom": 126,
+              "pooledDelta": 0.02380952380952378,
+              "pairedGameN": 42,
+              "pairedGameMeanDelta": 0.023809523809523808
+            }
+          }
+        },
+        "方震": {
+          "pairs": 47,
+          "underQuota": false,
+          "metrics": {
+            "humanCallFollowRate": {
+              "pooledLow": 0.03333333333333333,
+              "pooledHigh": 0.06666666666666667,
+              "lowDenom": 30,
+              "highDenom": 30,
+              "pooledDelta": 0.03333333333333333,
+              "pairedGameN": 18,
+              "pairedGameMeanDelta": 0.027777777777777776
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.5957446808510638,
+              "pooledHigh": 0.5957446808510638,
+              "lowDenom": 141,
+              "highDenom": 141,
+              "pooledDelta": 0,
+              "pairedGameN": 47,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        },
+        "姬雲浮": {
+          "pairs": 30,
+          "underQuota": false,
+          "metrics": {
+            "humanCallFollowRate": {
+              "pooledLow": 0.48148148148148145,
+              "pooledHigh": 0.5769230769230769,
+              "lowDenom": 27,
+              "highDenom": 26,
+              "pooledDelta": 0.09544159544159542,
+              "pairedGameN": 16,
+              "pairedGameMeanDelta": 0.16666666666666669
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.4222222222222222,
+              "pooledHigh": 0.4,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": -0.0222222222222222,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": -0.02222222222222222
+            }
+          }
+        },
+        "黃煙煙": {
+          "pairs": 36,
+          "underQuota": false,
+          "metrics": {
+            "humanCallFollowRate": {
+              "pooledLow": 0.3548387096774194,
+              "pooledHigh": 0.45161290322580644,
+              "lowDenom": 31,
+              "highDenom": 31,
+              "pooledDelta": 0.09677419354838707,
+              "pairedGameN": 20,
+              "pairedGameMeanDelta": 0.09166666666666666
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.3611111111111111,
+              "pooledHigh": 0.3611111111111111,
+              "lowDenom": 108,
+              "highDenom": 108,
+              "pooledDelta": 0,
+              "pairedGameN": 36,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        },
+        "木戶加奈": {
+          "pairs": 33,
+          "underQuota": false,
+          "metrics": {
+            "humanCallFollowRate": {
+              "pooledLow": 0.375,
+              "pooledHigh": 0.6875,
+              "lowDenom": 16,
+              "highDenom": 16,
+              "pooledDelta": 0.3125,
+              "pairedGameN": 11,
+              "pairedGameMeanDelta": 0.22727272727272727
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.2727272727272727,
+              "pooledHigh": 0.32323232323232326,
+              "lowDenom": 99,
+              "highDenom": 99,
+              "pooledDelta": 0.05050505050505055,
+              "pairedGameN": 33,
+              "pairedGameMeanDelta": 0.0505050505050505
+            }
+          }
+        },
+        "老朝奉": {
+          "pairs": 46,
+          "underQuota": false,
+          "metrics": {
+            "humanCallFollowRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 25,
+              "highDenom": 26,
+              "pooledDelta": 0,
+              "pairedGameN": 16,
+              "pairedGameMeanDelta": 0
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.2463768115942029,
+              "pooledHigh": 0.2463768115942029,
+              "lowDenom": 138,
+              "highDenom": 138,
+              "pooledDelta": 0,
+              "pairedGameN": 46,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        },
+        "藥不然": {
+          "pairs": 40,
+          "underQuota": false,
+          "metrics": {
+            "humanCallFollowRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 15,
+              "highDenom": 15,
+              "pooledDelta": 0,
+              "pairedGameN": 13,
+              "pairedGameMeanDelta": 0
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.23333333333333334,
+              "pooledHigh": 0.23333333333333334,
+              "lowDenom": 120,
+              "highDenom": 120,
+              "pooledDelta": 0,
+              "pairedGameN": 40,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        },
+        "鄭國渠": {
+          "pairs": 30,
+          "underQuota": false,
+          "metrics": {
+            "humanCallFollowRate": {
+              "pooledLow": 0,
+              "pooledHigh": 0,
+              "lowDenom": 24,
+              "highDenom": 24,
+              "pooledDelta": 0,
+              "pairedGameN": 17,
+              "pairedGameMeanDelta": 0
+            },
+            "publicSuspectRate": {
+              "pooledLow": 0.26666666666666666,
+              "pooledHigh": 0.26666666666666666,
+              "lowDenom": 90,
+              "highDenom": 90,
+              "pooledDelta": 0,
+              "pairedGameN": 30,
+              "pairedGameMeanDelta": 0
+            }
+          }
+        }
+      },
+      "overall": {
+        "humanCallFollowRate": {
+          "pooledLow": 0.22279792746113988,
+          "pooledHigh": 0.3160621761658031,
+          "lowDenom": 193,
+          "highDenom": 193,
+          "pooledDelta": 0.09326424870466324,
+          "pairedGameN": 130,
+          "pairedGameMeanDelta": 0.10384615384615387
+        },
+        "publicSuspectRate": {
+          "pooledLow": 0.35855263157894735,
+          "pooledHigh": 0.3651315789473684,
+          "lowDenom": 912,
+          "highDenom": 912,
+          "pooledDelta": 0.006578947368421073,
+          "pairedGameN": 304,
+          "pairedGameMeanDelta": 0.006578947368421052
+        }
+      }
+    }
+  },
+  "errors": []
+}
