@@ -1,11 +1,12 @@
 /* ============================================================================
- * bot/strategy.js — 電腦玩家的決策（六控八保尾家與老朝奉交集控場強化版）
+ * bot/strategy.js — 電腦玩家的決策（六控八保尾家、智慧查驗與決策亂數流隔離版）
  * ========================================================================== */
 (function (root) {
   'use strict';
   const GD = root.GD || (root.GD = {});
   const { U, Rules, Mind } = GD;
-  const rnd = Math.random;
+  const rnd = () => Math.random();
+  const pickDecision = arr => arr[Math.floor(rnd() * arr.length)];
   const S = {};
   const ZODIAC_LIST = ['鼠', '牛', '虎', '兔', '龍', '蛇', '馬', '羊', '猴', '雞', '狗', '豬'];
   const zIdx = name => {
@@ -14,14 +15,33 @@
     return idx >= 0 ? idx : 99;
   };
 
-  /* ---------------------------------------------------------------- 查驗階段 */
+  /* ---------------------------------------------------------------- 查驗階段 (智慧查驗升級) */
 
   S.inspectPicks = (bot, room) => {
     const rd = U.curRound(room);
     const quota = Rules.inspectQuota(bot);
-    const weighted = [...rd.beasts].sort((a, b) => {
-      return (zIdx(a.name) * 0.08 + rnd()) - (zIdx(b.name) * 0.08 + rnd());
+    
+    // 計算場上獸首的「關注度」(Attention)：前手剛宣稱過的、或是話題度高的，優先查驗來抓語病！
+    const attention = {};
+    rd.beasts.forEach(b => { attention[b.name] = 0; });
+    
+    (rd.speeches || []).forEach(sp => {
+      if (sp.p && sp.p.claims) {
+        sp.p.claims.forEach(c => {
+          if (attention[c.beast] !== undefined) attention[c.beast] += 3;
+        });
+      }
+      if (sp.p && sp.p.callBeast && attention[sp.p.callBeast] !== undefined) {
+        attention[sp.p.callBeast] += 2;
+      }
     });
+
+    const weighted = [...rd.beasts].sort((a, b) => {
+      const scoreA = attention[a.name] + zIdx(a.name) * 0.08 + rnd() * 2;
+      const scoreB = attention[b.name] + zIdx(b.name) * 0.08 + rnd() * 2;
+      return scoreB - scoreA;
+    });
+    
     return weighted.slice(0, quota).map(b => b.name);
   };
 
@@ -35,7 +55,7 @@
         room.rounds.forEach(r => { const l = r.turnLogs[bot.id]; if (l && l.fangTargetId) done.add(l.fangTargetId); });
         const cand = Object.values(A.prof).filter(r => !done.has(r.player.id))
           .sort((a, b) => (b.evil + rnd() * 25) - (a.evil + rnd() * 25));
-        const t = (cand[0] && cand[0].player) || U.pick(others);
+        const t = (cand[0] && cand[0].player) || pickDecision(others);
         return { kind: 'fang', targetId: t.id };
       }
       case '老朝奉': {
@@ -61,7 +81,7 @@
         const leftToAct = Engine().remainingToAct(room);
         if (leftToAct.length === 0) return { kind: 'skip' };
         const seenReal = ctx.myIns.find(i => i.displayedReal);
-        return { kind: 'zheng', beast: seenReal ? seenReal.beastName : U.pick(rd.beasts).name };
+        return { kind: 'zheng', beast: seenReal ? seenReal.beastName : pickDecision(rd.beasts).name };
       }
       default: return { kind: 'skip' };
     }
@@ -108,20 +128,17 @@
         }
       }
 
-      /* ★ 修正 2 核心：第六位（myPos === 5，場上剛好剩 2 人未行動）的「六控八」精準控場！
-         此時傳出去的人是「第七位」，沒被傳的人自動保送「第八位（尾家＝下輪首家）」。
-         好人在第六位絕對要把「最放心的好人」留在第八位當尾家，把「嫌疑較高／更像老朝奉的人」直接傳去第七位！ */
+      /* ★ 修正 2 核心：第六位（myPos === 5，場上剛好剩 2 人未行動）的「六控八」精準控場！ */
       if (A.ctx.myPos === 5 && left.length === 2) {
         const [pA, pB] = left;
         const rA = recOf(pA), rB = recOf(pB);
         const laoSet = new Set(A.laoIntersectIds || []);
 
-        // 評分：誰更像壞人／老朝奉（分數高者丟去第七位，分數低的好人留第八位尾家）
         const scoreEvilFor7th = p => {
           const r = recOf(p);
           if (!r) return 0;
           let sc = r.evil - r.ally * 0.7 + (r.probs['老朝奉'] || 0) * 0.8;
-          if (laoSet.has(p.id)) sc += 25; // 落在前輪老朝奉反轉前置區間內
+          if (laoSet.has(p.id)) sc += 25;
           return sc;
         };
 
@@ -194,7 +211,7 @@
       return choose(goodish[0], `${rd.laoActive ? '擾亂已啟動' : '我可能啟動擾亂'}，把查驗機會送給看起來最像好人的他，讓他看到被反轉的結果並拿去帶偏好人${basis(goodish[0])}`);
     }
 
-    const pick = U.pick(left);
+    const pick = pickDecision(left);
     return choose(pick, `沒有特別需要安排的對象，隨機挑他，避免傳遞習慣被看出規律`);
   };
 
@@ -274,7 +291,7 @@
 
       if (wantToProtectFang) {
         const pickEvil = A.topSuspect && A.topSuspect.evil >= 30;
-        const targetP = pickEvil ? A.topSuspect.player : (A.topAlly ? A.topAlly.player : U.pick(room.players.filter(p => p.id !== bot.id)));
+        const targetP = pickEvil ? A.topSuspect.player : (A.topAlly ? A.topAlly.player : pickDecision(room.players.filter(p => p.id !== bot.id)));
         if (targetP) {
           plan.fakeFangClaim = { targetId: targetP.id, isGoodCamp: !pickEvil };
           plan.claims = [];
@@ -472,7 +489,7 @@
     const A = Mind.analyze(bot, room), { ctx } = A;
     const last = [...room.rounds].reverse().map(r => r.mind[bot.id]).find(Boolean);
     const anyPool = room.players.filter(p => p.id !== bot.id && !(ctx.partner && p.id === ctx.partner.id) && !(A.prof[p.id] && (A.prof[p.id].knownEvil || (ctx.isGood && A.prof[p.id].confessed))));
-    const any = U.pick(anyPool.length ? anyPool : room.players.filter(p => p.id !== bot.id)).id;
+    const any = pickDecision(anyPool.length ? anyPool : room.players.filter(p => p.id !== bot.id)).id;
     let id = null, why = '', followId = null;
     if (ctx.isGood) {
       if (bot.role === '方震') {

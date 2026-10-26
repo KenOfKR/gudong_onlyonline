@@ -1,28 +1,65 @@
 /* ============================================================================
- * bot/learning.js — BotLearningEngine（雙環境相容版）
+ * bot/learning.js — BotLearningEngine（嚴格時序校驗與因果歸因重構版）
  * ========================================================================== */
 (function (root) {
   'use strict';
   const GD = root.GD || (root.GD = {});
   const { U, Genes } = GD;
-  const STEP_CAP = 0.10;
+  const STEP_CAP = 0.08;
   const REVERT = 0.06;
 
   const realOf = (rd, name) => (rd.beasts.find(b => b.name === name) || {}).isReal;
 
+  /**
+   * 嚴格時序校驗的選票因果分析：
+   * - 必須確認號召者／說謊者的發言時間早於 Bot 本身，才能構成影響因果。
+   */
   function ballotFacts(room, bot) {
-    const facts = { real: 0, fake: 0, duped: [], fakeRounds: [] };
+    const facts = { real: 0, fake: 0, duped: [], trustedGood: [], fakeRounds: [] };
     room.rounds.forEach((rd, r) => {
       const ballot = rd.votes[bot.id] || {};
+      const myLog = (rd.turnLogs && rd.turnLogs[bot.id]) || { inspect: [] };
+      const myIns = myLog.inspect || [];
+      const speeches = rd.speeches || [];
+      const botSpeechIdx = speeches.findIndex(s => s.playerId === bot.id);
+
       Object.entries(ballot).forEach(([name, n]) => {
-        if (realOf(rd, name)) facts.real += n; else {
+        if (!n || n <= 0) return;
+        const isReal = realOf(rd, name);
+        const sawRealMyself = myIns.some(i => i.beastName === name && i.displayedReal === true);
+
+        if (isReal) {
+          facts.real += n;
+          // 因果確認：我未親眼驗出真品，但在我發言／投票前，有前手好人「親眼驗過且公開宣稱」
+          if (!sawRealMyself) {
+            const reliableCaller = speeches.find((sp, idx) => {
+              if (sp.playerId === bot.id) return false;
+              // 時序校驗：對方發言必須早於自己（若自己沒發言則整輪皆可）
+              if (botSpeechIdx >= 0 && idx >= botSpeechIdx) return false;
+              const p = U.byId(room, sp.playerId);
+              if (!p || !GD.isGood(p.role)) return false;
+              const claimedReal = (sp.p?.claims || []).some(c => c.beast === name && c.real === true);
+              if (!claimedReal) return false;
+              const callerLog = (rd.turnLogs && rd.turnLogs[p.id]) || { inspect: [] };
+              return (callerLog.inspect || []).some(i => i.beastName === name && i.displayedReal === true);
+            });
+            if (reliableCaller) {
+              facts.trustedGood.push({ round: r + 1, beast: name, n, callerId: reliableCaller.playerId });
+            }
+          }
+        } else {
           facts.fake += n;
           facts.fakeRounds.push({ round: r + 1, beast: name, n });
-          const liar = rd.speeches.find(sp => {
+          // 因果確認：在我發言／投票前，有壞人公開謊稱這尊贗品為真
+          const liar = speeches.find((sp, idx) => {
+            if (sp.playerId === bot.id) return false;
+            if (botSpeechIdx >= 0 && idx >= botSpeechIdx) return false;
             const p = U.byId(room, sp.playerId);
-            return p && !GD.isGood(p.role) && sp.playerId !== bot.id && (sp.p?.claims || []).some(c => c.beast === name && c.real);
+            return p && !GD.isGood(p.role) && (sp.p?.claims || []).some(c => c.beast === name && c.real === true);
           });
-          if (liar) facts.duped.push({ round: r + 1, beast: name, n, liarId: liar.playerId });
+          if (liar && !sawRealMyself) {
+            facts.duped.push({ round: r + 1, beast: name, n, liarId: liar.playerId });
+          }
         }
       });
     });
@@ -41,17 +78,25 @@
     const minds = room.rounds.map(rd => rd.mind[bot.id]).filter(Boolean);
 
     if (good) {
-      if (f.duped.length) {
+      /* 1. 好人陣營因果獎懲 */
+      if (f.duped.length > 0) {
         const liar = U.byId(room, f.duped[0].liarId);
-        add('skepticism', 0.04 + 0.02 * Math.min(2, f.duped.length - 1),
-          `第 ${f.duped[0].round} 輪聽信 ${U.tag(liar)}（真身【${liar && liar.role}】）的宣稱，把 ${f.duped[0].n} 票投給贗品【${f.duped[0].beast}】`);
-        add('conformity', -0.03, '被壞人帶風向騙票，降低盲從前手宣稱的傾向');
-      } else if (f.fake >= 2) {
-        add('skepticism', 0.03, `三輪有 ${f.fake} 票落在贗品上，查證不足`);
-      } else if (f.real >= 4 && f.fake === 0) {
-        add('skepticism', -0.015, `三輪 ${f.real} 票全中真品，判斷穩定，略微放鬆多疑`);
+        add('skepticism', 0.03,
+          `第 ${f.duped[0].round} 輪受前手壞人 ${U.tag(liar)} 宣稱誤導，將 ${f.duped[0].n} 票投給贗品【${f.duped[0].beast}】`);
+        add('conformity', -0.025, '採信無依據的壞人風向受騙，微調降低盲從傾向');
       }
 
+      if (f.trustedGood.length > 0) {
+        const tGood = f.trustedGood[0];
+        const caller = U.byId(room, tGood.callerId);
+        add('conformity', 0.03,
+          `第 ${tGood.round} 輪精準採信有據好人 ${U.tag(caller)} 資訊，成功集中 ${tGood.n} 票投中真品【${tGood.beast}】`);
+        add('skepticism', -0.02, '與可靠好人情報協同成功，適度降低過度猜忌');
+      } else if (f.real >= 4 && f.fake === 0) {
+        add('skepticism', -0.015, `三輪 ${f.real} 票全中真品且零失誤，判斷穩定，放鬆過度多疑`);
+      }
+
+      /* 2. 後段順位反轉風險意識 */
       room.rounds.forEach((rd, rIdx) => {
         const myPos = rd.passOrder.indexOf(bot.id);
         const myLog = rd.turnLogs[bot.id] || { inspect: [] };
@@ -60,69 +105,95 @@
           const actualReal = realOf(rd, ins.beastName);
           const votedCnt = myBallot[ins.beastName] || 0;
           if (myPos >= 4 && ins.displayedReal === true && actualReal === false && votedCnt >= 2) {
-            add('assertiveness', -0.045,
-              `第 ${rIdx + 1} 輪我排在後段（${U.nth(myPos)}）查驗【${ins.beastName}】顯示真品，卻忽略後段極易遭老朝奉反轉而重壓 ${votedCnt} 票贗品，應調降盲目自信並學會保留籌碼`);
-            add('conformity', 0.025,
-              `第 ${rIdx + 1} 輪後段個人視野遭反轉污染，應多參考前段好人的乾淨資訊`);
+            add('assertiveness', -0.035,
+              `第 ${rIdx + 1} 輪後段順位（${U.nth(myPos)}）查驗遭反轉卻重壓 ${votedCnt} 票，調降後段盲目自信`);
+            add('conformity', 0.02,
+              `第 ${rIdx + 1} 輪後段視野受污染，提高對前段乾淨資訊的採信權重`);
           }
         });
       });
 
-      const hitLao = target && target.id === lao.id;
+      /* 3. 終局鑑人因果驗證 */
+      const hitLao = target && lao && target.id === lao.id;
       const followed = bot.final && bot.final.followId;
       if (hitLao) {
-        add('assertiveness', 0.03, `終局鑑人命中老朝奉（${U.tag(target)}），號召與判斷有效`);
-        if (followed) add('conformity', 0.02, '附議的集火對象確實是老朝奉，這次從眾是對的');
+        add('assertiveness', 0.03, `終局鑑人精準命中老朝奉（${U.tag(target)}），決策有效`);
+        if (followed) {
+          add('conformity', 0.025, '附議有邏輯依據的集火號召並成功抓出老朝奉');
+          add('skepticism', -0.015, '成功識別可信帶隊者');
+        }
       } else if (target) {
         if (followed) {
           const caller = U.byId(room, followed);
-          add('conformity', -0.05, `附議 ${U.tag(caller)} 集火了 ${U.tag(target)}（真身【${target.role}】）卻抓錯，從眾成本高`);
-          add('skepticism', 0.03, `未充分查證${caller && !caller.isBot ? '真人' : ''}號召的可信度`);
+          if (caller && !GD.isGood(caller.role) && GD.isGood(target.role)) {
+            add('conformity', -0.035, `遭壞人 ${U.tag(caller)} 誤導而附議集火好人 ${U.tag(target)}`);
+            add('skepticism', 0.025, `未識破壞人 ${U.tag(caller)} 假號召`);
+          }
         } else if (GD.isGood(target.role)) {
-          add('skepticism', 0.02, `鑑人誤指好人 ${U.tag(target)}，嫌疑排名需要更保守`);
-          add('assertiveness', -0.03, `終局過度自信指認好人隊友 ${U.tag(target)}，下次未握有鐵證前應收斂號召鋒芒`);
+          add('assertiveness', -0.025, `終局缺乏鐵證下誤指好人隊友 ${U.tag(target)}，收斂鋒芒`);
         }
       }
 
-      if (bot.role === '許願' && g.xuCaught) add('assertiveness', -0.04, '許願被老朝奉指認，發言曝光度偏高，收斂鋒芒');
+      if (bot.role === '許願' && g.xuCaught) {
+        add('assertiveness', -0.035, '許願遭老朝奉識破指認，發言鋒芒太露，應更低調');
+      }
       if (bot.role === '方震') {
         const pushed = minds.some(m => m.suspectId);
-        if (g.fangCaught && pushed) add('assertiveness', -0.04, '帶集火的動作太明顯，被藥不然認出是方震，下次更低調');
-        else if (pushed && g.laoCaught) add('assertiveness', 0.03, '用公開理由帶集火，成功抓到老朝奉且沒暴露自己');
+        if (g.fangCaught && pushed) add('assertiveness', -0.035, '帶集火動作過於明顯遭藥不然抓出方震身分');
+        else if (pushed && g.laoCaught && !g.fangCaught) add('assertiveness', 0.03, '以公開理由帶隊抓出老朝奉且完美隱藏方震身分');
       }
-      if (!won) add('skepticism', 0.02, '本局許願陣營落敗，整體再提高警覺');
     } else {
+      /* ---------------- 壞人陣營：嚴格謊言轉換率與偽裝歸因 ---------------- */
       const lies = minds.filter(m => m.mode === 'lie' || m.mode === 'follow');
+      const camos = minds.filter(m => m.mode === 'camouflage');
+
+      // 檢查每一個謊言是否「確實由自己發言推動」並「成功誤導好人」
       lies.forEach(m => {
-        const rd = room.rounds.find(r => r.mind[bot.id] === m);
+        const rdIdx = room.rounds.findIndex(r => r.mind[bot.id] === m);
+        const rd = room.rounds[rdIdx];
+        if (!rd || !rd.voteResults) return;
         const vr = rd.voteResults;
-        const inTop = vr && (vr.rank1.name === m.beast || vr.rank2.name === m.beast);
-        const fake = realOf(rd, m.beast) === false;
-        if (inTop && fake) add('deception', 0.03, `第 ${rd.roundNum} 輪帶風向推【${m.beast}】成功擠進前二，且為贗品`);
-        else if (!inTop) add('deception', -0.02, `第 ${rd.roundNum} 輪推【${m.beast}】沒人買單，帶風向手法太硬`);
+        const isFakeBeast = realOf(rd, m.beast) === false;
+        if (!isFakeBeast) return;
+
+        // 時序與發言校驗：確認該 Bot 在該輪發言中確實宣稱該贗品為真
+        const mySpeech = (rd.speeches || []).find(s => s.playerId === bot.id);
+        const didIBlobClaimIt = mySpeech && (mySpeech.p?.claims || []).some(c => c.beast === m.beast && c.real === true);
+        if (!didIBlobClaimIt) return; // 若自己根本沒公開推這隻，不算我的謊言成果
+
+        let goodVotesOnMyLie = 0;
+        room.players.filter(p => GD.isGood(p.role)).forEach(gp => {
+          goodVotesOnMyLie += ((rd.votes && rd.votes[gp.id]) || {})[m.beast] || 0;
+        });
+
+        const inTop = (vr.rank1.name === m.beast || vr.rank2.name === m.beast);
+        if (inTop && goodVotesOnMyLie >= 2) {
+          add('deception', 0.03, `成功推動贗品【${m.beast}】吸引 ${goodVotesOnMyLie} 張好人選票並擠進前二`);
+        } else if (goodVotesOnMyLie === 0) {
+          // 嚴格失敗懲罰：自己公開推假貨卻完全沒好人買單
+          add('deception', -0.025, `強推贗品【${m.beast}】但好人 0 票買單，帶風向失敗`);
+        }
       });
-      const honest = minds.filter(m => m.mode === 'camouflage').length;
 
-      const goodVotes = room.players.filter(p => GD.isGood(p.role) && room.personVotes[p.id] === bot.id).length;
+      const goodVotesAgainstMe = room.players.filter(p => GD.isGood(p.role) && room.personVotes[p.id] === bot.id).length;
+
       if (bot.role === '老朝奉') {
-        if (g.laoCaught) add('camouflage', 0.06, `鑑人環節 ${g.votesForLao}/${g.goodCount} 位好人指認我，偽裝失敗`);
-        else add('deception', 0.025, `鑑人環節只有 ${g.votesForLao}/${g.goodCount} 位好人指認我，成功藏身`);
-        if (g.xuCaught) add('deception', 0.02, '成功指認許願，判讀好人發言有效');
-      } else if (goodVotes >= 2) {
-        add('camouflage', 0.05, `${goodVotes} 位好人把鑑人票投給我，嫌疑偏高`);
-      } else if (goodVotes === 0) {
-        add('deception', 0.02, '全場好人都沒懷疑我，偽裝成功');
-      }
-      if (bot.role === '藥不然') {
-        if (g.fangCaught) add('assertiveness', 0.02, '成功指認方震，偵測亮牌者有效');
+        if (g.laoCaught) {
+          add('camouflage', -0.03, `遭 ${g.votesForLao}/${g.goodCount} 位好人集火抓出，偽裝破綻過大`);
+          if (lies.length >= 2) add('deception', -0.02, '頻繁逆風說謊導致時序破綻過大');
+        } else if (camos.length >= 1 && g.votesForLao <= 1) {
+          add('camouflage', 0.03, `透過真話偽裝與潛伏，終局僅得 ${g.votesForLao} 票成功隱身`);
+        }
+      } else {
+        if (goodVotesAgainstMe >= 2 && !minds.some(m => m.confess)) {
+          add('camouflage', -0.025, `未認壞卻吸引 ${goodVotesAgainstMe} 張好人鑑人票，潛伏失敗`);
+        } else if (goodVotesAgainstMe === 0 && camos.length >= 1 && won) {
+          add('camouflage', 0.025, `確實執行潛伏策略成功避開好人嫌疑`);
+        }
       }
 
-      if (!won) {
-        if (lies.length <= 1 && honest >= 2) add('deception', 0.05, `三輪有 ${honest} 輪只講真話，沒能干擾好人票型就輸了，需要更積極帶風向`);
-        else if (f.real > f.fake + 1) add('deception', 0.03, `我投出 ${f.real} 張真品票、僅 ${f.fake} 張贗品票，幫好人加了太多分`);
-        else add('camouflage', 0.02, '帶風向過於集中，被好人對上時序，需要穿插真話');
-      } else {
-        add('deception', 0.02, '本局造假集團勝利，強化目前打法');
+      if (bot.role === '藥不然' && g.fangCaught) {
+        add('assertiveness', 0.02, '成功識破並指認方震');
       }
     }
 
@@ -133,7 +204,6 @@
     const kept = notes.filter(n => n.d !== 0 && n.why);
     kept.forEach(n => { delta[n.gene] += n.d * lr; });
     Genes.KEYS.forEach(k => { delta[k] = U.round3(U.clamp(delta[k], -STEP_CAP, STEP_CAP)); });
-
     const before = bot.genes || Genes.load(bot.botId);
     const factory = GD.Roster.baseGenes(bot.botId);
     Genes.KEYS.forEach(k => { delta[k] += (factory[k] - before[k]) * REVERT; });
@@ -141,7 +211,6 @@
     const after = {};
     Genes.KEYS.forEach(k => { after[k] = Genes.clamp(before[k] + delta[k]); });
     Genes.KEYS.forEach(k => { delta[k] = U.round3(after[k] - before[k]); });
-
     return { botId: bot.botId, name: bot.name, role: bot.role, won, before, after, delta, notes: kept, lr: U.round3(lr), games: rec.games + 1 };
   }
 
@@ -166,7 +235,5 @@
   }
 
   GD.Learning = { evaluate, finalize, ballotFacts, STEP_CAP };
-  
-  // Node.js 匯出支援
   if (typeof module !== 'undefined' && module.exports) module.exports = GD.Learning;
 })(typeof window !== 'undefined' ? window : global);
