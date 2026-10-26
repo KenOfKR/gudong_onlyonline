@@ -1,5 +1,5 @@
 /* ============================================================================
- * js/net.js — 房間存取、同步與大廳清理（移除背景接管批次替換真人路徑）
+ * js/net.js — 房間存取、同步與大廳清理（嚴格事務隔離與殭屍主機防禦版）
  * ========================================================================== */
 (function (root) {
   'use strict';
@@ -281,11 +281,10 @@
             if (!isHostStale(r)) return false;
             r.hostId = Net.myId;
             r.hostBeat = Date.now();
-            // ★ 移除對場上真人呼叫 replaceWithBot 的危險批次替換，
-            // 背景接管純粹只負責轉移主機權以維持系統運作，真人由真實的 AFK 流程處理。
+            // ★ 移除危險批次替換，背景接管僅負責轉移主機權以維持系統運作
             return true;
-          }).then(() => {
-            if (GD.Driver && GD.Driver.schedule) GD.Driver.schedule();
+          }).then(ok => {
+            if (ok && GD.Driver && GD.Driver.schedule) GD.Driver.schedule();
           });
         } else if (GD.Driver && GD.Driver.schedule) {
           GD.Driver.schedule();
@@ -400,10 +399,12 @@
       const active = room || bgRoom;
       if (!snap.exists || !active) return;
       const raw = snap.data();
+      
+      // ★ 防禦殭屍主機：嚴格比對版本號。舊主機發送延遲心跳時（rev 未增加），只更新 hostBeat，絕不覆蓋 hostId
       if (raw && raw.hostBeat && raw.hostBeat > (active.hostBeat || 0)) {
         active.hostBeat = raw.hostBeat;
-        if (raw.hostId) active.hostId = raw.hostId;
       }
+
       const remote = unpackRoom(raw);
       if (remote.closed) {
         if (room) GD.bus.emit('closed');
@@ -422,18 +423,30 @@
       const active = room || bgRoom;
       if (!active || active.status === 'gameover') return;
       const isHost = active.hostId === Net.myId;
-      const hostStale = Date.now() - (active.hostBeat || 0) > HOST_STALE_MS;
-      const firstHuman = (active.players || []).find(p => !p.isBot) || (active.spectators || [])[0];
-      if (!isHost && !(hostStale && (!firstHuman || firstHuman.id === Net.myId))) return;
 
-      if (mode === 'online' && db) {
+      if (isHost) {
         const now = Date.now();
         active.hostBeat = now;
-        const patch = { hostBeat: now, updatedAt: now };
-        if (!isHost) { active.hostId = Net.myId; patch.hostId = Net.myId; }
-        db.doc(`${C.ROOM_COLLECTION}/${docId(active.roomId)}`).update(patch).catch(() => {});
+        if (mode === 'online' && db) {
+          db.doc(`${C.ROOM_COLLECTION}/${docId(active.roomId)}`).update({ hostBeat: now, updatedAt: now }).catch(() => {});
+        } else {
+          Net.act(r => { r.hostBeat = Date.now(); return true; });
+        }
       } else {
-        Net.act(r => { r.hostBeat = Date.now(); return true; });
+        const hostStale = Date.now() - (active.hostBeat || 0) > HOST_STALE_MS;
+        const firstHuman = (active.players || []).find(p => !p.isBot) || (active.spectators || [])[0];
+        
+        // ★ 強制事務隔離：非主機玩家若要接管，必須透過 Net.act 發起具備 rev 遞增的交易！
+        if (hostStale && firstHuman && firstHuman.id === Net.myId) {
+          Net.act(r => {
+            if (!isHostStale(r)) return false; 
+            r.hostId = Net.myId;
+            r.hostBeat = Date.now();
+            return true;
+          }).then(ok => {
+            if (ok && GD.Driver && GD.Driver.schedule) GD.Driver.schedule();
+          });
+        }
       }
     }, 12000);
   }
