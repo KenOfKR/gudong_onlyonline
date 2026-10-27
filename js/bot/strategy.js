@@ -114,19 +114,17 @@
     const rd = A.ctx.rd, t = A.ctx.t;
 
     if (A.ctx.isGood) {
-      /* ★ 方震已知壞人：若在後段避免讓他落尾家 */
-      if (bot.role === '方震') {
-        const knownEvilLeft = left.find(p => {
-          return room.rounds.some(r => {
-            const l = r.turnLogs[bot.id];
-            return l && l.fangTargetId === p.id && l.fangCamp === 'evil';
-          });
+      /* ★ 方震已知壞人：前兩輪保留原本控位；第三輪允許策略自行權衡，不一律禁止傳給他 */
+      const knownEvilLeft = bot.role === '方震' ? left.find(p => {
+        return room.rounds.some(r => {
+          const l = r.turnLogs[bot.id];
+          return l && l.fangTargetId === p.id && l.fangCamp === 'evil';
         });
-        if (knownEvilLeft && left.length >= 2) {
-          return choose(knownEvilLeft, `我親手查驗出${U.tag(knownEvilLeft)}是壞人，為避免他被放到第八位（尾家）白拿下一回合首家優勢與尾家控制權，現在直接把手機傳給他卡死在第七位前消耗掉`);
-        }
+      }) : null;
+      if (knownEvilLeft && left.length >= 2 && t < 2) {
+        return choose(knownEvilLeft, `我親手查驗出${U.tag(knownEvilLeft)}是壞人；前兩輪若讓他落尾家，下一輪可能取得首家先手，因此現在讓他提前行動`);
       }
-
+      /* 第三輪不在這裡直接 return：讓一般信任排序決定是否傳給已知壞人；若真的選中，下面會給出身分掩護理由。 */
       /* ★ 第六位（myPos === 5，場上剛好剩 2 人未行動）的「六控八」精準控場 */
       if (A.ctx.myPos === 5 && left.length === 2) {
         const [pA, pB] = left;
@@ -138,13 +136,27 @@
           if (!r) return 0;
           let sc = r.evil - r.ally * 0.7 + (r.probs['老朝奉'] || 0) * 0.8;
           if (laoSet.has(p.id)) sc += 25;
+          if (t === 2 && knownEvilLeft && p.id === knownEvilLeft.id) sc += 1000;
           return sc;
         };
 
         const scA = scoreEvilFor7th(pA), scB = scoreEvilFor7th(pB);
-        const send7th = scA >= scB ? pA : pB;
-        const keep8th = scA >= scB ? pB : pA;
+        const send7th = t === 2
+          ? (scA <= scB ? pA : pB)
+          : (scA >= scB ? pA : pB);
+        const keep8th = t === 2
+          ? (scA <= scB ? pB : pA)
+          : (scA >= scB ? pB : pA);
 
+        /* 最後一輪控尾家：第七位先放嫌疑較低者，若有方震已知壞人則優先將他留在第八位。 */
+        if (t === 2) {
+          const send7th = scA <= scB ? pA : pB;
+          const keep8th = scA <= scB ? pB : pA;
+          if (knownEvilLeft && keep8th.id === knownEvilLeft.id) {
+            return choose(send7th, `第三輪已沒有下一回合首家優勢；我把手機傳給嫌疑較低的${U.tag(send7th)}放第七位，讓我親手查驗確認的壞人${U.tag(knownEvilLeft)}留在第八位尾家，優先控制最後一輪行動順序`);
+          }
+          return choose(send7th, `第三輪是最後一輪，沒有下一回合首家優勢；我先把嫌疑較低的${U.tag(send7th)}放在第七位，讓嫌疑較高的${U.tag(keep8th)}留在第八位尾家，控制最後一輪的行動順序`);
+        }
         const bothSuspicious = (rA?.evil || 0) >= 12 && (rB?.evil || 0) >= 12;
         if (bothSuspicious && laoSet.has(send7th.id) && !laoSet.has(keep8th.id)) {
           return choose(send7th, `第六位控尾家（六控八）：剩下的${U.tag(pA)}與${U.tag(pB)}前輪票型都有嫌疑，但結合前輪我的查驗遭反轉推算，前置位一定有老朝奉！${U.tag(send7th)}正好位於前輪老朝奉反轉區間內（老朝奉機率 ${recOf(send7th)?.probs['老朝奉'] || 0}%），我直接把他控去第七位消耗掉，避免他搶走尾家`);
@@ -166,6 +178,12 @@
       /* 前中段（第 1～4 位）：挑最放心的好人先查驗拿乾淨資訊 */
       const sorted = [...left].sort((a, b) => trust(b) - trust(a) + (rnd() - 0.5) * 10);
       const pick = sorted[0];
+      if (t === 2 && bot.role === '方震' && knownEvilLeft && pick.id === knownEvilLeft.id) {
+        return choose(pick, `第三輪沒有下一回合首家優勢。我明知${U.tag(knownEvilLeft)}是壞人仍把手機傳給他，不是為了消耗不存在的下輪先手，而是用反常傳遞淡化我掌握的方震查驗線索；這會放棄控尾家收益，若被追問可以裝成判斷失誤／不小心傳錯人，也可能被旁人解讀成偽裝壞人`);
+      }
+      if (t === 2 && bot.role === '方震' && knownEvilLeft) {
+        return choose(pick, `第三輪沒有下一回合首家優勢；我先讓${U.tag(pick)}行動，保留之後讓已知壞人${U.tag(knownEvilLeft)}留在尾家的機會。這一手是在控最後一輪順序，不是把下輪先手當成理由${basis(pick)}`);
+      }
       return choose(pick, `他是剩下的人裡我最放心的好人人選${basis(pick)}，先讓他查驗掌握乾淨資訊`);
     }
 
