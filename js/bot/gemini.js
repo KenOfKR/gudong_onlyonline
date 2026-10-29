@@ -54,13 +54,61 @@
     state.calls++;
 
     for (const model of C.GEMINI_MODELS) {
-      const modes = state.mode ? [state.mode] : ['A', 'B'];
+      const modes = ['A'];
       for (const mode of modes) {
         const url = mode === 'A' ? `${base}/v1beta/models/${model}:generateContent` : `${base}/`;
         const payload = mode === 'A' ? bodyFor(prompt, opts) : { model, ...bodyFor(prompt, opts) };
         try {
           const resp = await post(url, payload);
-          if (resp.status === 429) { state.cooldownUntil = Date.now() + C.GEMINI_COOLDOWN_MS; state.lastError = '429 頻率限制'; return null; }
+          if (resp.status === 429) {
+  let details = {};
+
+  try {
+    details = await resp.clone().json();
+  } catch {}
+
+  const message =
+    typeof details.error === 'string'
+      ? details.error
+      : typeof details.message === 'string'
+        ? details.message
+        : '';
+
+  const retryAfterSeconds = Math.max(
+    Number(details.retryAfter) || 0,
+    Number(resp.headers.get('Retry-After')) || 0
+  );
+
+  let retryMs = retryAfterSeconds * 1000;
+
+  // 解析 Google 回應中的 "Please retry in 16h2m46s"
+  const match = message.match(
+    /retry in\s+(?:(\d+)h)?(?:(\d+)m)?(\d+(?:\.\d+)?)s/i
+  );
+
+  if (match) {
+    const seconds =
+      Number(match[1] || 0) * 3600 +
+      Number(match[2] || 0) * 60 +
+      Number(match[3] || 0);
+
+    retryMs = Math.max(retryMs, seconds * 1000);
+  }
+
+  // 未提供等待時間時，至少冷卻 60 秒
+  retryMs = Math.max(
+    retryMs,
+    Number(C.GEMINI_COOLDOWN_MS) || 0,
+    60_000
+  );
+
+  state.cooldownUntil = Date.now() + retryMs;
+  state.lastError =
+    `[${details.source || 'HTTP 429'}] ` +
+    (message || '請求頻率或配額限制');
+
+  return null;
+}
           if (resp.status === 404 || resp.status === 405) { state.lastError = `模式 ${mode} 路徑不符 (${resp.status})`; continue; }
           if (!resp.ok) { state.lastError = `HTTP ${resp.status}`; break; }
           const text = extract(await resp.json());

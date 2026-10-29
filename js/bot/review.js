@@ -146,6 +146,31 @@
       const heardNote = buildPriorSpeechesNote(room, rd, bot);
       const baseWhy = (m.why || []).join('；') + (m.mode === 'lie' ? '。（我刻意與自己的所見相反，目的在帶偏好人籌碼。）' : '。');
       out.steps.push({ k: '發言動機', v: `${myPosTxt}${baseWhy}${heardNote}` });
+
+      // v10：把決策時的票數預測、前二機率、分票結果和保真得分估值顯示在覆盤，方便與實際開票比較。
+      const vf = m.voteForecast;
+      if (vf && Array.isArray(vf.ranking) && vf.ranking.length) {
+        const rows = vf.ranking.map(x => `${B(x.name)}預估 ${Number(x.expectedVotes || 0).toFixed(1)} 票（已落 ${Number(x.observedVotes || 0)} 票、前二機率 ${Math.round((Number(x.pTopTwo) || 0) * 100)}%）`);
+        out.steps.push({
+          k: '全局算票預測',
+          v: `決策時預估：${rows.join('；')}。這是依公開發言與已落票推算，不是已開票結果。`
+        });
+      }
+      const projection = m.scoreProjection;
+      if (projection) {
+        out.steps.push({
+          k: '保真得分估值',
+          v: `決策時保真分數約 ${Number(projection.expectedSavedReal || 0).toFixed(1)} 分（公開第二名確真累積 ${Number(projection.publicRank2RealPoints || 0).toFixed(0)} 分；封存第一名期望貢獻 ${Number(projection.hiddenRank1Expected || 0).toFixed(1)} 分）；距 ${projection.winScore} 分門檻約差 ${Number(projection.pointsNeededBeforeRoleBonuses || 0).toFixed(1)} 分。此為估值，最後還要計入鑑人與角色任務。`
+        });
+      }
+      const bm = m.ballotModel;
+      if (bm && Array.isArray(bm.after)) {
+        const after = bm.after.map(x => `${B(x.name)}約 ${Number(x.expectedVotes || 0).toFixed(1)} 票／前二 ${Math.round((Number(x.pTopTwo) || 0) * 100)}%`);
+        out.steps.push({
+          k: '分票方案覆盤',
+          v: `目標錨點【${bm.anchor || m.beast || '?'}】；實際花費 ${Number(bm.spent || 0)} 票、保留 ${Number(bm.held || 0)} 票；模型目標 ${bm.objective || '依陣營評估'}。套用本次票型後的估算：${after.join('；')}。`
+        });
+      }
     }
 
     /* ⑤ 投票 */
