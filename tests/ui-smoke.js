@@ -31,7 +31,7 @@ global.alert = () => {};
 global.fetch = () => Promise.reject(new Error('offline'));        // 驗證 Gemini 失敗時會安全退回本地
 global.setInterval = () => 0;
 
-const ORDER = ['config', 'utils', 'roster', 'core/rules', 'core/claims', 'core/engine', 'bot/genes', 'bot/mind', 'bot/strategy',
+const ORDER = ['config', 'utils', 'roster', 'core/rules', 'core/claims', 'core/engine', 'bot/genes', 'bot/mind', 'bot/dialogueBank', 'bot/tactics', 'bot/strategy',
   'bot/speech', 'bot/gemini', 'bot/driver', 'bot/learning', 'bot/review', 'net', 'voice', 'ui/art', 'ui/ui', 'ui/home', 'ui/board',
   'ui/console', 'ui/speech', 'ui/gameover', 'main'];
 ORDER.forEach(m => require(path.join(ROOT, 'js', m + '.js')));
@@ -90,7 +90,7 @@ const dump = () => Object.entries(byId).filter(([, e]) => typeof e.innerHTML ===
   const html = byId.gameover.innerHTML;
   if (!/Mind-Map|推理覆盤/.test(html)) bad('終局面板缺少覆盤區');
   if (!/自我學習與基因修正/.test(html)) bad('終局面板缺少學習區');
-  if ((html.match(/<details class="mind/g) || []).length !== 7) bad('覆盤數量應為 7，實際 ' + (html.match(/<details class="mind/g) || []).length);
+  if ((html.match(/<details class="mind/g) || []).length !== 8) bad('覆盤數量應為 8（7 位電腦＋1 位真人），實際 ' + (html.match(/<details class="mind/g) || []).length);
   if (!room().learning) bad('learning 未寫入');
   const stale = dump(); if (stale.length) bad('最終畫面含 undefined：' + stale.join(','));
 

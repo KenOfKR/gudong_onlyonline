@@ -32,6 +32,14 @@ function createStats() {
     personVotes: { total: 0, hitLao: 0 },
     badLies: 0,
     badLiesEffective: 0,
+    trueRoleSignals: 0,
+    trueRoleSignalsByRole: {},
+    roleBluffs: 0,
+    persistentRoleBluffs: 0,
+    continuedRoleDenials: 0,
+    roleSwapClaims: 0,
+    ambushFrameAttempts: 0,
+    successfulThirdSeatFrames: 0,
     timeMs: 0
   };
 }
@@ -174,6 +182,30 @@ function playOneInner(seedStr, disableLearning, stats) {
   if (stats) {
     stats.totalGames++;
     const g = room.gameOver;
+    // Track true-role hints, false identity claims, the v10.3 third-seat framing move and persistent denials; counters do not affect decisions or RNG.
+    room.rounds.forEach(rd => {
+      Object.entries(rd.turnLogs || {}).forEach(([pid, log]) => {
+        if (!log || !log.ambushFrameTactic) return;
+        stats.ambushFrameAttempts++;
+        const victimPos = rd.passOrder.indexOf(log.ambushTargetId);
+        const yaoPos = rd.passOrder.indexOf(pid);
+        const laoPos = room.players.find(p => p.role === '老朝奉') ? rd.passOrder.indexOf(room.players.find(p => p.role === '老朝奉').id) : -1;
+        if (yaoPos === 1 && laoPos === 0 && victimPos === 2 && rd.turnLogs[log.ambushTargetId]?.blind) stats.successfulThirdSeatFrames++;
+      });
+      Object.values(rd.mind || {}).forEach(m => {
+        if (!m) return;
+        if (m.trueRoleSignal && m.trueRoleSignal.role) {
+          stats.trueRoleSignals++;
+          stats.trueRoleSignalsByRole[m.trueRoleSignal.role] = (stats.trueRoleSignalsByRole[m.trueRoleSignal.role] || 0) + 1;
+        }
+        if (m.roleBluff && m.roleBluff.role) {
+          stats.roleBluffs++;
+          if (m.roleBluff.persist) stats.persistentRoleBluffs++;
+          if (m.roleBluff.continued) stats.continuedRoleDenials++;
+          if (m.roleBluff.origin === 'ambush-role-swap') stats.roleSwapClaims++;
+        }
+      });
+    });
     room.players.forEach(p => {
       const isGood = GD.isGood(p.role);
       if ((isGood && g.xuWon) || (!isGood && !g.xuWon)) {
@@ -338,6 +370,10 @@ function printStats(name, s) {
   console.log(`好人投票 ─ 被騙票率: ${dupedRate}% (${s.dupedVotes}/${s.goodVotes}) ｜ 成功跟隨好人率: ${trustedRate}% (${s.trustedGoodVotes}/${s.goodVotes})`);
   console.log(`鑑人命中 ─ 好人抓出老朝奉率: ${hitLaoRate}% (${s.personVotes.hitLao}/${s.personVotes.total})`);
   console.log(`壞人謊言 ─ 謊言高轉換率: ${lieEffectRate}% (${s.badLiesEffective}/${s.badLies})`);
+  console.log(`角色對抗 ─ 真身微跳: ${s.trueRoleSignals} 次（${(s.trueRoleSignals / Math.max(1, s.totalGames)).toFixed(2)} 次/局）｜假跳職計畫: ${s.roleBluffs} 次`);
+  console.log(`v10.3 栽贓與長線身份 ─ 藥不然栽贓啟動: ${s.ambushFrameAttempts} 次｜第三位實際失明成局: ${s.successfulThirdSeatFrames} 次｜角色互換宣稱: ${s.roleSwapClaims} 次｜持續身份承諾: ${s.persistentRoleBluffs} 次｜跨輪延續否認: ${s.continuedRoleDenials} 次`);
+  const signalBreakdown = Object.entries(s.trueRoleSignalsByRole).sort((a, b) => b[1] - a[1]).map(([role, n]) => `${role}:${n}`).join('、');
+  if (signalBreakdown) console.log(`微跳角色分布 ─ ${signalBreakdown}`);
   console.log(`模擬耗時: ${s.timeMs} ms\n`);
   return { goodWin, dupedRate, hitLaoRate, s };
 }
