@@ -94,10 +94,24 @@
     return room.players.length;
   };
 
+  function migratePlayerNameInRoom(room, id, newName) {
+    if (!room || !id || !newName) return;
+    (room.rounds || []).forEach(rd => {
+      (rd.speeches || []).forEach(sp => {
+        if (sp && sp.playerId === id) sp.speakerName = newName;
+      });
+      const chips = rd.voteResults && rd.voteResults.chips;
+      if (chips) Object.values(chips).forEach(arr => (arr || []).forEach(chip => {
+        if (chip && chip.voterId === id) chip.voterName = newName;
+      }));
+    });
+  }
+
   Engine.reclaimPlayer = function (room, oldId, newId, name) {
     const cleanName = String(name || '掌眼人').trim();
     const target = room.players.find(p => p.id === oldId);
     if (!target) return false;
+    const oldName = String(target.name || '');
     if (room.status === 'waiting') {
       for (let i = room.players.length - 1; i >= 0; i--) {
         const p = room.players[i];
@@ -110,6 +124,9 @@
     if (oldId !== newId) {
       target.id = newId;
       migratePlayerIdInRoom(room, oldId, newId, cleanName);
+    } else if (oldName !== cleanName) {
+      // 名稱變更但 ID 不變時，同步可解析的顯示欄位；歷史 sp.text 保留原句，不擅自改寫。
+      migratePlayerNameInRoom(room, oldId, cleanName);
     }
     if (room.spectators) {
       room.spectators = room.spectators.filter(s => s.id !== newId && s.id !== oldId && s.name !== cleanName);
