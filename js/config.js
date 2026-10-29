@@ -7,10 +7,10 @@
   const GD = root.GD || (root.GD = {});
 
   GD.CONFIG = {
-    VERSION: '9.0',
+    VERSION: '10.6.2',
     PROXY_URL: 'https://gudong-proxy.gjack61112.workers.dev',
-    GEMINI_MODELS: ['gemini-2.5-flash', 'gemini-2.5-flash-lite'],
-    GEMINI_TIMEOUT_MS: 9000,
+    GEMINI_MODELS: ['gemini-3.8-flash'],
+    GEMINI_TIMEOUT_MS: 30000,
     GEMINI_COOLDOWN_MS: 20000,
     ROOM_COLLECTION: 'GudongOnlineGame',
     ROOM_PREFIX: 'v9_room_',
