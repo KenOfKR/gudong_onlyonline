@@ -1,0 +1,20 @@
+古董局中局 v10.6.2 安裝說明
+
+完整版本可直接以此資料夾作為新工作副本。若只套用補丁到 v10.6.1，請先備份，再覆蓋：
+- js/config.js
+- js/core/claims.js
+- js/bot/speech.js
+- tests/tactics-smoke.js
+- index.html
+- README.md
+- CHANGELOG_v10.6.2.md
+- INSTALL_PATCH_v10.6.2.txt
+
+在專案根目錄執行：
+  node --check js/core/claims.js
+  node --check js/bot/speech.js
+  node tests/tactics-smoke.js
+  node tests/sim.js 20
+  node tests/ui-smoke.js
+
+本版不改投票規則、不禁止合法多票或角色偽裝。

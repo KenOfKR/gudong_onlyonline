@@ -1,0 +1,18 @@
+v10.6.0 精簡補丁安裝說明
+
+1. 先備份目前的 v10.5.0 專案。
+2. 將此 ZIP 解壓到專案根目錄，覆蓋同名檔案。
+3. 確認下列檔案已更新：
+   - js/bot/dialogueBank.js
+   - js/bot/mind.js
+   - js/bot/strategy.js
+   - js/bot/speech.js
+   - tests/tactics-smoke.js
+   - index.html、local-server.cjs、README.md、CHANGELOG_v10.6.0.md
+4. 在 PowerShell 專案根目錄執行：
+   node tests/tactics-smoke.js
+   node tests/sim.js 20
+   node tests/ui-smoke.js
+5. 先完成一局本機遊戲，再推送 GitHub Pages。
+
+本版新增 100 句台詞（其中 30 句供許願使用），並修正隊友資訊解析及許願公開宣稱與主票一致性。測試不代表勝率必然提升。
