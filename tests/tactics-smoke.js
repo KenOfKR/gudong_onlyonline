@@ -14,11 +14,33 @@ function makeRoom(code) {
 
 function sum(obj) { return Object.values(obj || {}).reduce((n, v) => n + (Number(v) || 0), 0); }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// A reply acknowledges the human when it attributes the claim/call to that
+// player, or explicitly responds to that player's named evidence. Do not
+// require one particular template phrase such as "已納入考慮".
+function acknowledgesHuman(text, humanName, beastName) {
+  const name = escapeRegExp(humanName);
+  const beast = escapeRegExp(beastName);
+  const attributed = new RegExp(
+    name + '[^\\u3002\\n]{0,80}(?:\\u8a8d\\u70ba|\\u4e3b\\u5f35|\\u8868\\u793a|\\u63d0\\u5230|\\u524d\\u9762\\u8aaa|\\u525b\\u624d\\u8aaa|\\u8aaa|\\u5e0c\\u671b\\u5927\\u5bb6\\u6295|\\u5efa\\u8b70\\u6295|\\u8981\\u6c42\\u6295|\\u865f\\u53ec\\u6295)' +
+    '[^\\u3002\\n]{0,100}' + beast
+  );
+  const explicitResponse = new RegExp(
+    '(?:\\u6211\\u807d\\u5230\\u4e86|\\u6211\\u6709\\u807d\\u5230|\\u6211\\u5148\\u63a5\\u4f4f|\\u6536\\u5230|\\u6211\\u6ce8\\u610f\\u5230|\\u6211\\u6703\\u53c3\\u8003)' +
+    '[^\\u3002\\n]{0,80}' + beast
+  );
+  return attributed.test(String(text || '')) || explicitResponse.test(String(text || ''));
+}
+
 try {
-  assert.strictEqual(GD.CONFIG.VERSION, '10.6.2', 'application version must be updated consistently to v10.6.2');
+  assert.strictEqual(GD.CONFIG.VERSION, '10.8.1', 'application version must be updated consistently to v10.8.0');
   assert(DialogueBank && DialogueBank.count() >= 100, 'dialogue bank should contain at least 100 lines');
-  assert.strictEqual(DialogueBank.count(), 534, 'v10.6.2 preserves the 534-line dialogue bank from v10.6.0');
-  assert.strictEqual(DialogueBank.categories().length, 37, 'v10.6.2 preserves the 37 dialogue categories from v10.6.0');
+  assert.strictEqual(DialogueBank.count(), 1068, 'v10.8.0 doubles the dialogue bank to 1,068 lines');
+  assert.strictEqual(DialogueBank.categories().length, 49, 'v10.8.0 adds twelve expansion and human-response categories');
+  [['evidenceExpanded',51],['tempoExpanded',80],['teamResponseExpanded',80],['voteMathExpanded',70],['identityAuditExpanded',50],['publicClaimResponse',29],['publicDefenseResponse',29],['publicCallResponse',29],['publicRoleResponse',29],['publicStanceResponse',29],['publicAccusationResponse',29],['publicCorrectionResponse',29]].forEach(([key,count]) => assert.strictEqual(DialogueBank.categories().find(x => x.key === key)?.count, count, `${key} should have ${count} lines`));
   const roleSignalCategories = [
     ['trueXuSignal', '許願'], ['trueFangSignal', '方震'], ['trueJiSignal', '姬雲浮'], ['trueHuangSignal', '黃煙煙'],
     ['trueKidoSignal', '木戶加奈'], ['trueLaoSignal', '老朝奉'], ['trueYaoSignal', '藥不然'], ['trueZhengSignal', '鄭國渠']
@@ -41,6 +63,7 @@ try {
     const line = DialogueBank.pick('xuYuanTactics', i);
     assert(!/第二尊|兩筆查驗|另一筆查驗|還有一條線索|不只一個孤立推測|另一個結果/.test(line), 'Xu Yuan lines must not leak hidden scan-count information');
     assert(!/我是許願|我就是許願/.test(line), 'Xu Yuan lines must not explicitly reveal her role');
+    assert(!/前二名與真品收益|後驗機率|預估票差|追加籌碼|臨界點|可信度|轉移焦點|私密資訊|內部權重/.test(line), 'Xu Yuan public dialogue must not sound like internal strategy notes');
   }
 
   const evidenceCategoryKeys = [
@@ -221,7 +244,11 @@ try {
   const spent = sum(actualBallot);
   assert(spent <= Engine.availableChips(room, bot.id), 'optimizer must not overspend available chips');
   assert(Object.keys(actualBallot).every(name => rd.beasts.some(b => b.name === name)), 'optimizer must vote only on current-round beasts');
-  assert((actualBallot[planned.plan.beast] || 0) >= 1, 'optimizer must preserve at least one chip on the declared target');
+  const declaredTargetVotes = Number(actualBallot[planned.plan.beast] || 0);
+  assert(Number.isInteger(declaredTargetVotes) && declaredTargetVotes >= 0,
+    'declared-target votes must be non-negative; zero and non-anchor ballots are legal');
+  assert.strictEqual(Number(rd.mind[bot.id].ballotModel.spent), spent,
+    'ballot diagnostics must match the actual ballot spend');
   assert(rd.mind[bot.id].ballotModel, 'ballot diagnostics should be retained for review');
 
   // Genuine role holders can occasionally soft-claim a truthful role-specific clue; they must not explicitly announce their job.
@@ -302,9 +329,142 @@ try {
   teamPlanned.plan.withheldClaims = [];
   teamPlanned.plan.withholdInfo = false;
   const teamSpeech = Speech.localSpeech(teamXu, teamRoom, teamPlanned.plan, teamPlanned.A);
+
+{
+  // MULTI_SPEAKER_ORDER_SIM_V1
+  const scenarios = [
+    { label: 'A: one interjecting bot', count: 1 },
+    { label: 'B: two interjecting bots', count: 2 },
+    { label: 'C: three interjecting bots', count: 3 }
+  ];
+
+  for (const scenario of scenarios) {
+    const simRoom = makeRoom('MULTI_SPEAKER_ORDER_' + scenario.count);
+    const simRd = U.curRound(simRoom);
+    const simHuman = simRoom.players.find(p => p.id === 'human');
+    const simResponder =
+      simRoom.players.find(p => p.isBot && p.role === '\u8a31\u9858') ||
+      simRoom.players.find(p => p.isBot);
+
+    assert(simHuman, scenario.label + ': human fixture missing');
+    assert(simResponder, scenario.label + ': responder bot missing');
+    simResponder.role = '\u8a31\u9858';
+
+    const simInterjectors = simRoom.players
+      .filter(p => p.isBot && p.id !== simResponder.id)
+      .slice(0, scenario.count);
+
+    // Randomize the order of interjecting bots for every scenario.
+    for (let k = simInterjectors.length - 1; k > 0; k--) {
+      const swapIndex = Math.floor(Math.random() * (k + 1));
+      [simInterjectors[k], simInterjectors[swapIndex]] =
+        [simInterjectors[swapIndex], simInterjectors[k]];
+    }
+
+    assert(
+      simInterjectors.length === scenario.count,
+      scenario.label + ': not enough interjecting bots'
+    );
+
+    assert(simRd.beasts && simRd.beasts.length >= 2,
+      scenario.label + ': not enough beasts');
+
+    const simClaimBeast = simRd.beasts[0].name;
+    const simTargetBeast =
+      simRd.beasts.find(b => b.name !== simClaimBeast).name;
+
+    const simRecords = [{
+      playerId: simHuman.id,
+      speakerName: simHuman.name,
+      source: 'human',
+      text: simClaimBeast +
+        '\u662f\u771f\u54c1\uff0c\u6211\u63d0\u51fa\u9019\u500b\u4e3b\u5f35\u3002',
+      p: {
+        claims: [{ beast: simClaimBeast, real: true }],
+        callBeast: simClaimBeast,
+        callBeasts: [simClaimBeast]
+      }
+    }];
+
+    for (let j = 0; j < simInterjectors.length; j++) {
+      const speaker = simInterjectors[j];
+      simRecords.push({
+        playerId: speaker.id,
+        speakerName: speaker.name,
+        source: 'bot',
+        text: j % 2 === 0
+          ? '\u6211\u5148\u89c0\u5bdf\u7968\u5dee\uff0c\u7a0d\u5f8c\u518d\u6c7a\u5b9a\u3002'
+          : '\u6211\u5148\u4fdd\u7559\u770b\u6cd5\uff0c\u7b49\u5176\u4ed6\u4eba\u767c\u8a00\u3002',
+        p: { claims: [], callBeast: null, callBeasts: [] }
+      });
+    }
+
+    simRd.speeches.splice(0, simRd.speeches.length, ...simRecords);
+
+    const orderedIds = [
+      simHuman.id,
+      ...simInterjectors.map(p => p.id),
+      simResponder.id
+    ];
+    const orderedSet = new Set(orderedIds);
+    simRd.speechOrder = [
+      ...orderedIds,
+      ...simRoom.players
+        .filter(p => !orderedSet.has(p.id))
+        .map(p => p.id)
+    ];
+
+    const simPlanned = Strategy.plan(simResponder, simRoom);
+    assert(simPlanned && simPlanned.plan,
+      scenario.label + ': strategy plan missing');
+
+    simPlanned.plan.beast = simTargetBeast;
+    simPlanned.plan.withheldClaims = [];
+    simPlanned.plan.withholdInfo = false;
+
+    const generated = Speech.localSpeech(
+      simResponder, simRoom, simPlanned.plan, simPlanned.A
+    );
+
+    assert(
+      generated.includes(simClaimBeast),
+      scenario.label + ': response omitted the human claim beast'
+    );
+
+    assert(
+      generated.includes(simTargetBeast),
+      scenario.label + ': response omitted the different chosen target'
+    );
+
+    const acknowledgmentPattern = {
+      test: text => acknowledgesHuman(text, simHuman.name, simClaimBeast)
+    };
+
+    assert(
+      acknowledgmentPattern.test(generated),
+      scenario.label + ': response did not acknowledge prior information; generated=' + JSON.stringify(generated) + '; claim=' + simClaimBeast + '; target=' + simTargetBeast + '; order=' + simInterjectors.map(p => p.name).join(' -> ')
+    );
+
+    assert(
+      !generated.includes('第一棒'),
+      scenario.label + ': a bot speaking after earlier public speakers must not use the first-speaker line; generated=' + JSON.stringify(generated)
+    );
+
+    const generatedCalls = Claims.parse(generated, simRoom, U.curRound(simRoom)).callBeasts || [];
+    assert(
+      generatedCalls.includes(simTargetBeast),
+      scenario.label + ': response did not state its own voting choice; generated=' + JSON.stringify(generated) + '; calls=' + JSON.stringify(generatedCalls) + '; target=' + simTargetBeast
+    );
+
+    console.log('[MULTI-ORDER] ' + scenario.label + ': PASS order=' + simInterjectors.map(p => p.name).join(' -> '));
+  }
+
+  console.log('[MULTI-ORDER] All 3 multiplayer order scenarios passed.');
+}
+
   assert(teamSpeech.includes(`【${teamClaimBeast}】`), 'local speech must acknowledge the prior human claim');
   assert(teamSpeech.includes(`【${teamTargetBeast}】`), 'local speech must explain the different selected vote target');
-  assert(/剛才說|我記得|先回應|公開判斷|已納入考慮|沒有漏掉|這句話|原始說法|我先把|我有聽到|立場說成/.test(teamSpeech), 'team-response should explicitly acknowledge that the human information was considered');
+  assert(acknowledgesHuman(teamSpeech, teamHuman.name, teamClaimBeast), 'team-response should attribute the human claim/call instead of requiring a fixed acknowledgment phrase; generated=' + JSON.stringify(teamSpeech));
 
   // True Fang may use a subtle person-reading hint only after an actual camp-check record exists.
   const fangSignalRoom = makeRoom('TRUE_FANG_SIGNAL');
@@ -356,7 +516,7 @@ try {
   analysis.prof[roleTarget.id].probs['老朝奉'] = 68;
   const roleHypothesisPlan = { ...planned.plan, suspectId: roleTarget.id, followHuman: null, roleBluff: null, fakeFangClaim: null, tacticalLine: '' };
   const roleHypothesisText = Speech.localSpeech(bot, room, roleHypothesisPlan, analysis);
-  assert(roleHypothesisText.includes('【老朝奉】的優先核查候選'), 'speech should state a relative role hypothesis');
+  assert(roleHypothesisText.includes('可能是【老朝奉】') && roleHypothesisText.includes('這只是推測'), 'speech should state a relative role hypothesis in natural, explicitly tentative language');
   assert(!/角色後驗約\s*\d+%/.test(roleHypothesisText), 'speech must not present uncalibrated role-logit softmax as a posterior probability');
 
   // Exact false Fang bluff: permitted only when it matches the explicit target/camp plan.

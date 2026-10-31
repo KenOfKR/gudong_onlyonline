@@ -115,7 +115,7 @@
           if (u && !u.isAnonymous) {
             Net.user = { uid: u.uid, name: String(u.displayName || (u.email || '').split('@')[0] || '').slice(0, 10), email: u.email || '' };
             GD.bus.emit('auth', Net.user);
-          } else if (!u) auth.signInAnonymously().catch(() => {});
+          } else if (!u) auth.signInAnonymously().catch(error => { console.error('[net] Anonymous Firebase sign-in failed', error); });
         });
       } catch (e) { console.warn('[net] Firebase 無法初始化，僅提供單人模式：', e); db = null; }
     },
@@ -321,6 +321,47 @@
 
       if (db) {
         try {
+          if (!auth) {
+            throw new Error('Firebase Auth is not initialized');
+          }
+
+          // Wait for the existing Firebase Auth flow to finish sign-in.
+          // Do not start another anonymous sign-in here.
+          if (!auth.currentUser) {
+            await new Promise((resolve, reject) => {
+              let unsubscribe = null;
+              let settled = false;
+
+              const finish = (error, user) => {
+                if (settled) return;
+                settled = true;
+                clearTimeout(timer);
+                if (unsubscribe) unsubscribe();
+
+                if (error) reject(error);
+                else resolve(user);
+              };
+
+              const timer = setTimeout(() => {
+                finish(new Error('Timed out waiting for Firebase Auth'));
+              }, 9000);
+
+              unsubscribe = auth.onAuthStateChanged(
+                user => {
+                  if (user) finish(null, user);
+                },
+                error => finish(error)
+              );
+
+              // Defensive cleanup in case the callback fires immediately.
+              if (settled && unsubscribe) unsubscribe();
+            });
+          }
+
+          if (!auth.currentUser) {
+            throw new Error('Firebase Auth has no current user');
+          }
+
           const snap = await withTimeout(db.collection(C.ROOM_COLLECTION).orderBy('updatedAt', 'desc').limit(40).get(), 6000);
           snap.forEach(d => {
             if (!d.id.startsWith(C.ROOM_PREFIX)) return;

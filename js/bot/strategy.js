@@ -488,7 +488,9 @@
             return choose(verifiedGoodLeft, `我第一輪已查明${U.tag(verifiedGoodLeft)}是好人；場上已有人把討論帶到方震身分，我這次刻意反常把他放到第四位，讓自己看起來不像在保護已驗好的人，承擔藏身與反轉風險`);
           }
           const candidates = left.filter(p => p.id !== verifiedGoodId)
-            .sort((a, b) => trust(b) - trust(a) + (rnd() - 0.5) * 10);
+            .map(p => ({ p, tie: (rnd() - 0.5) * 10 }))
+            .sort((a, b) => (trust(b.p) - trust(a.p)) || (a.tie - b.tie))
+            .map(x => x.p);
           if (candidates.length) {
             const pick = candidates[0];
             return choose(pick, `我第一輪已用方震能力確認${U.tag(verifiedGoodLeft)}是好人；若我現在在第三位把他直接送成第四位，會讓這個特殊保護痕跡過於明顯，也把他放進較需要反轉校正的位置。除非我刻意藏身，這次先讓${U.tag(pick)}成為第四位，之後再安排已驗好的人`);
@@ -497,7 +499,10 @@
       }
 
       /* 前中段（第 1～4 位）：挑最放心的好人先查驗拿乾淨資訊 */
-      const sorted = [...left].sort((a, b) => trust(b) - trust(a) + (rnd() - 0.5) * 10);
+      const sorted = [...left]
+        .map(p => ({ p, tie: (rnd() - 0.5) * 10 }))
+        .sort((a, b) => (trust(b.p) - trust(a.p)) || (a.tie - b.tie))
+        .map(x => x.p);
       const pick = sorted[0];
       if (t === 2 && bot.role === '方震' && knownEvilLeft && pick.id === knownEvilLeft.id) {
         return choose(pick, `第三輪沒有下一回合首家優勢。我明知${U.tag(knownEvilLeft)}是壞人仍把手機傳給他，不是為了消耗不存在的下輪先手，而是用反常傳遞淡化我掌握的方震查驗線索；這會放棄控尾家收益，若被追問可以裝成判斷失誤／不小心傳錯人，也可能被旁人解讀成偽裝壞人`);
@@ -643,6 +648,89 @@
   }
 
   S.reduceRedundantPublicClaims = reduceRedundantPublicClaims;
+
+  // 選擇可公開判為贗品的目標；已知真品絕不可被選作認壞／跳壞目標。
+  function chooseCounterfeitTarget(myIns, ranked, preferred) {
+    const inspections = Array.isArray(myIns) ? myIns : [];
+    const rankedList = Array.isArray(ranked) ? ranked.filter(item => item && item.name) : [];
+    const availableNames = new Set(rankedList.map(item => item.name));
+    const isAvailable = name => !!name && (availableNames.size === 0 || availableNames.has(name));
+    const realNames = new Set(inspections
+      .filter(item => item && item.displayedReal === true && item.beastName)
+      .map(item => item.beastName));
+
+    // 優先目標只有在本輪確實出現、且沒有被自己確認為真品時才可使用。
+    if (isAvailable(preferred) && !realNames.has(preferred)) return preferred;
+
+    const knownFake = inspections.find(item => item && item.displayedReal === false &&
+      item.beastName && isAvailable(item.beastName));
+    if (knownFake) return knownFake.beastName;
+
+    const candidates = rankedList
+      .filter(item => isAvailable(item.name) && !realNames.has(item.name))
+      .sort((a, b) => (Number.isFinite(Number(a.pReal)) ? Number(a.pReal) : 0.5) -
+        (Number.isFinite(Number(b.pReal)) ? Number(b.pReal) : 0.5));
+    // 沒有任何可安全宣稱為贗品的目標時，回傳 null；絕不退回已確認真品。
+    return candidates.length ? candidates[0].name : null;
+  }
+  // 好人不假扮壞人角色或假認壞；這會破壞好人勝利目標並製造錯誤的票向訊號。
+  function buildRoleBluffPool(bot, ctx) {
+    const isGood = ctx && typeof ctx.isGood === 'boolean' ? ctx.isGood : !!(GD.isGood && bot && GD.isGood(bot.role));
+    return [...(GD.ROLE_ORDER || []).filter(role => role !== (bot && bot.role) &&
+      (!isGood || !GD.ROLES || !GD.ROLES[role] || GD.ROLES[role].camp !== 'evil')), '平民'];
+  }
+  function enforcePublicTargetAnchor(ballot, target, maxSpend) {
+    const limit = Math.max(0, Math.floor(Number(maxSpend) || 0));
+    if (!target || limit < 1) return {};
+
+    const out = {};
+    Object.keys(ballot && typeof ballot === 'object' ? ballot : {}).forEach(name => {
+      const votes = Math.max(0, Math.floor(Number(ballot[name]) || 0));
+      if (votes > 0) out[name] = votes;
+    });
+
+    const totalVotes = () => Object.values(out).reduce((sum, votes) => sum + votes, 0);
+    // 先把超額票數削回可用籌碼；優先保留公開目標，其次保留原本分票最多的結構。
+    while (totalVotes() > limit) {
+      const donors = Object.keys(out).filter(name => name !== target && out[name] > 0)
+        .sort((a, b) => out[b] - out[a] || a.localeCompare(b));
+      const donor = donors[0] || (out[target] > 0 ? target : null);
+      if (!donor) break;
+      out[donor] -= 1;
+      if (out[donor] <= 0) delete out[donor];
+    }
+
+    let total = totalVotes();
+    // 最佳化器若刻意回傳空票，公開表演仍至少要有一票可供後續核對。
+    if (total === 0) return { [target]: 1 };
+
+    // 先確保公開號召目標有票，不把其他籌碼全灌到目標。
+    if (!out[target]) {
+      const donor = Object.keys(out).filter(name => name !== target && out[name] > 0)
+        .sort((a, b) => out[b] - out[a] || a.localeCompare(b))[0];
+      if (donor) {
+        out[donor] -= 1;
+        if (out[donor] <= 0) delete out[donor];
+      }
+      out[target] = 1;
+    }
+
+    // 公開目標必須是主票方向（可與另一尊並列最多），其餘票仍可分配。
+    // 只在既有配置間移動籌碼，不新增票數，也不破壞分票能力。
+    while (true) {
+      const donors = Object.keys(out).filter(name => name !== target && out[name] > 0)
+        .sort((a, b) => out[b] - out[a] || a.localeCompare(b));
+      if (!donors.length || out[target] >= out[donors[0]]) break;
+      const donor = donors[0];
+      out[donor] -= 1;
+      if (out[donor] <= 0) delete out[donor];
+      out[target] = (out[target] || 0) + 1;
+    }
+    return out;
+  }
+  S.chooseCounterfeitTarget = chooseCounterfeitTarget;
+  S.buildRoleBluffPool = buildRoleBluffPool;
+  S.enforcePublicTargetAnchor = enforcePublicTargetAnchor;
 
   S.plan = function (bot, room) {
     const A = Mind.analyze(bot, room), { ctx } = A;
@@ -833,7 +921,7 @@
     }
 
     /* ★ 定案 4：被點名要說明為什麼把票投在贗品上（保留抗壓，加入第三輪 cantExplain 退讓例外） */
-    if (A.askedMe && A.myFake.length) {
+    if (!ctx.isGood && A.askedMe && A.myFake.length) {
       plan.explain = { callerName: A.askedMe.callerName, votes: A.myFake };
       // 已承諾持續假身分的壞人不會因一般票型質問而自行認壞；要一路演到第三輪才有長線博弈價值。
       const canConfess = !ctx.isGood && !plan.roleBluff?.persist && (bot.role === '藥不然' || bot.role === '鄭國渠');
@@ -846,13 +934,21 @@
       }
       if (canConfess && plan.evilPosture === 'conceal') pConfess *= 0.55;
       if (rnd() < pConfess) {
-        const truthful = myIns.map(i => ({ beast: i.beastName, real: i.displayedReal }));
-        const realIns = myIns.find(i => i.displayedReal);
-        plan.mode = 'confess'; plan.confess = true; plan.claims = truthful;
-        plan.beast = realIns ? realIns.beastName : ranked[0].name;
-        plan.avoid = myIns.filter(i => !i.displayedReal).map(i => i.beastName);
-        plan.partnerBeast = null; plan.padBeast = null;
-        why.unshift(`${U.tag(U.byId(room, A.askedMe.callerId))}點名要我說明投贗品的理由。${cantExplain ? '我當時是故意帶風向，講不出站得住腳的理由' : '我不想硬編理由'}，而且藏身分的收益已經不大，乾脆認壞，把我真實的查驗結果攤開給隊友用`);
+        const target = chooseCounterfeitTarget(myIns, ranked, plan.padBeast);
+        if (target) {
+          plan.mode = 'confess';
+          plan.confess = true;
+          plan.beast = target;
+          plan.claims = [{ beast: plan.beast, real: false }];
+          plan.avoid = [];
+          plan.partnerBeast = null;
+          plan.padBeast = null;
+          plan.withholdInfo = false;
+          plan.withheldClaims = [];
+          why.unshift(`${U.tag(U.byId(room, A.askedMe.callerId))}點名要我說明投贗品的理由。這次選擇認壞，但只公開把【${plan.beast}】判作贗品並把票推向同一目標，不攤開其他私密查驗，也不透露同伴。`);
+        } else {
+          why.unshift('目前沒有可安全公開判為贗品的目標，因此不執行認壞表演，也不把已確認真品硬說成贗品。');
+        }
       } else {
         why.unshift(`${U.tag(U.byId(room, A.askedMe.callerId))}點名要我說明投贗品的理由，我照當時的發言與依據解釋${ctx.isGood ? '：我是真的被騙了' : '，維持好人的樣子'}`);
       }
@@ -888,7 +984,7 @@
     }
 
     if (!plan.suspectId && !plan.softShadeId) {
-      const hc = A.humanCall;
+      const hc = A.publicCall;
       const sortedSuspects = Object.values(A.prof).sort((a, b) => b.evil - a.evil);
       const topEvil = sortedSuspects[0] ? sortedSuspects[0].evil : 0;
       const secondEvil = sortedSuspects[1] ? sortedSuspects[1].evil : 0;
@@ -906,7 +1002,7 @@
 
       if (ctx.isGood && hc && (A.prof[hc.targetId]?.ally || 0) < 85 && rnd() < 0.3 + 0.65 * genes.conformity) {
         plan.suspectId = hc.targetId; plan.followHuman = hc;
-        why.push(`真人【${hc.callerName}】號召集火，其發言可信度夠，我附議`);
+        why.push(`公開玩家【${hc.callerName}】號召集火，其發言可信度夠，我附議`);
       } else if (ctx.isGood && bot.role !== '方震' && A.topSuspect && canAccuseNow && rnd() < 0.35 + 0.6 * genes.assertiveness) {
         plan.suspectId = A.topSuspect.player.id;
         why.push(`${U.tag(A.topSuspect.player)}嫌疑最高且明顯領先（${A.topSuspect.reasons[0] || '票型與發言矛盾'}），先為鑑人鋪梗`);
@@ -1008,7 +1104,7 @@
 
     /* ---- 動態角色偽裝：身分宣稱是戰術承諾，後續必須能被公開紀錄驗證 ---- */
     if (!plan.confess && !plan.fakeFangClaim) {
-      const rolePool = [...(GD.ROLE_ORDER || []).filter(role => role !== bot.role), '平民'];
+      const rolePool = buildRoleBluffPool(bot, ctx);
       // 好人較少冒險假跳；壞人依欺騙基因與局勢姿態，較常用假身份爭取敘事主導權。
       const roleBluffChance = ctx.isGood
         ? U.clamp(0.045 + 0.12 * genes.deception + (t === 2 ? 0.065 : 0) + 0.035 * genes.assertiveness, 0.03, 0.27)
@@ -1078,6 +1174,33 @@
     /* ---- 隱藏已被可信早位重複證實的私密資訊；不改內部後驗、避投與票型計算 ---- */
     reduceRedundantPublicClaims(bot, room, ctx, A, plan);
 
+    // 認壞／公開假扮壞人角色：主張、表演與實際投票共用同一贗品目標。
+    if (plan.confess) {
+      const target = chooseCounterfeitTarget(myIns, ranked, plan.beast);
+      plan.beast = target || plan.beast;
+      plan.claims = plan.beast ? [{ beast: plan.beast, real: false }] : [];
+      plan.avoid = [];
+      plan.withholdInfo = false;
+      plan.withheldClaims = [];
+    } else if (!ctx.isGood && plan.roleBluff && GD.ROLES && GD.ROLES[plan.roleBluff.role] && GD.ROLES[plan.roleBluff.role].camp === 'evil') {
+      const target = chooseCounterfeitTarget(myIns, ranked, plan.padBeast);
+      if (target) {
+        plan.evilRolePerformance = true;
+        plan.beast = target;
+        plan.claims = [{ beast: plan.beast, real: false }];
+        plan.avoid = [];
+        plan.padBeast = null;
+        plan.partnerBeast = null;
+        plan.withholdInfo = false;
+        plan.withheldClaims = [];
+      } else {
+        // 沒有可合理主張的贗品時，取消這次假跳，不以已確認真品硬湊一套演技。
+        plan.roleBluff = null;
+        plan.evilRolePerformance = false;
+        why.unshift('沒有可安全主張為贗品的目標，本輪取消假跳壞人角色表演，避免公開立場與票向失去依據。');
+      }
+    }
+
     /* ---- 全局算票、保真得分估值與條件式台詞 ---- */
     if (GD.Tactics && typeof GD.Tactics.publicNarrative === 'function') {
       const seedText = `${bot.botId || bot.id}:${t}:${ctx.myPos}:${plan.mode}:${plan.beast}:${plan.roleBluff ? plan.roleBluff.role : ''}`;
@@ -1093,6 +1216,7 @@
     const top = Object.values(A.prof).sort((a, b) => b.evil - a.evil).slice(0, 2);
     rd.mind[bot.id] = {
       pos: ctx.myPos, mode: plan.mode, beast: plan.beast, avoid: plan.avoid, claims: plan.claims,
+      evilRolePerformance: !!plan.evilRolePerformance,
       withholdInfo: !!plan.withholdInfo, withheldClaimCount: (plan.withheldClaims || []).length,
       withholdReason: plan.withholdReason || null,
       evilPosture: plan.evilPosture || null, evilStyle: plan.evilStyle || null,
@@ -1140,18 +1264,26 @@
     const bank = bot.voteBank;
     if (bank <= 0) return {};
     const genes = bot.genes || GD.Genes.load(bot.botId);
-    const confident = m.post.some(b => Math.abs(b.p - 0.5) > 0.3);
-    let spend = bank;
-    if (t < 2 && !confident && bank >= 2 && rnd() < 0.4 * (1.15 - genes.assertiveness)) spend = bank - 1;
+    const spend = GD.Tactics && typeof GD.Tactics.voteSpendLimit === 'function'
+      ? GD.Tactics.voteSpendLimit(room, bot, m)
+      : bank;
     const ballot = {};
+    const finalizePublicPerformanceBallot = candidate => {
+      const hasCandidateVotes = Object.values(candidate || {}).some(value => Number(value) > 0);
+      const finalBallot = (hasCandidateVotes && !GD.isGood(bot.role) && (m.mode === 'confess' || m.confess || m.evilRolePerformance) && m.beast && spend > 0)
+        ? enforcePublicTargetAnchor(candidate, m.beast, spend)
+        : (candidate || {});
+      m.actualBallot = { ...finalBallot };
+      return finalBallot;
+    };
 
-    // 好人先以「兩個前二名的預期真品分」評估分票和保留籌碼；至少一票維持公開主張的錨點。
+    // 好人依自己的後驗與前二名效益評估投票；可棄票、保留籌碼、分票，亦不強制追隨公開主張。
     if (GD.isGood(bot.role) && GD.Tactics && typeof GD.Tactics.optimizeBallot === 'function') {
       const model = GD.Tactics.optimizeBallot(room, bot, m, spend);
-      if (model && model.ballot && Object.keys(model.ballot).length) {
+      if (model && model.ballot) {
         m.ballotModel = model.diagnostic || null;
         m.actualBallot = { ...model.ballot };
-        return model.ballot;
+        return finalizePublicPerformanceBallot(model.ballot);
       }
     }
 
@@ -1162,11 +1294,11 @@
           // 具備偽裝執行力：留 1 票護航口頭宣稱的真品（避免 0 票矛盾），其餘墊給假貨
           ballot[m.beast] = 1;
           ballot[m.padBeast] = spend - 1;
-          return ballot;
+          return finalizePublicPerformanceBallot(ballot);
         } else if (rnd() < 0.55 * (1 - genes.camouflage)) {
           // 低偽裝力露出明顯破綻：嘴上報真品 m.beast，卻把全部籌碼灌給假貨 m.padBeast（產生 0 票言行矛盾）
           ballot[m.padBeast] = spend;
-          return ballot;
+          return finalizePublicPerformanceBallot(ballot);
         }
       }
 
@@ -1185,11 +1317,11 @@
             // 高偽裝力：留 1 票支持自己口頭喊的獸首，其餘合流別隻假貨
             ballot[m.beast] = 1;
             ballot[rallyFake.name] = spend - 1;
-            return ballot;
+            return finalizePublicPerformanceBallot(ballot);
           } else if (rnd() < (m.evilPosture === 'desperate' ? 0.65 : 0.60 * (1 - genes.camouflage))) {
             // 低偽裝力：直接棄守自己口頭宣稱的獸首（0 票矛盾），全票轉投別隻
             ballot[rallyFake.name] = spend;
-            return ballot;
+            return finalizePublicPerformanceBallot(ballot);
           }
         }
       }
@@ -1198,14 +1330,14 @@
     // 壞人的原有偽裝／衝票特例優先；未觸發時，以公開票數估計和本人的後驗選擇更有效的假貨前二配置。
     if (GD.Tactics && typeof GD.Tactics.optimizeBallot === 'function') {
       const model = GD.Tactics.optimizeBallot(room, bot, m, spend);
-      if (model && model.ballot && Object.keys(model.ballot).length) {
+      if (model && model.ballot) {
         m.ballotModel = model.diagnostic || null;
         m.actualBallot = { ...model.ballot };
-        return model.ballot;
+        return finalizePublicPerformanceBallot(model.ballot);
       }
     }
     if (spend > 0) ballot[m.beast] = spend;
-    return ballot;
+    return finalizePublicPerformanceBallot(ballot);
   };
 
   /* ---------------------------------------------------------------- 終局鑑人 */
@@ -1247,8 +1379,8 @@
         if (ctx.t === 2 && scoreStillMatters && hasLaoEvidence) {
           id = bestLao.player.id;
           why = `終局算分：目前保真部分估約 ${savedEstimate.toFixed(1)} 分，距 ${GD.CONFIG.WIN_SCORE} 分門檻仍有差距；我按公開矛盾與老朝奉後驗優先指認${U.tag(bestLao.player)}，爭取好人過半命中老朝奉的 1 分`;
-        } else if (A.humanCall && (A.prof[A.humanCall.targetId]?.ally || 0) < 85 && rnd() < 0.3 + 0.65 * ctx.genes.conformity) {
-          id = A.humanCall.targetId; followId = A.humanCall.callerId; why = `響應真人【${A.humanCall.callerName}】的集火號召`;
+        } else if (A.publicCall && (A.prof[A.publicCall.targetId]?.ally || 0) < 85 && rnd() < 0.3 + 0.65 * ctx.genes.conformity) {
+          id = A.publicCall.targetId; followId = A.publicCall.callerId; why = `響應公開玩家【${A.publicCall.callerName}】的集火號召`;
         } else if (last && last.suspectId && last.suspectId !== bot.id && !(A.prof[last.suspectId] && A.prof[last.suspectId].confessed)) {
           id = last.suspectId; why = '貫徹自己發言時鋪的梗';
         } else if (A.topSuspect) {

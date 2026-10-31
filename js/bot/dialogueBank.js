@@ -507,36 +507,36 @@
       '這一局可能需要兩人持續演不同的假角色到第三輪；越接近終局，越要對照先前留下的承諾。'
     ],
     xuYuanTactics: [
-      '我先把能核對的判斷講清楚，投票理由也要能回頭查。',
-      '我不靠聲量說服人；若你不同意，請指出具體哪條公開紀錄不符。',
-      '不要因為多數人同聲就直接改判，先看他們的依據是不是獨立。',
-      '這個結論可以接受反證，但反證要對應到相同獸首和相同輪次。',
-      '我會把親眼看到、聽別人說、自己推論分開，不混成一個答案。',
-      '先別把票投成站隊，這輪得看前二名與真品收益。',
-      '如果你選擇不同方向，告訴大家會改變哪個名次或分數。',
-      '我聽到不同意見了，不過重複同一句話不會讓證據更可靠。',
-      '我寧可把結論講得可核對，也不會為了看起來肯定就亂下定論。',
-      '有分歧就把時序和票型攤開，不要用誰比較像老手決定真偽。',
-      '我現在支持的方向有理由，開票後如果對不上，這筆紀錄就能回頭檢驗。',
-      '別把我沒跟著喊最大聲的人走，當成我沒有判斷；看實際證據。',
-      '若要推翻這個看法，請指出哪位在什麼位置前後看到了不同結果。',
-      '我們可以票分開，但每一張都得有用途，不能只是避免得罪人。',
-      '目前能確定的事和對角色的猜測要分開，這樣才不會互相污染。',
-      '我不把先發言當優勢，也不把後發言當罪名，線索要放回位置上看。',
-      '大家可以保留懷疑，但請把懷疑連到能被之後驗證的行動。',
-      '這次我先看證據，再看誰說得有把握；語氣不能代替紀錄。',
-      '如果同一資訊已經被證實，別再花時間複述，找仍然解釋不了的地方。',
-      '我願意調整判斷，但需要新資訊，不能只因為全場改口就跟著改。',
-      '我這輪的票是對前二機率的選擇，不代表我否定所有沒投的說法。',
-      '有人投多票就要能解釋投入，票數是承諾，不是自動證明身分。',
-      '若有人說法和投票不一致，先問他的戰術理由，再決定是否提高嫌疑。',
-      '先看哪些人有自己的判斷，哪些人只是複誦前手，不要把兩種來源算一樣。',
-      '有些時候不重述結果反而讓討論更清楚，重點是把真正的矛盾抓出來。',
-      '我不會為了配合大家就抹掉自己看到的內容，但也會接受合理的反向推理。',
-      '如果票差很大，我會考慮分票；如果接近臨界點，才值得追加籌碼。',
-      '不要把不跟票直接當壞人，先問他的判斷是否真的與公開證據矛盾。',
-      '發言的目的不是講得完整漂亮，而是幫大家做出更好的投票決定。',
-      '我不需要靠自報角色得到信任；讓公開結果和行動替我驗證。',
+      '我先投【{beast}】，有不同證據就直接拿出來談。',
+      '我聽到你的理由了，但目前還沒說服我改判。',
+      '別因為大家都這樣說就跟著投，先講清楚自己的理由。',
+      '我暫時把【{beast}】判成這樣，開票後再一起對答案。',
+      '你要我改票可以，先告訴我哪個地方判斷錯了。',
+      '我不會只看誰聲音大，還是要看他說的有沒有根據。',
+      '這尊我先維持原判，有新線索再調整。',
+      '看法不一樣沒關係，大家把理由說清楚就好。',
+      '同一句話講再多次，也不會自動變成新的證據。',
+      '先別急著下結論，把前後說法對一下。',
+      '我目前支持【{beast}】，但不是說其他人的意見都不用聽。',
+      '我不會因為有人改口就跟著改，除非他提出新的理由。',
+      '如果你覺得我看錯了，就指出是哪個細節對不上。',
+      '票可以分開投，但每一票都要有自己的理由。',
+      '先把確定的事講清楚，猜測的部分不要說得像真的。',
+      '不管誰先發言，最後還是要看他說的和做的合不合。',
+      '你可以保留懷疑，我也會再看有沒有新的證據。',
+      '我先說我的判斷，不會只因為別人講得肯定就改變。',
+      '已經確認過的事不用一直重講，還有疑問的地方才值得談。',
+      '有新的線索我願意改判，但不能只因為人多就改。',
+      '我這輪主要投【{beast}】，其他票怎麼分我會看實際情況。',
+      '投多票就要說得出理由，不能只看別人怎麼投。',
+      '如果有人說的和投的不同，可以先問清楚，不必立刻定罪。',
+      '先聽聽每個人自己的理由，不要只把前面的人再講一次。',
+      '真正有用的是找出哪裡說不通，不是把同一段話講得更長。',
+      '我有自己的看法，也願意聽反方怎麼解釋。',
+      '如果票差真的接近，我才會考慮把其他票分出去。',
+      '不跟著投不代表就是壞人，先看他的理由有沒有問題。',
+      '大家說完之後，我會照自己相信的證據投票。',
+      '我不靠自稱什麼角色來取得信任，請看我後面的行動。'
     ],
     teamResponse: [
       '{speaker}剛才說「【{beast}】{verdict}」，我把這條公開主張放入比較；{assessment}，本輪仍投【{voteBeast}】，因為要比較前二名收益。',
@@ -618,6 +618,343 @@
     ],
   };
 
+  // v10.8.0：在原有 534 條外增加 534 條，總數精確達到 1,068 條。
+  // 擴充池按用途併入對應舊類別；前手玩家回應則分成明確語意類別，不用無關台詞充數。
+  const makeWrapped = (items, wrappers) => items.flatMap(item => wrappers.map(w => w(item)));
+  const evidenceCores = [
+    '他剛才那句話到底有沒有根據', '他是真的查到，還是只是跟著別人猜',
+    '這兩個消息是不是都來自同一個人', '這前後矛盾會不會只是傳牌時間不同',
+    '他是在投票前就這樣說，還是開票後才補理由', '他剛才到底多講了哪個新線索',
+    '換成另一個人這樣說，我們還會信嗎', '他前面講的跟現在講的是不是同一套',
+    '他是真的用過能力，還是只有嘴上這麼說', '他當時到底有沒有可能知道這件事',
+    '別拿開票後的結果，硬說他當時就知道', '他說哪尊是真的，跟他把票投去哪，是兩回事',
+    '大家都重複同一句，不代表有好幾份證據', '哪些事現在還不能光靠公開紀錄下定論',
+    '哪一段紀錄最能看出誰的說法有問題', '第一位和最後一位收到的資訊可能差在哪',
+    '這個說法是誰先帶起來的，誰又因此得利', '這個新線索到底有沒有改變原先的判斷',
+    '開票後能不能一條條對照，看看誰說中了', '是不是把一句話就當成全部證據了'
+  ];
+  const tempoCores = [
+    '前一位剛講的新線索，不是前面早就回過的舊話',
+    '誰的說法到現在還沒有人正面回答', '哪些矛盾是剛出現，哪些只是一直重講',
+    '現在還沒人說清楚的票數或技能時間', '他剛才講的理由，跟後面做的事對不對得上',
+    '這輪哪個線索最可能讓大家改變看法', '前手玩家剛才提出的主張是否已被正面回答',
+    '哪些事情大家已經講定，哪些還各說各話', '哪條線索能補上剛才推理漏掉的地方',
+    '先講不代表比較真，還是得看前後傳牌發生什麼事', '公開聽到的事跟自己猜的事不能混在一起',
+    '哪句只是重複，哪句才真的帶來新線索', '還有哪個問題沒講清楚，而不是再把前面重講一遍',
+    '我想聽的是他為什麼這樣判，不只是最後投哪一尊', '接下來有什麼辦法能確認這個猜測',
+    '現在到底要回答哪一題，不用把每輪都重講', '哪些話大家已經回過了，不用再當新發現',
+    '誰講的跟他實際怎麼投還對不起來', '還有什麼反證，或有沒有別的可能',
+    '提出一個大家能直接同意或反駁的具體看法'
+  ];
+  const voteMathCores = [
+    '能否跨過前二名的臨界票數', '追加一枚籌碼帶來的邊際收益',
+    '主票與分票的預期保真分差', '剩餘票差是否仍有翻盤空間',
+    '目前領先是否已經足夠，不必繼續墊高', '每一枚籌碼對前二排序的實際影響',
+    '保留籌碼是否比追投領先獸首更有效', '兩尊候選同時進前二的可能性',
+    '預測支持與已落下的票之間的差距', '這張票能否改變得分，而不只是改變聲量',
+    '集中與分配兩種方案的預期得分', '最後幾張票是否可能改變目前的排序',
+    '嘴上判哪尊是真的，跟票投去哪，要說清楚為什麼不同', '當前主票之外是否有一個有價值的次要目標'
+  ];
+  const identityCores = [
+    '公開身分承諾能否對上已發生的技能紀錄', '改口前後是否有新的公開證據',
+    '自稱角色是否真的執行過對應能力', '不同角色版本是否能同時成立',
+    '誰先提出對跳，是否只是搶先建立敘事', '角色主張是否被原始發言而非舊摘要支持',
+    '能力時點是否排除其中一個角色假設', '他自稱的角色跟實際票向合不合',
+    '改變票向與改變身分是不是被混為一談', '目前還缺哪一條可驗證的身分證據'
+  ];
+  const evidenceExpanded = makeWrapped(evidenceCores.slice(0, 17), [
+    line => `這點我有疑問：${line}。`,
+    line => `光這樣還不夠，得說清楚${line}。`,
+    line => `你能把這件事講明白嗎？${line}。`
+  ]);
+  const tempoExpanded = makeWrapped(tempoCores, [
+    line => `剛才這段話還有個問題：${line}。`,
+    line => `先別急著跟票，${line}。`,
+    line => `你剛才說的這點，${line}。`,
+    line => `如果這點說不清楚，大家不能只靠喊票：${line}。`
+  ]);
+  const voteMathExpanded = makeWrapped(voteMathCores, [
+    line => `這一票要投得有用：${line}。`,
+    line => `只喊集中沒用，${line}。`,
+    line => `想把目標送進前二，得先算清${line}。`,
+    line => `這一輪的票要能改變結果，關鍵是${line}。`,
+    line => `別只看誰喊得大聲，${line}。`
+  ]);
+  const identityAuditExpanded = makeWrapped(identityCores, [
+    line => `你自稱角色沒用，${line}。`,
+    line => `這個身分說法能不能站住，就看${line}。`,
+    line => `別只報角色名，${line}。`,
+    line => `如果真有這個身分，${line}應該對得上。`,
+    line => `我會信能查驗的行動，不只聽自稱；${line}。`
+  ]);
+  const teamOpeners = [
+    '{speaker}提出「【{beast}】{verdict}」，我有把這條資訊納入判斷；{assessment}。',
+    '針對{speaker}的「【{beast}】{verdict}」，我不會直接略過；{assessment}。',
+    '我先回應{speaker}：你把【{beast}】判作{verdict}；{assessment}。',
+    '{speaker}對【{beast}】的判斷已記錄；{assessment}。',
+    '我聽到{speaker}主張「【{beast}】{verdict}」，但先不把它當成定論；{assessment}。',
+    '關於{speaker}剛提出的【{beast}】{verdict}，我會保留它作為可核對線索；{assessment}。',
+    '{speaker}的說法是【{beast}】{verdict}，我會和其他來源分開比對；{assessment}。',
+    '先把{speaker}的原話放回討論：「【{beast}】{verdict}」；{assessment}。',
+    '我沒有把{speaker}的「【{beast}】{verdict}」當作空話，也不會直接照單全收；{assessment}。',
+    '{speaker}已公開站在【{beast}】{verdict}這一邊；{assessment}。',
+    '我把{speaker}對【{beast}】的宣稱當成一筆公開承諾；{assessment}。',
+    '先不急著決定誰該跟票，我先處理{speaker}對【{beast}】{verdict}的主張；{assessment}。',
+    '{speaker}剛才把【{beast}】說成{verdict}，這會影響我的評估，但不會直接決定票向；{assessment}。',
+    '對{speaker}提出的獸首判斷，我要先分清說法與證據；{assessment}。',
+    '我會記下{speaker}的【{beast}】{verdict}宣稱，並檢查它是否有獨立支持；{assessment}。',
+    '這條線索來自{speaker}對【{beast}】的判斷；{assessment}。',
+    '我願意把{speaker}的【{beast}】{verdict}納入推理，但不把轉述當成第二份證據；{assessment}。',
+    '我先確認自己理解正確：{speaker}認為【{beast}】{verdict}；{assessment}。',
+    '對這個分歧，我先保留{speaker}的原始判斷，再核對其他資訊；{assessment}。',
+    '{speaker}提供的是一個能回頭驗證的主張：「【{beast}】{verdict}」；{assessment}。'
+  ];
+  const teamEndings = [
+    '我的主票仍投【{voteBeast}】，因為要比較前二名的實際收益。',
+    '所以我先投【{voteBeast}】，開票後會回頭核對這個選擇。',
+    '這不代表我忽略其他線索；目前把主票放在【{voteBeast}】更合算。',
+    '我選【{voteBeast}】是票數取捨，不等於把對方的說法判成錯誤。'
+  ];
+  const teamResponseExpanded = teamOpeners.flatMap(open => teamEndings.map(end => open + end));
+
+  const publicClaimResponse = [
+    '{speaker}說「【{beast}】{verdict}」，我已記下；{assessment}。',
+    '我有聽到{speaker}對【{beast}】的判斷「{verdict}」，會先和其他獨立資訊比較。',
+    '針對{speaker}的【{beast}】{verdict}主張，我目前的看法是：{assessment}。',
+    '{speaker}把【{beast}】判為{verdict}；我會核對這份說法，而不是只看是否跟票。',
+    '我不會略過{speaker}的「【{beast}】{verdict}」，但仍要確認支持它的來源。',
+    '這條公開主張我有納入：{speaker}認為【{beast}】{verdict}；{assessment}。',
+    '先確認我沒有聽錯：{speaker}主張【{beast}】{verdict}。接著我會對照票型和順位。',
+    '{speaker}對【{beast}】{verdict}的獸首判斷已記錄；我會看它與已知時序是否相符。',
+    '我把【{beast}】{verdict}視為{speaker}的公開承諾，開票後可以回查。',
+    '即使我最後不跟投，也不代表我沒聽進{speaker}對【{beast}】{verdict}的判斷。',
+    '我先接住這條資訊：{speaker}說【{beast}】{verdict}；還需要獨立依據交叉印證。',
+    '這個主張可能有用，但我不會只靠{speaker}一句話決定【{beast}】{verdict}。',
+    '{speaker}的說法和我的投票是兩個問題；我先記下【{beast}】{verdict}再比較收益。',
+    '我明確收到{speaker}對【{beast}】{verdict}的立場，接下來要驗的是依據是否可靠。',
+    '這句話值得保留到開票後：{speaker}目前主張【{beast}】{verdict}。',
+    '我不把不同票向當成否定資訊；{speaker}對【{beast}】{verdict}的說法仍會列入比較。',
+    '我聽到{speaker}判【{beast}】{verdict}，會先確認有沒有獨立來源支持。',
+    '對{speaker}的【{beast}】{verdict}主張，我暫時不跟也不直接否定；先核對公開線索。',
+    '我會以【{beast}】{verdict}為對照點，檢查{speaker}的說法與其他人的結果。',
+    '{speaker}提供了明確立場，我會把【{beast}】{verdict}和票數收益分開評估。',
+    '這不是一句話就能定案的事，但{speaker}的【{beast}】{verdict}主張我已經記錄。',
+    '我先保留{speaker}的原意：他認為【{beast}】{verdict}，再看有沒有相反證據。',
+    '我會回答這個重點，而不是換話題：{speaker}主張【{beast}】{verdict}。',
+    '目前我對這項宣稱仍保留判斷；至少先把{speaker}的【{beast}】{verdict}說法列進紀錄。',
+    '{speaker}對【{beast}】{verdict}的判斷是否可信，要看它能否與獨立查驗或公開結果對上。',
+    '我接收到{speaker}對【{beast}】{verdict}的主張；{assessment}。',
+    '我會回頭核對{speaker}對【{beast}】{verdict}的說法，不因支持或反對的人數直接改判。',
+    '先把這筆資訊和後面票型連起來：{speaker}公開說【{beast}】{verdict}。',
+    '我會記下{speaker}對【{beast}】{verdict}的具體說法，之後若結果相反，就能追查判斷是在哪一步分歧。'
+  ];
+  const publicDefenseResponse = [
+    '我聽到{speaker}說自己是好人、請大家不要投他；我會記下這個立場，但還要看可驗證證據。',
+    '{speaker}希望大家不要投自己，我有聽到；自我辯護本身不能證明陣營，仍要核對發言與票型。',
+    '我不會把{speaker}的「我是好人」當成證據，也不會單因這句話加重嫌疑；要看行動是否對得上。',
+    '{speaker}明確表示自己是好人、請大家別投；我會把這句話列為立場，而不是查驗結果。',
+    '我知道{speaker}不希望被投，但票向仍須根據公開紀錄決定，不能只按求情或反感下判斷。',
+    '{speaker}的自辯我收到了；接下來我會指出自己實際依據的是哪條時序或票型，而非只看語氣。',
+    '我聽見{speaker}要求不要投他。這需要和可核對的行動一起判斷，不會因為他否認就停止查證。',
+    '我會認真看待{speaker}的自我辯護，但「我是好人」不是獨立證據，還需要公開紀錄支持。',
+    '{speaker}請大家別投自己，這是清楚的立場表達；我目前仍以已知查驗和實際票向為準。',
+    '我沒有忽略{speaker}的求證或辯護；我只是需要能驗證的理由，才能改變現在的判斷。',
+    '我聽到{speaker}否認自己是壞人；否認不等於有罪，也不等於無罪，還得回到行動紀錄。',
+    '{speaker}說自己是好人，我會把它當成一項公開主張，之後看他的投票和說法能否互相支持。',
+    '先回應{speaker}：我知道你不希望被投，但我不能單憑自稱好人就排除所有疑點。',
+    '我會避免把{speaker}的自辯直接當成謊言；更重要的是找出能證明或推翻它的公開事實。',
+    '{speaker}要求大家不要投自己，我會記下；若要讓我調整票向，需要補上比立場更具體的依據。',
+    '我有聽到{speaker}的防守，但不會用情緒決定票向；我會按可驗證的查驗、時序和票型評估。',
+    '我不會因為{speaker}替自己辯護就直接投他，也不會因此自動放過他。',
+    '{speaker}的意思很清楚：他認為自己是好人。接下來要檢驗的是這個主張與公開行動是否一致。',
+    '我把{speaker}的自辯留在紀錄中；目前是否跟票仍看證據，不是看誰更急著求大家相信。',
+    '我聽到{speaker}說不要投他；我會說明自己投票的依據，而不是假裝這句話沒出現。',
+    '即使{speaker}自稱好人，我也會給他的公開行動一次檢驗機會，不只用身分猜測定案。',
+    '{speaker}的防守不會被我忽略；我需要的是能回查的理由，而不是單純的否認。',
+    '我知道{speaker}反對被集火；這項辯護我會記下，但要不要改票仍看目前的證據。',
+    '我會分開看{speaker}的自我辯護與客觀資訊；前者值得記錄，後者才決定我是否跟票。',
+    '我聽到{speaker}說自己是好人、請大家不要投他；這是公開自辯，不是已驗明的陣營。',
+    '{speaker}主張自己是好人，這可以記錄，不能直接視為已驗明的陣營。',
+    '我不會把{speaker}的「請別投我」當成新證據；但我會回應這個請求，並依實際紀錄判斷。',
+    '我聽到{speaker}在為自己辯護；接下來要看誰能提出支持或反駁這項說法的原始資料。',
+    '我會把{speaker}的立場和能驗證的行動分開，不會只因求情就改票，也不會假裝沒聽見。'
+  ];
+  const publicCallResponse = [
+    '{speaker}號召投【{beast}】，我會把這個方向納入估票；我的主票先放【{voteBeast}】。',
+    '我聽到{speaker}希望大家投【{beast}】；接下來要比較這樣做能否改變前二名。',
+    '{speaker}號召投【{beast}】，我還要核對票差；目前主票先放【{voteBeast}】。',
+    '我沒有漏掉{speaker}對【{beast}】的號召；若不跟票，我會以收益與證據說明理由。',
+    '先回應{speaker}：你主張投【{beast}】。我會比較它和【{voteBeast}】的實際收益。',
+    '我把【{beast}】列入票型計算，這是{speaker}提出的投票主張；我自己的主票目前是【{voteBeast}】。',
+    '{speaker}號召投【{beast}】後，我會看還差幾票進前二，而不是只看有多少人附和。',
+    '我理解{speaker}的號召是投【{beast}】，但喊票和最後實際投入的籌碼仍要分開。',
+    '我會回應這個目標：{speaker}主張投【{beast}】；我目前認為【{voteBeast}】的收益更值得考慮。',
+    '我聽到{speaker}建議投【{beast}】，會先估它是否仍有機會改變名次，再決定是否跟票。',
+    '{speaker}想集中投【{beast}】，我會把這點納入預測，但不會把口頭承諾當成已投票。',
+    '我先不機械附和{speaker}，而是檢查投【{beast}】還差多少票；目前主票是【{voteBeast}】。',
+    '這個號召我已經收到：{speaker}支持【{beast}】。我會把票差與真品收益一併比較。',
+    '我願意評估{speaker}提出的【{beast}】方向；若要跟票，得有能改變前二的理由。',
+    '我不會因為{speaker}先喊【{beast}】就直接跟投；先看估計票數和其他候選的收益。',
+    '我會記下{speaker}對【{beast}】的投票號召，再檢查它是否有其他獨立線索支持。',
+    '{speaker}把票投向【{beast}】的理由還需要核對；我的當前主票仍是【{voteBeast}】。',
+    '我有聽到{speaker}號召投【{beast}】，不過口頭集火不等於每人都會投；先看已落下的票。',
+    '針對{speaker}號召投【{beast}】，我會比較跟票與分票兩種方案，不會只按多數聲量選擇。',
+    '我把【{beast}】放進考慮，不會跳過{speaker}的話；最後仍按可驗證的收益投票。',
+    '{speaker}提出投【{beast}】的目標可以討論，但要看哪一票最能改變前二排序。',
+    '我先回應{speaker}這條號召：投【{beast}】需要有票差理由；不然我會保留【{voteBeast}】作主票。',
+    '我會觀察{speaker}是否真的把籌碼投在【{beast}】，而不只把喊票當成承諾。',
+    '我已把{speaker}號召投【{beast}】納入盤算；再比較我選【{voteBeast}】的理由。',
+    '我聽到{speaker}建議投【{beast}】；下一步要確認它是能翻盤的票，還是只增加聲量。',
+    '我不會把{speaker}號召投【{beast}】當成命令；我會用票差、公開查驗和收益來決定是否跟進。',
+    '我先把{speaker}的【{beast}】號召記在公開紀錄裡，再檢查其他人是否只是跟著複誦。',
+    '我理解{speaker}號召投【{beast}】的方向；若不跟投，我會用目前的前二估計說明原因。',
+    '我會回應{speaker}的號召，而不是略過它：【{beast}】值得比較，但我的主票是【{voteBeast}】。'
+  ];
+  const publicRoleResponse = [
+    '我聽到{speaker}自稱【{role}】；這是公開承諾，還要核對技能時點和後續行動。',
+    '{speaker}提出【{role}】的身分說法，我會記錄，但不會只憑自稱就判定可信。',
+    '關於{speaker}自稱【{role}】，我會對照原始發言與能力紀錄，再決定要不要相信。',
+    '我不會把{speaker}的【{role}】宣稱當成已驗證事實；角色主張仍可能是對跳或偽裝。',
+    '{speaker}已公開站在【{role}】這個版本，我會觀察他能否用可查行動持續支持。',
+    '我有聽到{speaker}報出【{role}】；接下來要驗的不是膽量，而是技能時點是否相容。',
+    '先把{speaker}的【{role}】角色主張列出來，等其他人的能力資訊和票型出現再交叉核對。',
+    '這個【{role}】身分說法可能真也可能假；我會把{speaker}的原話留作後續驗證依據。',
+    '{speaker}自稱【{role}】，但角色名稱本身不能證明他真的擁有那項能力。',
+    '我會正面處理{speaker}的【{role}】角色宣稱，不把話題直接轉走；先看紀錄能否支持。',
+    '關於【{role}】這個版本，{speaker}需要用已發生的行動讓它站得住腳。',
+    '我聽見{speaker}提出【{role}】角色主張；這一點值得記錄，不代表我會因此改掉【{voteBeast}】主票。',
+    '我會核對{speaker}的【{role}】版本是否和其他人的能力操作互相排斥。',
+    '角色對跳是可能的戰術，我會記下{speaker}的【{role}】說法，而不自動判定誰真。',
+    '我不會因為{speaker}自稱【{role}】就直接加信任；還需要一致的公開行動。',
+    '{speaker}自稱【{role}】的身分承諾已進入紀錄；後續若改口，應交代前後兩個版本的差異。',
+    '我有聽到{speaker}自稱【{role}】，會按能力時點驗證，不把口頭自稱當成查驗結果。',
+    '先保留{speaker}的【{role}】角色主張，並找出一條可以在本輪或下一輪核對的線索。',
+    '{speaker}自稱【{role}】可能影響終局判斷，但還不能取代票型與公開能力紀錄。',
+    '我會檢查{speaker}這個【{role}】版本能否解釋已發生的事，而非只聽他怎麼命名自己。',
+    '我把【{role}】角色當成{speaker}提出的假設之一，仍保留被原始紀錄推翻的可能。',
+    '如果{speaker}主張自己是真正的【{role}】角色，後續行動應能和能力限制相符；我會觀察這點。',
+    '我會直接回應{speaker}自稱【{role}】的說法，再把它和我目前投【{voteBeast}】的理由分開看。',
+    '目前我記下{speaker}自稱【{role}】，但不會因為這句話就推定他有相應能力。',
+    '{speaker}提出的【{role}】身分版本需要被驗證；我會找公開時序，而不是把先發言當作優勢。',
+    '我不把角色名當答案；{speaker}的【{role}】主張還需要可查的行動支持。',
+    '我會比較{speaker}的【{role}】說法與其他角色宣稱的衝突，再決定如何調整嫌疑。',
+    '先把身分版本記清楚：{speaker}自稱【{role}】；之後若不一致，就能回頭追查。',
+    '我有接收到{speaker}自稱【{role}】；在能力紀錄吻合以前，我會保留判斷。'
+  ];
+  const publicAccusationResponse = [
+    '我聽到{speaker}把疑點指向{target}；我會查核指控依據，不會只因有人點名就跟票。',
+    '{speaker}提出對{target}的懷疑，我會對照他的原話和票型，再決定是否提高嫌疑。',
+    '我不會略過{speaker}對{target}的指控；但要先問它有哪條獨立證據，而不是只看重複次數。',
+    '針對{speaker}點名{target}這件事，我會比較公開行動，而非直接把指控當成結論。',
+    '{speaker}把焦點放到{target}，我會檢查這個方向是否有新資訊支持。',
+    '我有收到{speaker}對{target}的質疑；如果沒有新增依據，我不會把聲量當作證據。',
+    '這條指控值得核對，但{speaker}必須指出{target}哪一段發言或票型有問題。',
+    '我先記錄{speaker}懷疑{target}的理由，接著確認它是否和原始紀錄吻合。',
+    '針對{target}的嫌疑指控，我會把{speaker}的判斷列入考慮，仍需獨立證據交叉檢查。',
+    '我不會因{speaker}先點名{target}就照投；我會回應這項疑點，看它能否解釋更多公開事實。',
+    '我聽懂{speaker}的疑點指向{target}；現在要釐清的是具體矛盾，而不是誰先懷疑。',
+    '{speaker}對{target}的指認可以成為假設，但不能因為被多人轉述就變成多份證據。',
+    '我會回應這個對象，而不是轉去泛談：{speaker}懷疑{target}，依據需要能回查。',
+    '如果{target}真的有問題，應能指出相應時序或票型；我先核對{speaker}對他的指控。',
+    '我已經把{speaker}對{target}的指控納入比較，但暫不只憑這個理由定案。',
+    '我會看{speaker}是否提供關於{target}的新事實，而不只是重複名字；這項指控仍要核實。',
+    '我有收到{speaker}對{target}的懷疑；他是否可疑，還要和其他人獨立提出的線索比較。',
+    '我不會把對{target}的集火直接當成真相；先檢查{speaker}的理由是否成立。',
+    '{speaker}對{target}的指控如果能對上原始發言，我會提高重視；若只是猜測，就先維持待驗。',
+    '我先把{target}放進核查名單，但不會在沒有證據前把{speaker}的指控當作定案。',
+    '我聽到{speaker}對{target}的懷疑；要提高嫌疑，需要新的時序、查驗或票數證據。',
+    '我會先核對{speaker}對{target}指出的行為與疑點，再判斷它是否真的足以改變投票。',
+    '{speaker}點名{target}不等於證明{target}有問題；我會把指控與可查事實分開。',
+    '我會保留{speaker}對{target}的指控，但也找能反駁這個方向的資訊，避免只確認偏見。',
+    '{speaker}對{target}的指認已被記錄；下一步是確認他的公開說法能否與票型共存。',
+    '我不會只因{speaker}質疑{target}就跟票，還要知道這條線對前二收益有何影響。',
+    '我先處理{speaker}對{target}提出的指控與理由，再決定是否要調整現在的票向。',
+    '若{speaker}對{target}的疑點沒有新佐證，就不能因為其他人照抄它而提高可信度。',
+    '我有正面接到{speaker}對{target}的指控；我會按證據檢查，而不是按誰的聲量最大行動。'
+  ];
+  const publicCorrectionResponse = [
+    '{speaker}補充說剛才點錯並把【{beast}】判為{verdict}；我會以這次更正為準，並保留原始紀錄供回查。',
+    '我聽到{speaker}為【{beast}】{verdict}的說法道歉並更正；這個更正很重要，之後不要把舊句當成他仍支持的立場。',
+    '{speaker}說自己剛才打錯了【{beast}】{verdict}，我會記錄更正，不把錯字直接當成故意誤導。',
+    '先更新紀錄：{speaker}已把【{beast}】更正為{verdict}。真正要核對的是更正後的說法與票型。',
+    '我有看到{speaker}說「點錯了」；我會分開記錄原話和更正後的【{beast}】{verdict}。',
+    '{speaker}的道歉已收到；我不會把已更正的【{beast}】{verdict}舊說法反向當成他現在仍堅持的判斷。',
+    '這不是可以直接略過的修正：{speaker}更正【{beast}】為{verdict}，我會按時間順序保留兩份紀錄。',
+    '我聽到{speaker}承認點錯，先把【{beast}】{verdict}作為目前更正版本，再觀察後續是否一致。',
+    '先釐清這次輸入更正：{speaker}目前主張【{beast}】{verdict}，不能把前一個錯誤版本照搬下去。',
+    '{speaker}已說明【{beast}】{verdict}是操作失誤造成的誤點；我會把這個更正列為待驗，不自動當作說謊或完全可信。',
+    '我有聽到{speaker}補充「抱歉、剛才點錯」；接下來以【{beast}】{verdict}這個版本作公開對照。',
+    '我會同時保留原始輸入與修正說明；{speaker}現在對【{beast}】的立場是{verdict}。',
+    '如果【{beast}】{verdict}是誤觸後的更正，最合理的處理是記下{speaker}的說明，而不是繼續用舊句指控他。',
+    '{speaker}對【{beast}】{verdict}的更正已納入判斷；我會再看它與實際落票是否一致，而不單靠道歉定案。',
+    '我先確認修正後的主張：{speaker}認為【{beast}】{verdict}。後續若不一致，再回頭追查。',
+    '我不會忽略{speaker}把【{beast}】更正為{verdict}；要分清楚是輸入錯誤、判斷改變，還是後續再度改口。',
+    '{speaker}已解釋【{beast}】剛才誤點成{verdict}，我會記錄這個背景，再用公開票型檢查是否合理。',
+    '我會避免把錯誤輸入重複轉述成有效宣稱；目前以{speaker}更正後的【{beast}】{verdict}為準。',
+    '我聽到{speaker}為【{beast}】改成{verdict}而說抱歉，這項資訊已補上；接下來應核對更正後的立場，而不是舊字句。',
+    '{speaker}對【{beast}】更正為{verdict}的說明已記下，我不會把原先打錯的版本再次當作他現在的主張。',
+    '先把【{beast}】{verdict}事件按順序整理：原始輸入、{speaker}的更正，再看最終投票是否支持這個解釋。',
+    '我有接收到{speaker}把【{beast}】修正為{verdict}；這會影響對先前宣稱的解讀，但不會自動決定他的陣營。',
+    '{speaker}明確更正【{beast}】原先點成{verdict}是失誤，我會把這列為待核實的解釋，不直接算成新的矛盾。',
+    '我會把更正的【{beast}】{verdict}和後續票向放在一起看，確認{speaker}沒有一邊修正、一邊又按舊說法行動。',
+    '我聽到{speaker}把【{beast}】修正為{verdict}；這次應按最新原話處理，而不是一直抓著舊版本。',
+    '這項道歉需要被記入脈絡：{speaker}承認輸入有誤，現在的公開版本是【{beast}】{verdict}。',
+    '我不會因為{speaker}說【{beast}】點錯成{verdict}就停止查證，但也不會裝作沒有聽到這次更正。',
+    '我已收到{speaker}把【{beast}】更正為{verdict}的聲明；下一步是用其他獨立資訊確認真假。',
+    '{speaker}這次修正會改變我對原句的解讀；我會把【{beast}】{verdict}當作目前待核對的版本。'
+  ];
+  const publicStanceResponse = [
+    '{speaker}把{target}判為{camp}，我有聽到；但要把這個判斷和他的票型、原話一起核對。',
+    '我不會略過{speaker}對{target}的{camp}判斷；這是公開立場，仍需要獨立證據支持。',
+    '先記下{speaker}認為{target}是{camp}，再看後續查驗和實際投票能不能對上。',
+    '{speaker}把{target}列為{camp}，我會保留這條資訊，不把它當成已經驗明的事實。',
+    '我聽見{speaker}替{target}做了{camp}判斷；接下來要找的是獨立的時序或票型依據。',
+    '針對{speaker}說{target}是{camp}，我先不照單全收，也不會假裝沒聽見。',
+    '我已把{speaker}對{target}的{camp}主張放進比較；它是否可信，要看原始紀錄。',
+    '我會分開處理{speaker}的獸首宣稱和他對{target}的{camp}判斷，兩件事不能互相代替。',
+    '{speaker}認為{target}是{camp}，我會看他是否提出理由，而不是只看他說得多肯定。',
+    '這是第二條資訊：除了獸首真假，{speaker}也把{target}判為{camp}；我會另行核對。',
+    '我聽到{speaker}對{target}的立場：他認為{target}是{camp}；這仍是待驗判斷，不是查驗結果。',
+    '{speaker}說{target}是{camp}，這有助於看他的站位，但仍須和其他獨立線索對照。',
+    '我不只回應【獸首】那一部分；{speaker}對{target}的{camp}判斷也已經納入考慮。',
+    '我把{speaker}替{target}背書為{camp}這件事記下，之後若他的票型相反就能回查。',
+    '先不把{target}的陣營定死；我有聽到{speaker}說{target}是{camp}，但還要看證據。',
+    '{speaker}對{target}的{camp}判斷不是獸首查驗；我會記錄這個差別，再判斷可信度。',
+    '我會同時保留{speaker}的獸首主張與{target}的{camp}標記，並分開尋找證據。',
+    '我聽到{speaker}替{target}定了{camp}方向；若有反證，應針對這個對象提出。',
+    '對{speaker}而言，{target}目前是{camp}；我會檢查這個判斷是否和可見行動一致。',
+    '我已收到{speaker}對{target}的{camp}說法，不會因為同時提到獸首就把這條漏掉。',
+    '我會把{speaker}對{target}的{camp}判斷列成獨立待查項目，不把它和獸首真偽混為一談。',
+    '如果{target}真如{speaker}所說是{camp}，後續公開行動應能提供一些支持。',
+    '我有聽到{speaker}為{target}做{camp}背書；這能記錄，但不能取代原始證據。',
+    '我會正面回應這個人選：{speaker}說{target}是{camp}，我暫時保留並尋找反證。',
+    '{speaker}的主張同時包含獸首和人物判斷；我會把{target}的{camp}部分另行核對。',
+    '我不會把{speaker}對{target}的{camp}判斷消失在其他話題裡；這項立場會被後續驗證。',
+    '目前{speaker}把{target}視為{camp}，我會看這個判斷有沒有和票型、身分承諾互相支持。',
+    '我聽到{speaker}對{target}的{camp}表態；這不是定案，但也不是可以略過的內容。',
+    '除了【獸首】之外，我也接到{speaker}把{target}判作{camp}；兩條資訊要分開追蹤。'
+  ];
+  const EXTRA_BANK = {
+    evidenceExpanded,
+    tempoExpanded,
+    teamResponseExpanded,
+    voteMathExpanded,
+    identityAuditExpanded,
+    publicClaimResponse,
+    publicDefenseResponse,
+    publicCallResponse,
+    publicRoleResponse,
+    publicStanceResponse,
+    publicAccusationResponse,
+    publicCorrectionResponse
+  };
+  Object.assign(BANK, EXTRA_BANK);
+  const expectedAddedLines = 534;
+  const actualAddedLines = Object.values(EXTRA_BANK).reduce((sum, lines) => sum + lines.length, 0);
+  if (actualAddedLines !== expectedAddedLines) {
+    throw new Error(`v10.8.0 台詞擴充數量錯誤：預期 ${expectedAddedLines}，實際 ${actualAddedLines}`);
+  }
+
   function fill(template, vars = {}) {
     return String(template).replace(/\{([a-zA-Z][a-zA-Z0-9_]*)\}/g, (_, key) => {
       const value = vars[key];
@@ -629,10 +966,40 @@
     for (const ch of String(text || '')) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
     return h >>> 0;
   }
+  function poolFor(category) {
+    const base = BANK[category] || BANK.tempo;
+    const expanded = BANK[String(category) + 'Expanded'];
+    return expanded && expanded.length ? base.concat(expanded) : base;
+  }
   function pick(category, seed, vars) {
-    const pool = BANK[category] || BANK.tempo;
+    const pool = poolFor(category);
     const index = (Number.isFinite(seed) ? seed >>> 0 : hash(seed)) % pool.length;
     return fill(pool[index], vars);
+  }
+  function fingerprint(text) {
+    return String(text || '').toLowerCase()
+      .replace(/(?:黑|紅|橘|黃|綠|藍|紫|白)色/g, '玩家色')
+      .replace(/【[^】]+】/g, '【標記】')
+      .replace(/第[一二三四五六七八九十]+位/g, '第#位')
+      .replace(/第[一二三四五六七八九十]+輪/g, '第#輪')
+      .replace(/\d+/g, '#')
+      .replace(/[\s，。！？!?；;：:「」『』“”、,.]/g, '');
+  }
+  function pickFresh(category, seed, vars = {}, seenTexts = []) {
+    const pool = poolFor(category);
+    const start = (Number.isFinite(seed) ? seed >>> 0 : hash(seed)) % pool.length;
+    const used = new Set();
+    const addText = text => String(text || '').split(/[。！？!?；;\n]+/).forEach(sentence => {
+      const key = fingerprint(sentence);
+      if (key.length >= 7) used.add(key);
+    });
+    (Array.isArray(seenTexts) ? seenTexts : [seenTexts]).forEach(addText);
+    for (let offset = 0; offset < pool.length; offset++) {
+      const line = fill(pool[(start + offset) % pool.length], vars);
+      const key = fingerprint(line);
+      if (key.length >= 7 && !used.has(key)) return line;
+    }
+    return fill(pool[start], vars);
   }
   const ROLE_SIGNAL_META = {
     // These are intentionally weak likelihood nudges, not a machine-readable role confession.
@@ -668,6 +1035,6 @@
   }
   const count = () => Object.values(BANK).reduce((n, lines) => n + lines.length, 0);
   const categories = () => Object.keys(BANK).map(key => ({ key, count: BANK[key].length }));
-  GD.DialogueBank = { pick, count, categories, hash, detectRoleSignal };
+  GD.DialogueBank = { pick, pickFresh, count, categories, hash, detectRoleSignal };
   if (typeof module !== 'undefined' && module.exports) module.exports = GD.DialogueBank;
 })(typeof window !== 'undefined' ? window : global);

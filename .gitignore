@@ -1,0 +1,9 @@
+﻿# Local backups
+*.bak
+*.bak.*
+
+# Temporary downloaded packages
+*.zip
+
+# Browser capture / downloaded runner resources
+/install_v10_8_0_strategy_information_compat_fixed_files/

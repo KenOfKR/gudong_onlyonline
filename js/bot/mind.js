@@ -27,6 +27,8 @@
 
   const blank = p => ({
     player: p, evil: 0, ally: 0, logits: {}, reasons: [], said: [], conflicts: [],
+    // 資訊能力與陣營推斷分開：infoSkill 只衡量過往可驗證公開主張的準確度。
+    infoSkill: 50, infoSamples: 0, infoScore: 0, infoCorrect: 0, infoWrong: 0, infoHistory: [],
     commitments: [], voteDissonance: [],
     confessed: false, knownEvil: false, pubFake: 0, inLaoPoolCount: 0
   });
@@ -114,6 +116,45 @@
       if (say !== null && say !== undefined && String(say).trim()) {
         rec.said.unshift(String(say).trim());
       }
+  }
+
+  // 僅用已公開的第二名開票結果回看此前的公開判斷；不讀私密 mind／真實角色。
+  // 重複別人的相同結論只計少量權重，避免複誦被誤認成推理能力。
+  // 這個指標完全不寫入 evil、ally 或 probs；資訊準確不代表好人，也不代表壞人。
+  function buildInformationSkill(ctx, prof) {
+    Object.values(prof || {}).forEach(rec => {
+      rec.infoSkill = 50; rec.infoSamples = 0; rec.infoScore = 0;
+      rec.infoCorrect = 0; rec.infoWrong = 0; rec.infoHistory = [];
+    });
+    const room = ctx && ctx.room;
+    if (!room || !prof) return prof;
+    for (let r = 0; r < (Number(ctx.t) || 0); r++) {
+      const rd = (room.rounds || [])[r];
+      const opened = rd && rd.voteResults && rd.voteResults.rank2;
+      if (!opened || typeof opened.isReal !== 'boolean' || !opened.name) continue;
+      const seenClaims = new Set();
+      (rd.speeches || []).forEach(sp => {
+        const rec = prof[sp && sp.playerId];
+        if (!rec || !sp || !sp.playerId) return;
+        const claim = speechClaims(sp, room, rd).find(c => c && c.beast === opened.name && typeof c.real === 'boolean');
+        if (!claim) return;
+        const key = `${opened.name}:${claim.real}`;
+        const echoed = seenClaims.has(key);
+        seenClaims.add(key);
+        const weight = echoed ? 0.25 : 1;
+        const correct = claim.real === opened.isReal;
+        rec.infoSamples += weight;
+        rec.infoScore += correct ? weight : -weight;
+        if (correct) rec.infoCorrect += weight; else rec.infoWrong += weight;
+        rec.infoHistory.push({ round: r + 1, beast: opened.name, claimedReal: claim.real,
+          revealedReal: opened.isReal, correct, independent: !echoed, weight });
+      });
+    }
+    Object.values(prof).forEach(rec => {
+      // 中性先驗為 50，兩個先驗樣本避免只說對／錯一次就極端化。
+      rec.infoSkill = Math.round(U.clamp(50 + 50 * rec.infoScore / (2 + rec.infoSamples), 0, 100));
+    });
+    return prof;
   }
 
   function buildProfiles(ctx) {
@@ -707,6 +748,7 @@
       rec.probs = {};
       roles.forEach((x, i) => { rec.probs[x] = Math.round(ex[i] / s * 100); });
     });
+    buildInformationSkill(ctx, prof);
     return prof;
   }
 
@@ -730,7 +772,10 @@
       const posFactor = confessed ? 0 : passPositionPrior(spPos);
       if (!r) return U.clamp(base * 0.9 + posFactor, 0.08, 0.95);
       if (confessed) return isGood ? 0.6 : 0.95;
-      return U.clamp(base - r.evil / 130 + r.ally / 220 + posFactor, 0.08, 0.95);
+      const skill = Number.isFinite(Number(r.infoSkill)) ? Number(r.infoSkill) : 50;
+      // 過往可驗證資訊品質只調整「此人主張內容的可信度」，不改變其陣營機率或 evil/ally 分數。
+      const informationCalibration = U.clamp((skill - 50) / 400, -0.12, 0.12);
+      return U.clamp(base - r.evil / 130 + r.ally / 220 + posFactor + informationCalibration, 0.08, 0.95);
     };
 
     const pReal = names.map(() => 0), laoAt = Array(9).fill(0);
@@ -792,7 +837,7 @@
       topAlly: [...pool].sort((a, b) => b.ally - a.ally)[0] || null,
       topXu: [...pool].sort((a, b) => ((b.probs['許願'] || 0) + b.ally * 0.5) - ((a.probs['許願'] || 0) + a.ally * 0.5))[0] || null,
       topFang: [...pool].sort((a, b) => ((b.probs['方震'] || 0) + b.ally * 0.4) - ((a.probs['方震'] || 0) + a.ally * 0.4))[0] || null,
-      humanCall: findHumanCall(ctx, prof),
+      publicCall: findPublicCall(ctx, prof),
       fakeVoters: list.filter(r => r.pubFake >= 2 && !r.knownEvil && !(ctx.partner && r.player.id === ctx.partner.id))
         .sort((a, b) => b.pubFake - a.pubFake),
       myFake: pubFakeVotes(ctx.room, bot.id, ctx.t),
@@ -810,11 +855,11 @@
     return hit ? { callerId: hit.playerId, callerName: hit.speakerName, round: ctx.t + 1 } : null;
   }
 
-  function findHumanCall(ctx, prof) {
+  function findPublicCall(ctx, prof) {
     let call = null;
     for (let r = 0; r <= ctx.t; r++) {
       (ctx.room.rounds[r].speeches || []).forEach(sp => {
-        if (sp.source !== 'human' || sp.playerId === ctx.bot.id) return;
+        if (sp.playerId === ctx.bot.id) return;
         const caller = prof[sp.playerId];
         if (caller && caller.evil >= 55) return;
         const id = sp.p?.callSuspectId;
@@ -824,6 +869,6 @@
     return call;
   }
 
-  GD.Mind = { analyze, context, posterior, buildProfiles, pubFakeVotes, passPositionPrior, voteViewAdjustment, EVIL };
+  GD.Mind = { analyze, context, posterior, buildProfiles, buildInformationSkill, pubFakeVotes, passPositionPrior, voteViewAdjustment, EVIL };
   if (typeof module !== 'undefined' && module.exports) module.exports = GD.Mind;
 })(typeof window !== 'undefined' ? window : global);
