@@ -11,7 +11,7 @@ function mkEl(id) {
     id, hidden: false, innerHTML: '', textContent: '', value: '', open: false, disabled: false, dataset: {}, style: { setProperty() {} },
     className: '', children: [], offsetWidth: 0,
     classList: { toggle() {}, add() {}, remove() {} },
-    addEventListener() {}, appendChild(c) { this.children.push(c); }, remove() {},
+    addEventListener() {}, setAttribute(name, value) { this[name] = String(value); }, appendChild(c) { this.children.push(c); }, remove() {},
     querySelector: () => mkEl('q'), querySelectorAll: () => [], focus() {}, closest: () => null
   };
   return el;
