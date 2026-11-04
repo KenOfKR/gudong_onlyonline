@@ -26,7 +26,7 @@
       Object.entries(ballot).forEach(([name, n]) => {
         if (!n || n <= 0) return;
         const isReal = realOf(rd, name);
-        const sawRealMyself = myIns.some(i => i.beastName === name && i.displayedReal === true);
+        const sawRealMyself = myIns.some(i => i.beastName === name && i.displayedReal === true && i.flipped !== true);
 
         if (isReal) {
           facts.real += n;
@@ -41,7 +41,7 @@
               const claimedReal = (sp.p?.claims || []).some(c => c.beast === name && c.real === true);
               if (!claimedReal) return false;
               const callerLog = (rd.turnLogs && rd.turnLogs[p.id]) || { inspect: [] };
-              return (callerLog.inspect || []).some(i => i.beastName === name && i.displayedReal === true);
+              return (callerLog.inspect || []).some(i => i.beastName === name && i.displayedReal === true && i.flipped !== true);
             });
             if (reliableCaller) {
               facts.trustedGood.push({ round: r + 1, beast: name, n, callerId: reliableCaller.playerId });
@@ -104,9 +104,9 @@
         (myLog.inspect || []).forEach(ins => {
           const actualReal = realOf(rd, ins.beastName);
           const votedCnt = myBallot[ins.beastName] || 0;
-          if (myPos >= 4 && ins.displayedReal === true && actualReal === false && votedCnt >= 2) {
+          if (myPos >= 4 && ins.displayedReal === true && ins.flipped === true && actualReal === false && votedCnt >= 2) {
             add('assertiveness', -0.035,
-              `第 ${rIdx + 1} 輪後段順位（${U.nth(myPos)}）查驗遭反轉卻重壓 ${votedCnt} 票，調降後段盲目自信`);
+              `第 ${rIdx + 1} 輪後段順位（${U.nth(myPos)}）事後稽核確認畫面被反轉卻重壓 ${votedCnt} 票，調降後段盲目自信`);
             add('conformity', 0.02,
               `第 ${rIdx + 1} 輪後段視野受污染，提高對前段乾淨資訊的採信權重`);
           }

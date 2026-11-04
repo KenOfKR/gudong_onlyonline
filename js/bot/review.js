@@ -199,7 +199,7 @@
     })();
     const sus = (f.top || []).map(t => {
       const p = U.byId(room, t.id); if (!p) return null;
-      return { tag: U.tag(p), role: p.role, evil: t.evil, probs: t.probs, reasons: t.reasons };
+      return { tag: U.tag(p), role: p.role, evil: t.evil, score: t.score, evidence: t.evidence, probs: t.probs, reasons: t.reasons };
     }).filter(Boolean);
     return { text: tgt ? `我把鑑人票投給 ${U.tag(tgt)}（真身【${tgt.role}】）。理由：${f.why || '綜合三輪證據'}${hit}` : '未留下鑑人紀錄', suspects: sus };
   }

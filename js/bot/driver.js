@@ -148,6 +148,8 @@
 
     let plan = null, A = null, mind = null;
     let text = null, source = 'bot', gemFail = '';
+    // Per-speaker metrics must start empty; never leak the previous BOT's Gemini latency.
+    let geminiMetrics = { elapsedMs: 0, attempts: 0, models: [], usedModel: null };
 
     Driver.thinking = { botId, name: bot.name, via: Gemini.enabled() ? 'gemini' : 'local' };
     GD.bus.emit('thinking', Driver.thinking);
@@ -158,7 +160,14 @@
       mind = snap.rounds[snap.currentRoundIdx].mind[botId];
 
       if (Gemini.enabled() && Speech && Speech.buildPrompt) {
-        const raw = await Gemini.generate(Speech.buildPrompt(bot, snap, plan, A), { temperature: 0.55 + 0.35 * A.ctx.genes.deception * (A.ctx.isGood ? 0 : 1), maxTokens: 460 });
+        // 不指定固定輸出 token／字數上限；內容由證據複雜度決定，總等待時間仍由 Gemini timeout 控制。
+        const raw = await Gemini.generate(Speech.buildPrompt(bot, snap, plan, A), { temperature: 0.48 + 0.22 * A.ctx.genes.deception * (A.ctx.isGood ? 0 : 1) });
+        geminiMetrics = {
+          elapsedMs: Number(Gemini.state.lastCallMs) || 0,
+          attempts: Number(Gemini.state.lastAttempts) || 0,
+          models: Array.isArray(Gemini.state.lastAttemptModels) ? Gemini.state.lastAttemptModels.slice() : [],
+          usedModel: Gemini.state.lastModel || null
+        };
         const cleaned = raw && Gemini.clean(raw);
         const v = cleaned ? Speech.validate(cleaned, bot, snap, plan, A) : { ok: false, why: Gemini.state.lastError || '無回應' };
         if (v.ok) { text = cleaned; source = 'gemini'; } else gemFail = v.why;
@@ -182,7 +191,7 @@
       if (log.blind) {
         text = `我在${posTxt}，這輪先保留看法，聽聽大家怎麼分析。`;
       } else if (log.inspect && log.inspect.length && GD.isGood(bot.role)) {
-        const seenStr = log.inspect.map(i => `【${i.beastName}】是${i.displayedReal ? '真品' : '贗品'}`).join('、');
+        const seenStr = log.inspect.map(i => `【${i.beastName}】是${GD.Mind.inspectionTruth(i) ? '真品' : '贗品'}`).join('、');
         text = `我在${posTxt}查驗，看到${seenStr}，提供給大家參考。`;
       } else {
         text = `我在${posTxt}，目前資訊還不夠明朗，先聽後面掌眼人的分析。`;
@@ -191,6 +200,7 @@
 
     if (mind) {
       mind.source = source;
+      mind.gemini = geminiMetrics;
       if (gemFail) mind.geminiNote = gemFail;
     }
 

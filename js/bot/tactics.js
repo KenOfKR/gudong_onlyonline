@@ -63,10 +63,11 @@
   }
 
   function chipsAvailable(room, player) {
-    if (player && Number.isFinite(Number(player.voteBank))) return Math.max(0, Number(player.voteBank));
+    // Engine history is authoritative; voteBank is a UI/cache field and can be stale in replays or simulations.
     if (GD.Engine && typeof GD.Engine.availableChips === 'function' && player) {
-      return Math.max(0, Number(GD.Engine.availableChips(room, player.id)) || 0);
+      return Math.max(0, Math.floor(Number(GD.Engine.availableChips(room, player.id)) || 0));
     }
+    if (player && Number.isFinite(Number(player.voteBank))) return Math.max(0, Math.floor(Number(player.voteBank)));
     return Math.max(0, Number(GD.CONFIG.CHIPS_PER_ROUND) || 2);
   }
 
@@ -125,7 +126,7 @@
   }
 
   /** 估算各獸首最後票數與不確定性；不使用其他玩家的 role / rd.mind / 內部計畫。 */
-  function forecastVotes(room, botOrId) {
+  function forecastVotes(room, botOrId, beliefProfile = null) {
     const rd = currentRound(room);
     const names = beastNames(rd);
     const botId = typeof botOrId === 'string' ? botOrId : (botOrId && botOrId.id);
@@ -134,6 +135,11 @@
     const observed = Object.fromEntries(names.map(name => [name, 0]));
     const callSupport = Object.fromEntries(names.map(name => [name, 0]));
     const claimSupport = Object.fromEntries(names.map(name => [name, 0]));
+    const goodExpectedVotes = Object.fromEntries(names.map(name => [name, 0]));
+    const evilExpectedVotes = Object.fromEntries(names.map(name => [name, 0]));
+    const coordinationVariance = Object.fromEntries(names.map(name => [name, 0]));
+    const observer = U.byId(room, botId);
+    const defaultPevil = observer && GD.isGood(observer.role) ? 3 / 7 : 2 / 7;
     const ballots = rd && rd.votes || {};
     const cast = new Set(Object.keys(ballots));
     let observedTotal = 0;
@@ -145,6 +151,10 @@
         const n = Math.max(0, Number(raw) || 0);
         expected[name] += n;
         observed[name] += n;
+        const profile = beliefProfile && beliefProfile[pid];
+        const pEvil = profile && Number.isFinite(Number(profile.pEvil)) ? U.clamp(Number(profile.pEvil), 0, 1) : defaultPevil;
+        evilExpectedVotes[name] += n * pEvil;
+        goodExpectedVotes[name] += n * (1 - pEvil);
         observedTotal += n;
       });
     });
@@ -173,6 +183,8 @@
         callWeightOverride = U.clamp(0.70 - Math.max(0, 0.65 - reliability) * 0.40, 0.45, 0.70);
       }
       const pref = speechPreference(sp, room, rd, names, callWeightOverride);
+      const belief = beliefProfile && beliefProfile[player.id];
+      const pEvil = belief && Number.isFinite(Number(belief.pEvil)) ? U.clamp(Number(belief.pEvil), 0, 1) : defaultPevil;
       const baseSpendRate = calls.length ? 0.84 : claims.length ? 0.70 : 0.56;
       // Blend the current public intent with the player's observed spending fraction; prior history is a style signal, not destiny.
       const historyBlend = Math.min(0.42, history.roundsObserved * 0.18);
@@ -195,18 +207,41 @@
       names.forEach(name => { pref[name] = Math.max(0, pref[name] || 0) / prefTotal; });
       const spendExpected = Math.min(chips, chips * spendRate);
       const prefs = names.map(name => ({ name, p: pref[name] || 0 }));
-      projectedVoters.push({ id: player.id, chips, spendExpected, spendRate: round2(spendRate), preferences: prefs,
+      projectedVoters.push({ id: player.id, chips, spendExpected, spendRate: round2(spendRate), pEvil: round2(pEvil), pGood: round2(1 - pEvil), preferences: prefs,
         explicitCall: calls.length > 0, history: { roundsObserved: history.roundsObserved,
           multiChipRate: round2(history.multiChipRate), averagePrimaryShare: round2(history.averagePrimaryShare),
           callAlignmentRate: history.callAlignmentRate == null ? null : round2(history.callAlignmentRate),
           multiChipRounds: history.multiChipRounds, averageSpendRatio: round2(history.averageSpendRatio) } });
       prefs.forEach(({ name, p }) => {
-        expected[name] += spendExpected * p;
-        // 包含投票方向與實際會否花完籌碼的不確定性。
+        const contribution = spendExpected * p;
+        expected[name] += contribution;
+        goodExpectedVotes[name] += contribution * (1 - pEvil);
+        evilExpectedVotes[name] += contribution * pEvil;
         variance[name] += spendExpected * p * (1 - p) + (chips - spendExpected) * p * 0.20;
       });
       projectedTotal += spendExpected;
     });
+
+    // 敵方協同票不是獨立樣本：若多名高壞人後驗玩家偏向同一獸首，增加該目標的共變異，
+    // 避免把一支可能整隊同步的 3 票狼隊，錯估成三個完全獨立的隨機選擇。
+    for (let i = 0; i < projectedVoters.length; i++) {
+      for (let j = i + 1; j < projectedVoters.length; j++) {
+        const a = projectedVoters[i], b = projectedVoters[j];
+        const jointEvil = a.pEvil * b.pEvil;
+        if (jointEvil < 0.035) continue;
+        const prefA = Object.fromEntries(a.preferences.map(x => [x.name, x.p]));
+        const prefB = Object.fromEntries(b.preferences.map(x => [x.name, x.p]));
+        names.forEach(name => {
+          const pa = prefA[name] || 0, pb = prefB[name] || 0;
+          const explicitSameCall = a.explicitCall && b.explicitCall && pa >= 0.45 && pb >= 0.45;
+          const concentratedSameTarget = pa >= 0.58 && pb >= 0.58;
+          if (!explicitSameCall && !concentratedSameTarget) return;
+          const rho = explicitSameCall ? 0.24 : 0.14;
+          coordinationVariance[name] += 2 * rho * jointEvil * Math.min(a.spendExpected, b.spendExpected) * pa * pb;
+        });
+      }
+    }
+    names.forEach(name => { variance[name] += coordinationVariance[name]; });
 
     const topTwo = probabilitiesTopTwo(names, expected, variance);
     const ranking = names.map(name => ({
@@ -227,6 +262,10 @@
       pTopTwo: topTwo,
       callSupport,
       claimSupport,
+      goodExpectedVotes,
+      evilExpectedVotes,
+      coordinationVariance,
+      coalitionTarget: names.slice().sort((a, b) => (evilExpectedVotes[b] + coordinationVariance[b]) - (evilExpectedVotes[a] + coordinationVariance[a]))[0] || null,
       consensusBeast: consensus,
       consensusCallers: consensus ? callSupport[consensus] : 0,
       projectedTotalVotes: round2(projectedTotal + observedTotal),
@@ -252,9 +291,10 @@
     names.forEach(name => {
       let dp = [1, 0, 0, 0];
       names.filter(other => other !== name).forEach(other => {
-        const tieBreak = zodiacIndex(other) < zodiacIndex(name) ? 0.12 : -0.12;
+        // tally() 的平手規則是生肖序較前者勝出；以 ±0.5 票連續性修正對應整數平手優先權。
+        const tieCorrection = zodiacIndex(other) < zodiacIndex(name) ? 0.5 : -0.5;
         const scale = Math.max(1.05, Math.sqrt(Math.max(0.1, variance[name] || 0) + Math.max(0.1, variance[other] || 0) + 1) * 1.18);
-        const pOtherAbove = sigmoid(((Number(mean[other]) || 0) - (Number(mean[name]) || 0) + tieBreak) / scale);
+        const pOtherAbove = sigmoid(((Number(mean[other]) || 0) - (Number(mean[name]) || 0) + tieCorrection) / scale);
         const next = [0, 0, 0, 0];
         for (let count = 0; count < dp.length; count++) {
           next[count] += dp[count] * (1 - pOtherAbove);
@@ -285,7 +325,7 @@
   }
 
   /** 估算好人保真分數：公開第二名用確定結果；封存第一名只用本 Bot 保存的後驗。 */
-  function scoreProjection(room, bot, currentPost, currentForecast) {
+  function scoreProjection(room, bot, currentPost, currentForecast, beliefProfile = null) {
     const idx = Number(room && room.currentRoundIdx) || 0;
     const botId = bot && bot.id;
     let completedExpected = 0;
@@ -306,38 +346,106 @@
       completedExpected += (rd.voteResults.rank2 && rd.voteResults.rank2.isReal ? 1 : 0) + U.clamp(p, 0, 1);
     }
     let currentExpected = 0;
-    if (currentForecast && !currentRound(room)?.voteResults) {
-      currentExpected = forecastExpectedRealTopTwo(currentForecast, currentPost);
-    }
+    if (currentForecast && !currentRound(room)?.voteResults) currentExpected = forecastExpectedRealTopTwo(currentForecast, currentPost);
     const expectedSavedReal = completedExpected + currentExpected;
     const threshold = Number(GD.CONFIG && GD.CONFIG.WIN_SCORE) || 6;
-    return {
-      completedRounds,
-      publicRank2RealPoints,
-      hiddenRank1Expected: round2(hiddenRank1Expected),
-      completedExpectedSavedReal: round2(completedExpected),
-      currentExpectedSavedReal: round2(currentExpected),
-      expectedSavedReal: round2(expectedSavedReal),
-      winScore: threshold,
-      pointsNeededBeforeRoleBonuses: round2(Math.max(0, threshold - expectedSavedReal)),
-      roleBonusPotential: 4,
-      note: '保真分數為估值；最後總分還取決於鑑人與角色任務'
+
+    const roleProb = (player, role) => {
+      if (player && player.id === botId) return bot.role === role ? 1 : 0;
+      const rec = beliefProfile && beliefProfile[player && player.id];
+      const value = rec && rec.probs && Number(rec.probs[role]);
+      return Number.isFinite(value) ? U.clamp(value / 100, 0, 1) : 0;
     };
+    const candidates = (room.players || []).filter(p => p && p.id !== botId);
+    const maxRole = role => Math.max(bot.role === role ? 1 : 0, 0, ...candidates.map(p => roleProb(p, role)));
+    const pLao = maxRole('老朝奉');
+    const pYao = maxRole('藥不然');
+    const pFang = maxRole('方震');
+    const pXu = maxRole('許願');
+    // 能否抓出老朝奉取決於角色後驗及終局證據收斂；抓到方震／許願則是反向風險。
+    const laoDetection = U.clamp(0.28 + 0.62 * pLao, 0.20, 0.88);
+    const fangExposure = U.clamp(0.30 + 0.50 * pFang, 0.20, 0.82);
+    const xuExposure = U.clamp(0.30 + 0.52 * pXu, 0.20, 0.85);
+    const pLaoCaught = U.clamp(pLao * laoDetection, 0, 1);
+    const pFangCaught = U.clamp(pYao * pFang * fangExposure, 0, 1);
+    const pXuCaught = U.clamp(pLao * pXu * xuExposure, 0, 1);
+    const expectedRoleBonuses = pLaoCaught + (1 - pFangCaught) + 2 * (1 - pXuCaught);
+    const expectedTotalScore = expectedSavedReal + expectedRoleBonuses;
+    const estimatedWinProbability = sigmoid((expectedTotalScore - threshold) / 0.78);
+    return {
+      completedRounds, publicRank2RealPoints, hiddenRank1Expected: round2(hiddenRank1Expected),
+      completedExpectedSavedReal: round2(completedExpected), currentExpectedSavedReal: round2(currentExpected),
+      expectedSavedReal: round2(expectedSavedReal), winScore: threshold,
+      pointsNeededBeforeRoleBonuses: round2(Math.max(0, threshold - expectedSavedReal)),
+      expectedRoleBonuses: round2(expectedRoleBonuses),
+      roleBonusBreakdown: { laoCaught: round2(pLaoCaught), fangSurvives: round2(1 - pFangCaught), xuSurvives: round2(2 * (1 - pXuCaught)) },
+      rolePosteriorMaxima: { lao: round2(pLao), yao: round2(pYao), fang: round2(pFang), xu: round2(pXu) },
+      expectedTotalScore: round2(expectedTotalScore),
+      pointsNeededAfterExpectedRoleBonuses: round2(Math.max(0, threshold - expectedTotalScore)),
+      estimatedWinProbability: round2(estimatedWinProbability),
+      note: '以本 Bot 自己的角色後驗估計保真與終局任務效用；非讀取其他 AI 私有心智或真實身分'
+    };
+  }
+
+  function voteSpendLimit(room, bot, mindRecord) {
+    const bank = chipsAvailable(room, bot);
+    if (bank <= 1) return bank;
+    // 認壞／跳壞表演的票向是公開承諾契約，維持原有完整籌碼上限，
+    // 避免在票型收尾時被一般保留策略削弱；一般票型才使用個人化上限。
+    if (!GD.isGood(bot.role) && mindRecord &&
+        (mindRecord.mode === 'confess' || mindRecord.confess || mindRecord.evilRolePerformance)) return bank;
+    const idx = Math.max(0, Number(room && room.currentRoundIdx) || 0);
+    if (idx >= 2) return bank;
+
+    const names = beastNames(currentRound(room));
+    if (!names.length || !mindRecord) return Math.max(1, bank - 1);
+    const isGood = GD.isGood(bot.role);
+    const post = posteriorMap(mindRecord.post, room);
+    const anchor = names.includes(mindRecord.beast) ? mindRecord.beast :
+      [...names].sort((a, b) => (post[b] || 0.5) - (post[a] || 0.5) || zodiacIndex(a) - zodiacIndex(b))[0];
+    const targetConfidence = U.clamp(isGood ? (post[anchor] ?? 0.5) : 1 - (post[anchor] ?? 0.5), 0, 1);
+    const forecast = forecastVotes(room, bot.id, mindRecord.beliefProfile);
+    const targetTopTwo = U.clamp(Number(forecast.pTopTwo && forecast.pTopTwo[anchor]) || 0, 0, 1);
+    const racePressure = U.clamp((0.65 - targetTopTwo) / 0.65, 0, 1);
+
+    let scorePressure = racePressure;
+    if (isGood) {
+      const score = scoreProjection(room, bot, mindRecord.post, forecast, mindRecord.beliefProfile);
+      const roundsLeft = Math.max(1, 3 - idx);
+      const requiredPerRemaining = score.pointsNeededAfterExpectedRoleBonuses / (roundsLeft * 2);
+      scorePressure = U.clamp((requiredPerRemaining - 0.72) / 0.80, 0, 1);
+    }
+
+    const genes = bot.genes || (GD.Genes && GD.Genes.load ? GD.Genes.load(bot.botId) : {});
+    const assertiveness = U.clamp(Number(genes.assertiveness) || 0.5, 0, 1);
+    const conformity = U.clamp(Number(genes.conformity) || 0.5, 0, 1);
+    const deception = U.clamp(Number(genes.deception) || 0.5, 0, 1);
+    const camouflage = U.clamp(Number(genes.camouflage) || 0.5, 0, 1);
+    const skepticism = U.clamp(Number(genes.skepticism) || 0.5, 0, 1);
+    const stylePush = U.clamp(
+      0.50 * assertiveness + 0.20 * conformity + 0.15 * deception +
+      0.10 * camouflage + 0.05 * (1 - skepticism), 0, 1
+    );
+    const commitment = 0.55 * stylePush + 0.20 * targetConfidence +
+      0.15 * racePressure + 0.10 * scorePressure;
+    const threshold = idx === 0 ? 0.56 : 0.49;
+    return commitment >= threshold ? bank : Math.max(1, bank - 1);
   }
 
   function enumerateAllocations(names, anchor, maxSpend) {
     const out = [];
-    const limits = Math.max(0, Math.floor(maxSpend));
+    const limits = Math.max(0, Math.floor(Number(maxSpend) || 0));
+    // 零票是合法候選：保留全部籌碼，不因公開主張而被強制落票。
+    out.push(Object.fromEntries(names.map(name => [name, 0])));
     for (let spend = 1; spend <= limits; spend++) {
       const counts = Object.fromEntries(names.map(name => [name, 0]));
       function walk(i, remaining) {
         if (i >= names.length) {
-          if (remaining === 0 && counts[anchor] >= 1) out.push({ ...counts });
+          if (remaining === 0) out.push({ ...counts });
           return;
         }
         const name = names[i];
-        const min = name === anchor ? 1 : 0;
-        for (let n = min; n <= remaining; n++) {
+        for (let n = 0; n <= remaining; n++) {
           counts[name] = n;
           walk(i + 1, remaining - n);
         }
@@ -353,35 +461,82 @@
     const rd = currentRound(room);
     const names = beastNames(rd);
     if (!rd || !names.length || !bot || !mindRecord) return null;
-    const bank = Math.max(0, Math.floor(Number(bot.voteBank) || 0));
+    const bank = chipsAvailable(room, bot);
     const cap = Math.max(0, Math.min(bank, Math.floor(Number(maxSpend === undefined ? bank : maxSpend) || 0)));
     if (cap <= 0) return { ballot: {}, diagnostic: null };
     const post = posteriorMap(mindRecord.post, room);
     let anchor = names.includes(mindRecord.beast) ? mindRecord.beast : null;
     if (!anchor) anchor = [...names].sort((a, b) => (post[b] || 0.5) - (post[a] || 0.5) || zodiacIndex(a) - zodiacIndex(b))[0];
-    const base = forecastVotes(room, bot.id);
+    const base = forecastVotes(room, bot.id, mindRecord.beliefProfile);
     const choices = enumerateAllocations(names, anchor, cap);
-    if (!choices.length) return { ballot: { [anchor]: 1 }, diagnostic: null };
+    if (!choices.length) return { ballot: {}, diagnostic: null };
 
-    const futureChipValue = room.currentRoundIdx === 0 ? 0.15 : room.currentRoundIdx === 1 ? 0.08 : 0;
     const isGood = GD.isGood(bot.role);
+    const idx = Math.max(0, Number(room.currentRoundIdx) || 0);
+    const genes = bot.genes || (GD.Genes && GD.Genes.load ? GD.Genes.load(bot.botId) : {});
+    const assertiveness = U.clamp(Number(genes.assertiveness) || 0.5, 0, 1);
+    const conformity = U.clamp(Number(genes.conformity) || 0.5, 0, 1);
+    const deception = U.clamp(Number(genes.deception) || 0.5, 0, 1);
+    const camouflage = U.clamp(Number(genes.camouflage) || 0.5, 0, 1);
+    const skepticism = U.clamp(Number(genes.skepticism) || 0.5, 0, 1);
+    const spendStyle = U.clamp(0.50 * assertiveness + 0.20 * conformity + 0.15 * deception +
+      0.10 * camouflage + 0.05 * (1 - skepticism), 0, 1);
+    const targetConfidence = U.clamp(isGood ? (post[anchor] ?? 0.5) : 1 - (post[anchor] ?? 0.5), 0, 1);
+    const baseTopTwo = probabilitiesTopTwo(names, base.expectedVotes, base.variance);
+    const baseExpectedGoodPoints = names.reduce((n, name) => n + (baseTopTwo[name] || 0) * (post[name] ?? 0.5), 0);
+    const globalScore = scoreProjection(room, bot, mindRecord.post, base, mindRecord.beliefProfile);
+    const racePressure = U.clamp((0.65 - (baseTopTwo[anchor] || 0)) / 0.65, 0, 1);
+    const holdStyleFactor = U.clamp(1.38 - spendStyle, 0.45, 1.30);
+    const confidenceFactor = 1 - 0.22 * targetConfidence;
+    const urgencyFactor = 1 - 0.20 * racePressure;
+    const futureChipValue = (idx === 0 ? 0.13 : idx === 1 ? 0.065 : 0) *
+      holdStyleFactor * confidenceFactor * urgencyFactor;
+    // 第一票不再在上限決策與效用函數中重複加分；是否參與仍由實際局勢與棄票候選共同決定。
+    const firstVotePreference = 0;
     let best = null;
     choices.forEach(ballot => {
       const mean = { ...base.expectedVotes };
       names.forEach(name => { mean[name] = (mean[name] || 0) + (ballot[name] || 0); });
       const pTop = probabilitiesTopTwo(names, mean, base.variance);
       const expectedGoodPoints = names.reduce((n, name) => n + (pTop[name] || 0) * (post[name] ?? 0.5), 0);
-      let utility = isGood ? expectedGoodPoints : -expectedGoodPoints;
+      const marginalPoints = expectedGoodPoints - baseExpectedGoodPoints;
+      const projectedWin = sigmoid((globalScore.expectedTotalScore + marginalPoints - globalScore.winScore) / 0.78);
+      let utility = isGood ? projectedWin + expectedGoodPoints * 0.025 : -projectedWin;
       if (!isGood) {
-        // 壞人傾向把低真機率的獸首推入前二，但仍要保留對外宣稱的至少一票。
-        utility += names.reduce((n, name) => n + (pTop[name] || 0) * (1 - (post[name] ?? 0.5)) * 0.10, 0);
-        if (mindRecord.padBeast && names.includes(mindRecord.padBeast)) utility += (pTop[mindRecord.padBeast] || 0) * 0.06;
+        // 壞人次要目標：在壓低好人整局勝率之外，提高低真品後驗獸首進前二的期望。
+        utility += names.reduce((n, name) => n + (pTop[name] || 0) * (1 - (post[name] ?? 0.5)) * 0.075, 0);
+        if (mindRecord.padBeast && names.includes(mindRecord.padBeast)) utility += (pTop[mindRecord.padBeast] || 0) * 0.04;
       }
       const spent = sum(ballot);
       const held = Math.max(0, cap - spent);
       utility += held * futureChipValue;
-      // 同效益時先保留籌碼；choices 由少花到多花產生，因此只在明顯提高效益時才覆蓋。
-      if (!best || utility > best.utility + 1e-8) best = { ballot, utility, expectedGoodPoints, pTop, forecastAfter: mean, spent, held };
+      let coordinationBonus = 0;
+      if (isGood && spent > 0) {
+        const speechCount = Math.max(1, (rd.speeches || []).filter(sp => sp && String(sp.playerId) !== String(bot.id)).length);
+        const allocatedShare = names.reduce((n, name) => n + (Number(ballot[name]) || 0), 0) || 1;
+        names.forEach(name => {
+          const support = Math.max(0, Number(base.callSupport && base.callSupport[name]) || 0);
+          const posteriorAgreement = U.clamp(((post[name] ?? 0.5) - 0.50) / 0.40, 0, 1);
+          // Own speech is also in base.callSupport; discount one potential self-call to keep this a public-peer signal.
+          const ownCall = (rd.speeches || []).some(sp => String(sp.playerId) === String(bot.id) &&
+            ((parseSpeech(sp, room, rd).callBeasts || []).includes(name) || parseSpeech(sp, room, rd).callBeast === name)) ? 1 : 0;
+          const independentSupport = Math.max(0, support - ownCall);
+          const consensusStrength = U.clamp(independentSupport / speechCount, 0, 0.75);
+          coordinationBonus += (Number(ballot[name]) || 0) / allocatedShare * consensusStrength * posteriorAgreement * (idx === 2 ? 0.12 : 0.075);
+        });
+        coordinationBonus = U.clamp(coordinationBonus, 0, idx === 2 ? 0.12 : 0.075);
+        utility += coordinationBonus;
+      }
+      // 號召力高的玩家對「多投入一枚票」有較高行動偏好；只獎勵第一枚追加票，
+      // 且隨回合減弱，避免高 assertiveness 變成無條件全押或大幅偏離算票收益。
+      const commitmentBonus = spent > 1
+        ? (idx === 0 ? 0.045 : idx === 1 ? 0.035 : 0.020) * spendStyle
+        : 0;
+      utility += commitmentBonus;
+      // 第一票不另行加分，避免「先提高支出上限」後又在效用中重複獎勵參與。
+      const firstVoteBonus = 0;
+      // 效益相近時仍由個人保留成本與行動風格共同決定，不再讓全體套用同一留票門檻。
+      if (!best || utility > best.utility + 1e-8) best = { ballot, utility, expectedGoodPoints, pTop, forecastAfter: mean, spent, held, commitmentBonus, firstVoteBonus, coordinationBonus };
     });
     const clean = {};
     Object.entries(best.ballot).forEach(([name, n]) => { if (n > 0) clean[name] = n; });
@@ -396,14 +551,25 @@
           .sort((a, b) => b.expectedVotes - a.expectedVotes || zodiacIndex(a.name) - zodiacIndex(b.name)),
         spent: best.spent,
         held: Math.max(0, bank - best.spent),
-        objective: isGood ? 'max_expected_real_top_two' : 'min_expected_real_top_two'
+        futureChipValue: round2(futureChipValue),
+        commitmentBonus: round2(best.commitmentBonus || 0),
+        firstVoteBonus: round2(best.firstVoteBonus || 0),
+        firstVotePreference: round2(firstVotePreference),
+        coordinationBonus: round2(best.coordinationBonus || 0),
+        spendStyle: round2(spendStyle),
+        targetConfidence: round2(targetConfidence),
+        racePressure: round2(racePressure),
+        objective: isGood ? 'max_expected_whole_game_win_probability' : 'minimize_good_win_probability_and_push_fake_top_two',
+        baseExpectedGoodPoints: round2(baseExpectedGoodPoints), marginalExpectedGoodPoints: round2(best.expectedGoodPoints - baseExpectedGoodPoints),
+        baselineWinProbability: globalScore.estimatedWinProbability,
+        projectedWinProbability: round2(sigmoid((globalScore.expectedTotalScore + best.expectedGoodPoints - baseExpectedGoodPoints - globalScore.winScore) / 0.78))
       }
     };
   }
 
   function publicNarrative(room, bot, A, plan, seed) {
-    const forecast = forecastVotes(room, bot.id);
-    const score = scoreProjection(room, bot, A && A.post, forecast);
+    const forecast = forecastVotes(room, bot.id, A && A.prof);
+    const score = scoreProjection(room, bot, A && A.post, forecast, A && A.prof);
     const ranking = forecast.ranking || [];
     const beast = forecast.consensusBeast || plan.beast || (ranking[0] && ranking[0].name) || '';
     const other = ranking.find(x => x.name !== beast);
@@ -525,8 +691,11 @@
   T.probabilitiesTopTwo = probabilitiesTopTwo;
   T.scoreProjection = scoreProjection;
   T.optimizeBallot = optimizeBallot;
+  T.voteSpendLimit = voteSpendLimit;
+  T.enumerateAllocations = enumerateAllocations;
   T.publicNarrative = publicNarrative;
   T.speechPreference = speechPreference;
+  T.chipsAvailable = chipsAvailable;
   T.count = () => GD.DialogueBank && GD.DialogueBank.count ? GD.DialogueBank.count() : 0;
   GD.Tactics = T;
   if (typeof module !== 'undefined' && module.exports) module.exports = T;
