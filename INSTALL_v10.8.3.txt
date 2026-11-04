@@ -1,0 +1,17 @@
+古董局中局 v10.8.3 安裝說明
+
+1. 先備份你目前正在使用的專案資料夾與 Firebase/Worker 設定。
+2. 解壓 gudongv10_8_3_work.zip。
+3. 以解壓後的完整專案資料夾作為工作版本；不要只覆蓋 index.html。
+4. 在專案根目錄執行：node local-server.cjs
+5. 開啟 http://127.0.0.1:8000
+
+建議驗收：
+node tests/human-claim-role-flip-regression.js
+node tests/gemini-fallback-smoke.js
+node tests/sim.js 2
+
+注意：本 ZIP 內含前端與本地伺服器原始碼，不含 Cloudflare Worker 原始碼。
+Gemini 多模型 fallback 已在前端請求層以 mock API 測試；正式上線前請確認現有 Worker 允許轉送設定中的各個模型 ID。
+
+本版本是依上傳壓縮檔內部實際程式碼 10.8.2 升級為 10.8.3，不是從乾淨的 10.6.3 原始碼升級。

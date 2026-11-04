@@ -1,0 +1,58 @@
+古董局中局 v10.8.10 — 測試報告
+測試日期：2026-11-04
+
+一、核心回歸測試
+20 項測試全部通過（20/20）：
+1. tests/v10-8-8-voting-coalition-regression.js
+2. tests/human-claim-role-flip-regression.js
+3. tests/v10-8-9-observation-firewall-regression.js
+4. tests/v10-8-3-reasoning-smoke.js
+5. tests/v10-8-strategic-info-smoke.js
+6. tests/tactics-smoke.js
+7. tests/player-reasoning-regression-smoke.js
+8. tests/conversation-continuity-smoke.js
+9. tests/v10-8-6-content-driven-speech-smoke.js
+10. tests/public-speech-attribution-smoke.js
+11. tests/vote-policy-smoke.js
+12. tests/abstain-policy-smoke.js
+13. tests/fang-round3-targeted-v3.js
+14. tests/gemini-fallback-smoke.js
+15. tests/v10-8-public-roleplay-smoke.js
+16. tests/v10-8-5-speed-speech-smoke.js
+17. tests/human-attention-regression.js
+18. tests/ui-smoke.js
+19. tests/mind_gene_patch_smoke.js
+20. tests/v10-8-10-timeline-consensus-regression.js（新增）
+
+新增測試確認：
+- 傳牌順位與發言順位分開記錄；後驗候選位置只按 passOrder 對應。
+- `laoAt[8]` 未啟動／NONE 假設保留，並與已啟動位置的機率互補。
+- 公開聲稱親查、明示推論、附和及重複主張被拆分；自稱查驗不等於系統驗證。
+- 同獸首共識會產生來源拆解提示；切換引擎內部 `laoActive` 真值不會改變局中後驗。
+- 新增共識台詞不會替許願額外宣告第二尊獸首；許願公開查驗數量限制由 A/A 與 UI 對局再次覆蓋。
+
+二、JavaScript 語法檢查
+- 對 `js/` 與 `tests/` 下全部 JavaScript 檔案執行 `node --check`。
+- 結果：74 個檔案全部通過。
+
+三、UI 全流程冒煙測試
+- `node tests/ui-smoke.js`
+- 結果：66 次渲染、0 失敗；完成一局本地遊戲，終局覆盤 8 份，學習資料正常寫入；終局面板 85,553 字元。
+- Gemini fallback、票型頁籤及大廳清單顯示檢查通過。
+
+四、A/A 重現性與亂數隔離
+- `node tests/sim.js 1 --aa`
+- 結果：1 組種子完全一致、失敗項 0；耗時約 3.7 秒。
+- 快取落盤、JSON 讀回比對通過。
+
+五、驗證範圍與限制
+- 本版完成 20/20 回歸測試、74/74 語法檢查、一次完整 UI 冒煙對局與 1 組 A/A 種子。
+- 沒有宣稱已完成 25、100 或更多種子的平衡性／勝率統計；無技能深水偽裝、後驗去回音與終局時序加分仍需後續多種子實戰校準。
+- 公開來源分類依文字模式判斷；`self-reported-direct` 代表玩家自稱親查，並非系統認證的真實查驗。
+- 跨輪 `laoTimingSupport` 是有限加權的候選排序輔助，不是校準過的精確身份後驗。
+
+六、規則保留檢查
+- 傳牌尾家後一位開始公開發言：既有回歸通過，核心程式規則未修改。
+- 公開主張與實際投票可分離：既有投票／表演回歸通過。
+- 合法棄票仍允許：棄票策略回歸通過。
+- 未修改角色技能效果、查驗次數、籌碼、票數結算、生肖同票優先序或勝利門檻。

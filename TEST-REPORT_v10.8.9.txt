@@ -1,0 +1,56 @@
+古董局中局 v10.8.9 — 測試報告
+測試日期：2026-11-04
+
+一、核心回歸測試
+以下 19 項測試全部通過（19/19）：
+1. tests/v10-8-8-voting-coalition-regression.js
+2. tests/human-claim-role-flip-regression.js
+3. tests/v10-8-9-observation-firewall-regression.js
+4. tests/v10-8-3-reasoning-smoke.js
+5. tests/v10-8-strategic-info-smoke.js
+6. tests/tactics-smoke.js
+7. tests/player-reasoning-regression-smoke.js
+8. tests/conversation-continuity-smoke.js
+9. tests/v10-8-6-content-driven-speech-smoke.js
+10. tests/public-speech-attribution-smoke.js
+11. tests/vote-policy-smoke.js
+12. tests/abstain-policy-smoke.js
+13. tests/fang-round3-targeted-v3.js
+14. tests/gemini-fallback-smoke.js
+15. tests/v10-8-public-roleplay-smoke.js
+16. tests/v10-8-5-speed-speech-smoke.js
+17. tests/human-attention-regression.js
+18. tests/ui-smoke.js
+19. tests/mind_gene_patch_smoke.js
+
+重點覆蓋：
+- 張懿畫面顯示「羊贗品」但稽核標記 flipped:true；局中資訊視圖只保留畫面結果。
+- 切換／移除稽核位元不得改變局中後驗與嫌疑排序。
+- 只有合法公開的第二名真偽交叉核對才能形成已確認反轉線索。
+- 方震直接陣營查驗作硬約束，但不把「壞人」直接等同「老朝奉」。
+- 傳牌尾家後一位開始公開發言、合法棄票、延遲偷襲、角色偽裝與戰術分票流程。
+- 好人票／壞人票拆分與協同波動估計。
+
+二、語法檢查
+- 對 js/ 與 tests/ 目錄下全部 JavaScript 檔執行 node --check。
+- 結果：通過，沒有語法錯誤。
+
+三、A/A 重現性
+- 命令：node tests/sim.js 1 --aa
+- 結果：1 組種子完全一致；亂數流隔離校驗失敗項 0；耗時 2,248 ms。
+- 快取落盤／讀回校驗通過。
+
+四、完整遊戲單局模擬（補充觀察，不列入自動測試通過數）
+- 命令：node tests/run_sim.js 42
+- 已輸出三輪發言、投票、終局鑑人及 gameOver 摘要。
+- 種子 42 結果：老朝奉陣營獲勝；總分 5；保留真品 2/4；沒有抓出老朝奉；方震與許願皆存活。
+- 注意：模擬器在輸出完整 gameOver 摘要後仍有未結束的 Node event-loop handle，執行工具達 180 秒上限而中止程序。因此這次只視為完成單局結果輸出的觀察紀錄，不宣稱該命令乾淨 exit，也不當作 100+ 種子統計驗證。
+
+五、模型範圍與限制
+- 四獸二真二假的後驗使用六種聯合真偽世界線；老朝奉時序是潛在變數。
+- 票勢協同風險、前二機率與全局勝率仍屬啟發式機率近似，不是完整多智能體均衡、精確枚舉所有票型或大樣本統計結果。
+- 目前 A/A 驗證只有 1 組種子；需後續多種子對局再校準票勢方差、平手與全局效用權重。
+
+六、規則保留
+沒有修改角色技能、查驗次數、籌碼發放、投票結算、生肖同票優先序、WIN_SCORE 或傳牌尾家後的公開發言起點。
+公開主張與實際投票可分離；合法棄票仍被允許。

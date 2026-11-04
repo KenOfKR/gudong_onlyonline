@@ -74,6 +74,6 @@ server.on('error', err => {
 });
 
 server.listen(port, '127.0.0.1', () => {
-  console.log(`古董局中局 v10.6.0 本機伺服器已啟動：http://127.0.0.1:${port}`);
+  console.log(`古董局中局 v10.8.5 本機伺服器已啟動：http://127.0.0.1:${port}`);
   console.log('此伺服器僅監聽本機迴圈位址；按 Ctrl+C 停止。');
 });

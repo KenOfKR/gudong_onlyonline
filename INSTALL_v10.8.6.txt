@@ -1,0 +1,26 @@
+古董局中局 v10.8.6 安裝說明
+
+1. 先備份目前專案資料夾。
+2. 解壓 gudong_v10_8_6_full.zip 到新的資料夾。
+3. 使用完整解壓後資料夾，不需要再套用 patch ZIP。
+4. 在專案根目錄執行：node local-server.cjs
+5. 開啟：http://127.0.0.1:8000
+
+建議驗收（在專案根目錄執行）：
+node tests/v10-8-6-content-driven-speech-smoke.js
+node tests/human-attention-regression.js
+node tests/human-claim-role-flip-regression.js
+node tests/v10-8-3-reasoning-smoke.js
+node tests/v10-8-public-roleplay-smoke.js
+node tests/v10-8-strategic-info-smoke.js
+node tests/player-reasoning-regression-smoke.js
+node tests/conversation-continuity-smoke.js
+node tests/gemini-fallback-smoke.js
+node tests/tactics-smoke.js
+node tests/vote-policy-smoke.js
+node tests/abstain-policy-smoke.js
+node tests/ui-smoke.js
+
+版本重點：發言不設固定字數、證據項目數或一般遊戲發言的固定輸出 token 上限；嫌疑人數量依證據決定（可為 0–3 人），資訊不足時說明還要觀察本輪票型、傳牌順序與其他人發言。首頁左上角不再顯示台詞庫數量，但 1,068 條策略資料仍保留。
+
+注意：完整專案含前端及本機伺服器原始碼，不含 Cloudflare Worker 原始碼。Gemini fallback 測試使用 mock API，不代表已驗證正式 Worker 對全部模型 ID 的轉送權限。正式模型速度仍受網路與服務端影響。

@@ -1,0 +1,21 @@
+古董局中局 v10.8.4 安裝說明
+
+1. 先備份目前專案資料夾。
+2. 解壓 gudong_v10_8_4_full.zip 到新的資料夾。
+3. 使用完整解壓後資料夾，不需要再套用 patch ZIP。
+4. 在專案根目錄執行：node local-server.cjs
+5. 開啟：http://127.0.0.1:8000
+
+建議驗收（在專案根目錄執行）：
+node tests/human-attention-regression.js
+node tests/human-claim-role-flip-regression.js
+node tests/v10-8-3-reasoning-smoke.js
+node tests/v10-8-public-roleplay-smoke.js
+node tests/v10-8-strategic-info-smoke.js
+node tests/gemini-fallback-smoke.js
+node tests/ui-smoke.js
+node tests/sim.js 5 --aa
+
+注意：本 ZIP 含前端及本機伺服器原始碼，不含 Cloudflare Worker 原始碼。Gemini fallback 測試使用 mock API，不代表已驗證正式 Worker 對全部模型 ID 的轉送權限。5 組固定種子 A/A 為本次已驗收的模擬範圍；25 組批次在目前執行環境未能完成，不列為通過。
+
+本版以目前已提供的 v10.8.3 專案為基底，針對 2026-11-02 對局的真人發言注意力問題建立回歸修正。

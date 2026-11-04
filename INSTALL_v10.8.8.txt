@@ -1,0 +1,41 @@
+古董局中局 v10.8.8 完整版安裝說明
+===================================
+
+1. 將 gudong_v10_8_8_full.zip 解壓縮到新的資料夾。
+2. 確認 index.html、local-server.cjs、js、css、assets、tests 都位於解壓後的同一層目錄。
+3. Windows 建議在專案資料夾空白處開啟 PowerShell，執行：
+
+   node local-server.cjs
+
+4. 瀏覽器開啟：
+
+   http://127.0.0.1:8000
+
+5. 進入單人模式即可遊玩。建議以新資料夾安裝，不要直接覆蓋正在使用的舊版。
+
+回歸測試（於專案根目錄執行）：
+
+   node tests/human-claim-role-flip-regression.js
+   node tests/human-attention-regression.js
+   node tests/player-reasoning-regression-smoke.js
+   node tests/v10-8-6-content-driven-speech-smoke.js
+   node tests/v10-8-3-reasoning-smoke.js
+   node tests/v10-8-public-roleplay-smoke.js
+   node tests/v10-8-strategic-info-smoke.js
+   node tests/conversation-continuity-smoke.js
+   node tests/gemini-fallback-smoke.js
+   node tests/tactics-smoke.js
+   node tests/vote-policy-smoke.js
+   node tests/abstain-policy-smoke.js
+   node tests/ui-smoke.js
+   node tests/v10-8-8-voting-coalition-regression.js
+
+固定種子 A/A 測試：
+
+   node tests/sim.js 1 --aa
+
+注意：
+- Gemini 雲端發言仍需已有可用的 Worker 與 API 設定；本機 mock 測試不代表線上服務連線已實測。
+- 本次 14 項回歸／冒煙測試全數通過；A/A 固定種子 0–7 的獨立進程檢查通過。
+- `node tests/sim.js 25 --aa` 的單進程 25 組批次未完成（執行超時），因此不宣稱 25 組完整預檢通過，也不宣稱勝率已有提升。
+- v10.8.7 完整源碼包在本次可用檔案庫中缺失；本版以可取得的 v10.8.6 完整專案為基底，按 v10.8.7 修改紀錄回補查驗反轉、偷襲時序與權威籌碼帳本邏輯。此處是透明的來源限制，並非宣稱拿到原始 v10.8.7 完整目錄。

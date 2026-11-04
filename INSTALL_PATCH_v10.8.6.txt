@@ -1,0 +1,17 @@
+古董局中局 v10.8.6 局部補丁安裝說明
+
+適用基底：完整 v10.8.5 專案。補丁已包含 `driver.js`／`gemini.js` 的輸出長度設定更新，以及 Gemini 回歸測試。
+
+1. 先完整備份 v10.8.5 專案資料夾。
+2. 將本 ZIP 解壓縮到暫存資料夾。
+3. 將 ZIP 內檔案依原有相對路徑覆蓋到 v10.8.5 專案根目錄。
+4. 不要把 patch 解壓成獨立遊戲專案；它只包含更新檔案。
+5. 若專案根目錄仍有舊的 `v10_8_3_patch.zip`，可刪除；它不是遊戲執行所需檔案。
+6. 重新啟動本機伺服器並重新整理瀏覽器（建議 Ctrl+F5）。
+7. 建議執行：
+   node tests/v10-8-6-content-driven-speech-smoke.js
+   node tests/human-attention-regression.js
+   node tests/v10-8-strategic-info-smoke.js
+   node tests/ui-smoke.js
+
+較安全的方式仍是直接使用完整 v10.8.6 ZIP，在新資料夾測試。

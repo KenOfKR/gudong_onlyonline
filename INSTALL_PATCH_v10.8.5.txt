@@ -1,0 +1,17 @@
+古董局中局 v10.8.5 局部補丁安裝說明
+
+適用基底：完整 v10.8.4 專案。
+
+1. 先完整備份 v10.8.4 專案資料夾。
+2. 將本 ZIP 解壓縮到暫存資料夾。
+3. 將 ZIP 內檔案依原有相對路徑覆蓋到 v10.8.4 專案根目錄。
+4. 不要把 patch 解壓成獨立遊戲專案；它只包含更新檔案。
+5. 重新啟動本機伺服器並重新整理瀏覽器。
+6. 建議至少執行：
+   node tests/human-attention-regression.js
+   node tests/human-claim-role-flip-regression.js
+   node tests/gemini-fallback-smoke.js
+   node tests/v10-8-5-speed-speech-smoke.js
+   node tests/ui-smoke.js
+
+較安全的方式仍是直接使用完整 v10.8.5 ZIP，在新資料夾測試。

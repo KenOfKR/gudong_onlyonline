@@ -1,0 +1,15 @@
+古董局中局 v10.8.9 完整版安裝說明
+
+1. 將 gudong_v10_8_9_full.zip 解壓縮到新的資料夾。
+2. 不要只覆蓋 js/bot/mind.js；本版同時更新 mind.js、strategy.js、tactics.js、core/rules.js、版本資訊與回歸測試。
+3. 建議先保留舊版資料夾作為備份，再從新資料夾啟動 index.html。
+4. 建議使用本機伺服器啟動：在專案根目錄執行 `node local-server.cjs`，再開啟 `http://127.0.0.1:8000`。
+5. 本機回歸測試：在專案根目錄執行 `node tests/v10-8-9-observation-firewall-regression.js`、`node tests/v10-8-8-voting-coalition-regression.js` 與 `node tests/human-claim-role-flip-regression.js`。
+
+本版重要說明：
+- 畫面顯示的真偽是 Bot 局中可用的觀察；`flipped:true` 僅作引擎事後稽核，不能餵給局中推理。
+- 只有同一獸首公開成為第二名後，畫面結果與公開真相相反，才可建立已確認的老朝奉反轉時序證據。
+- 沒有修改角色技能、票數、籌碼、發言起點、同票順序或勝利門檻。
+- 完整修改與模型限制請見 CHANGELOG_v10.8.9.md。
+
+版本：10.8.9
