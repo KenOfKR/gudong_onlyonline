@@ -134,7 +134,7 @@
       ${r.speech ? `<div class="xs mute" style="font-style:italic;margin:3px 0">「${U.esc(r.speech)}」</div>` : ''}
       ${r.steps.map(s => `<div class="step"><b>${U.esc(s.k)}</b><span>${U.esc(s.v)}</span></div>`).join('')}</div>`).join('');
 
-    const sus = rv.final.suspects.length ? `<div class="mt xs">${rv.final.suspects.map((s, i) => `<div>${i + 1}. ${U.esc(s.tag)}（真身【${U.esc(s.role)}】）嫌疑 ${s.evil}｜老朝奉 ${s.probs['老朝奉'] ?? '-'}% / 藥不然 ${s.probs['藥不然'] ?? '-'}%${s.reasons.length ? '：' + U.esc(s.reasons.join('；')) : ''}</div>`).join('')}</div>` : '';
+    const sus = rv.final.suspects.length ? `<div class="mt xs">${rv.final.suspects.map((s, i) => `<div>${i + 1}. ${U.esc(s.tag)}（真身【${U.esc(s.role)}】）嫌疑 ${s.evil}${Number.isFinite(Number(s.score)) ? '｜排序分 ' + Number(s.score).toFixed(1) : ''}｜老朝奉 ${s.probs['老朝奉'] ?? '-'}% / 藥不然 ${s.probs['藥不然'] ?? '-'}%${s.evidence ? '｜證據 ' + [s.evidence.privateLaoIntersection ? '私密時序交集' : '', s.evidence.publicFlipReports ? '公開反轉回報×' + s.evidence.publicFlipReports : '', s.evidence.publicCandidateGroups ? '公開候選×' + s.evidence.publicCandidateGroups : ''].filter(Boolean).join('、') : ''}${s.reasons.length ? '：' + U.esc(s.reasons.join('；')) : ''}</div>`).join('')}</div>` : '';
 
     const learn = res ? `<div class="panel sm" style="background:#ecfdf5;border-color:#15803d">
       <div class="row between"><b class="jade">🧬 自我學習與基因修正（BotLearningEngine）</b><span class="tag ${res.won ? 'good' : 'evil'}">${res.won ? '本局獲勝' : '本局落敗'}</span></div>
