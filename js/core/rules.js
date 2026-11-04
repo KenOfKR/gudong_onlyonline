@@ -38,6 +38,7 @@
         return { ...base, resultText: `【${beast.name}】 ${UNSURE_TEXT}`, displayedReal: null, kind: 'confused' };
       }
       let seen = beast.isReal;
+      // flipped 僅供結算後 UI／稽核確認技能是否改寫畫面；玩家決策只讀 displayedReal。
       let flipped = false;
       if (round.laoActive && GD.isGood(player.role) && player.role !== '姬雲浮') { seen = !seen; flipped = true; }
       return { ...base, resultText: `【${beast.name}】 ${seen ? '【真品】' : '【贗品】'}`, displayedReal: seen, kind: 'ok', flipped };
@@ -49,9 +50,18 @@
      */
     applyAmbush(room, target) {
       const round = U.curRound(room);
+      const sourceRound = (Number(room.currentRoundIdx) || 0) + 1;
       const hit = p => {
         if (p.role === '姬雲浮') p.isPermanentlyAmbushed = true;
-        if (Rules.hasActed(round, p)) p.pendingAmbush = true; else p.isAmbushed = true;
+        if (Rules.hasActed(round, p)) {
+          p.pendingAmbush = true;
+          p.pendingAmbushTiming = 'deferred';
+          p.pendingAmbushSourceRound = sourceRound;
+        } else {
+          p.isAmbushed = true;
+          p.activeAmbushTiming = 'immediate';
+          p.activeAmbushSourceRound = sourceRound;
+        }
       };
       const hits = [target.id];
       hit(target);

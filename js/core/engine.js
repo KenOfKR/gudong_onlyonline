@@ -150,7 +150,7 @@
     }
     const p = {
       id, name: cleanName, isBot, botId, colorId: freeColor(room), seatIndex: freeSeat(room),
-      role: '', voteBank: 0, isAmbushed: false, isPermanentlyAmbushed: false, pendingAmbush: false, confusedRound: -1
+      role: '', voteBank: 0, isAmbushed: false, isPermanentlyAmbushed: false, pendingAmbush: false, pendingAmbushTiming: null, pendingAmbushSourceRound: null, activeAmbushTiming: null, activeAmbushSourceRound: null, confusedRound: -1
     };
     room.players.push(p);
     return p;
@@ -273,6 +273,7 @@
       p.role = roles[i];
       p.voteBank = C.CHIPS_PER_ROUND;
       p.isAmbushed = p.isPermanentlyAmbushed = p.pendingAmbush = false;
+      p.pendingAmbushTiming = p.pendingAmbushSourceRound = p.activeAmbushTiming = p.activeAmbushSourceRound = null;
       p.confusedRound = (p.role === '黃煙煙' || p.role === '木戶加奈') ? Math.floor(U.rng() * 3) : -1;
       p.genes = p.isBot && GD.Genes ? GD.Genes.load(p.botId) : undefined;
     });
@@ -314,7 +315,12 @@
     const p = U.byId(room, pid);
     if (room.status === 'playing' && room.currentTurnPlayerId === pid) ensureInPassOrder(rd, pid);
     if (!rd.turnLogs[pid]) {
-      rd.turnLogs[pid] = { inspect: [], ability: '無技能操作', skillTag: '', blind: Rules.isBlind(p), step: Rules.inspectQuota(p) === 0 ? 'b' : 'a' };
+      rd.turnLogs[pid] = {
+        inspect: [], ability: '無技能操作', skillTag: '', blind: Rules.isBlind(p),
+        blindTiming: p && p.activeAmbushTiming || null,
+        blindSourceRound: p && p.activeAmbushSourceRound || null,
+        step: Rules.inspectQuota(p) === 0 ? 'b' : 'a'
+      };
     }
     return rd.turnLogs[pid];
   };
@@ -497,7 +503,11 @@
       const curSpent = U.sum(Object.values(curBallot).map(v => parseInt(v, 10) || 0));
       p.voteBank = Math.max(0, prevAvail - curSpent) + C.CHIPS_PER_ROUND;
       p.isAmbushed = !!p.pendingAmbush;
+      p.activeAmbushTiming = p.pendingAmbush ? (p.pendingAmbushTiming || 'deferred') : null;
+      p.activeAmbushSourceRound = p.pendingAmbush ? (p.pendingAmbushSourceRound || idx + 1) : null;
       p.pendingAmbush = false;
+      p.pendingAmbushTiming = null;
+      p.pendingAmbushSourceRound = null;
     });
     room.currentRoundIdx = idx + 1;
     room.currentTurnPlayerId = tail;
