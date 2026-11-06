@@ -9,15 +9,30 @@
   const BLIND_TEXT = '💥 你被偷襲，眼前一片黑！';
   const UNSURE_TEXT = '無法辨別真偽！';   // 被鄭國渠封鎖 / 黃煙煙、木戶加奈困惑回合：字句完全相同
 
+  const ROLE_CAPABILITY_MATRIX = Object.freeze({
+    '許願': Object.freeze({ beastChecksPerRound: 2, distinctBeastsRequired: 2, campChecksPerRound: 0, unreadableRoundRequired: false, disruptionImmune: false, ability: 'double-inspection' }),
+    '方震': Object.freeze({ beastChecksPerRound: 0, distinctBeastsRequired: 0, campChecksPerRound: 1, unreadableRoundRequired: false, disruptionImmune: false, ability: 'camp-inspection' }),
+    '姬雲浮': Object.freeze({ beastChecksPerRound: 1, distinctBeastsRequired: 1, campChecksPerRound: 0, unreadableRoundRequired: false, disruptionImmune: true, ability: 'disruption-immunity' }),
+    '黃煙煙': Object.freeze({ beastChecksPerRound: 1, distinctBeastsRequired: 1, campChecksPerRound: 0, unreadableRoundRequired: true, disruptionImmune: false, ability: 'one-unreadable-round' }),
+    '木戶加奈': Object.freeze({ beastChecksPerRound: 1, distinctBeastsRequired: 1, campChecksPerRound: 0, unreadableRoundRequired: true, disruptionImmune: false, ability: 'one-unreadable-round' }),
+    '老朝奉': Object.freeze({ beastChecksPerRound: 1, distinctBeastsRequired: 1, campChecksPerRound: 0, unreadableRoundRequired: false, disruptionImmune: false, ability: 'view-disruption' }),
+    '藥不然': Object.freeze({ beastChecksPerRound: 1, distinctBeastsRequired: 1, campChecksPerRound: 0, unreadableRoundRequired: false, disruptionImmune: false, ability: 'ambush' }),
+    '鄭國渠': Object.freeze({ beastChecksPerRound: 1, distinctBeastsRequired: 1, campChecksPerRound: 0, unreadableRoundRequired: false, disruptionImmune: false, ability: 'beast-block' })
+  });
+
   const Rules = {
-    BLIND_TEXT, UNSURE_TEXT,
+    BLIND_TEXT, UNSURE_TEXT, ROLE_CAPABILITY_MATRIX,
+    roleCapability(role) { return ROLE_CAPABILITY_MATRIX[role] || null; },
 
     isBlind: p => !!(p.isAmbushed || p.isPermanentlyAmbushed),
 
     /** 本回合需查驗的獸首數：方震不看獸首；許願未被偷襲驗 2 尊；其餘 1 尊 */
     inspectQuota(p) {
-      if (p.role === '方震') return 0;
-      return (p.role === '許願' && !Rules.isBlind(p)) ? 2 : 1;
+      const cap = p && ROLE_CAPABILITY_MATRIX[p.role];
+      const quota = cap ? cap.beastChecksPerRound : 1;
+      // 許願受偷襲時仍只取得一尊獸首的查驗機會；其他角色能力依同一矩陣維護。
+      if (p && p.role === '許願' && Rules.isBlind(p)) return 1;
+      return Math.max(0, Number(quota) || 0);
     },
 
     hasActed: (round, p) => round.passOrder.includes(p.id),
@@ -45,23 +60,26 @@
     },
 
     /**
-     * 藥不然偷襲：已行動者效果延至下回合（pendingAmbush），未行動者當回合立刻失明；
-     * 姬雲浮永久失明；方震被偷襲時許願連帶被偷襲。回傳受影響玩家 id 陣列。
+     * 藥不然偷襲只先排入隱藏佇列，不立即改變目標可見的失明狀態。
+     * 尚未行動者：等傳牌流程真正輪到該玩家時啟動；已行動者：排到下一輪，
+     * 並同樣等該玩家下一輪真正輪到時才啟動。姬雲浮的永久效果也延後揭露。
+     * 方震被偷襲時許願連帶受影響，但兩人各自依自己的傳牌順位啟動。回傳受影響玩家 id 陣列。
      */
     applyAmbush(room, target) {
       const round = U.curRound(room);
       const sourceRound = (Number(room.currentRoundIdx) || 0) + 1;
       const hit = p => {
-        if (p.role === '姬雲浮') p.isPermanentlyAmbushed = true;
-        if (Rules.hasActed(round, p)) {
+        const alreadyActed = Rules.hasActed(round, p);
+        if (alreadyActed) {
           p.pendingAmbush = true;
           p.pendingAmbushTiming = 'deferred';
           p.pendingAmbushSourceRound = sourceRound;
         } else {
-          p.isAmbushed = true;
-          p.activeAmbushTiming = 'immediate';
-          p.activeAmbushSourceRound = sourceRound;
+          p.pendingImmediateAmbush = true;
+          p.pendingImmediateAmbushTiming = 'immediate';
+          p.pendingImmediateAmbushSourceRound = sourceRound;
         }
+        if (p.role === '姬雲浮') p.pendingPermanentAmbush = true;
       };
       const hits = [target.id];
       hit(target);

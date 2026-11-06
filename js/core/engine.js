@@ -9,6 +9,11 @@
 
   function migratePlayerIdInRoom(room, oldId, newId, newName) {
     if (!oldId || !newId || oldId === newId) return;
+    if (room.afkRescue && room.afkRescue.targetId === oldId) room.afkRescue = null;
+    if (room.humanActivityAt && room.humanActivityAt[oldId] !== undefined) {
+      room.humanActivityAt[newId] = room.humanActivityAt[oldId];
+      delete room.humanActivityAt[oldId];
+    }
     if (room.hostId === oldId) room.hostId = newId;
     if (room.currentTurnPlayerId === oldId) room.currentTurnPlayerId = newId;
     if (room.currentSpeakerId === oldId) room.currentSpeakerId = newId;
@@ -79,9 +84,78 @@
       v: 9, roomId: code, hostId: hostId || null, hostBeat: now,
       gameId: null, status: 'waiting', closed: false,
       currentRoundIdx: 0, currentTurnPlayerId: null, currentSpeakerId: null,
-      turnStartTime: now, deck: [...GD.ZODIAC], players: [], spectators: [], rounds: [], personVotes: {},
+      turnStartTime: now, humanActivityAt: {}, afkRescue: null, deck: [...GD.ZODIAC], players: [], spectators: [], rounds: [], personVotes: {},
       gameOver: null, learning: null, plan: null, rev: 0, createdAt: now, updatedAt: now
     };
+  };
+
+  const AFK_LIMIT_MS = 120000;
+  const AFK_RESCUE_MS = 10000;
+
+  Engine.afkContext = function (room) {
+    if (!room || ['waiting', 'gameover'].includes(room.status)) return null;
+    let target = null, phaseKey = room.status, rd = U.curRound(room);
+    if (room.status === 'playing') target = U.byId(room, room.currentTurnPlayerId);
+    else if (room.status === 'discussion') target = U.byId(room, room.currentSpeakerId);
+    else if (room.status === 'voting') {
+      if (!rd || rd.voteResults) return null;
+      target = (room.players || []).find(p => !p.isBot && (!rd.votes || rd.votes[p.id] === undefined)) || null;
+    } else if (room.status === 'person_voting') {
+      target = (room.players || []).find(p => !p.isBot && !(room.personVotes || {})[p.id]) || null;
+    }
+    if (!target || target.isBot) return null;
+    const log = room.status === 'playing' && rd && rd.turnLogs && rd.turnLogs[target.id];
+    const step = log && log.step || '';
+    const startAt = (room.status === 'voting' || room.status === 'person_voting')
+      ? Number((room.humanActivityAt || {})[target.id] || room.turnStartTime || room.updatedAt || Date.now())
+      : Number(room.turnStartTime || room.updatedAt || Date.now());
+    const actionKey = [room.gameId || room.roomId, room.currentRoundIdx, phaseKey, target.id, step,
+      rd && rd.speechIndex || 0, startAt].join('|');
+    return { targetId: target.id, actionKey, startedAt: startAt, phase: phaseKey };
+  };
+
+  Engine.beginAfkRescue = function (room, targetId, actionKey, now = Date.now()) {
+    const ctx = Engine.afkContext(room);
+    const target = U.byId(room, targetId);
+    if (!ctx || !target || target.isBot || ctx.targetId !== targetId || ctx.actionKey !== actionKey) return false;
+    if (now - ctx.startedAt < AFK_LIMIT_MS) return false;
+    const current = room.afkRescue;
+    if (current && current.actionKey === actionKey) return false;
+    room.afkRescue = { targetId, actionKey, phase: 'waiting', startedAt: now,
+      deadlineAt: now + AFK_RESCUE_MS, confirmedBy: null, confirmedAt: null };
+    return true;
+  };
+
+  Engine.confirmAfkRescue = function (room, helperId, targetId, actionKey, now = Date.now()) {
+    const rescue = room && room.afkRescue;
+    const helper = U.byId(room, helperId), target = U.byId(room, targetId), ctx = Engine.afkContext(room);
+    if (!rescue || rescue.phase !== 'waiting' || rescue.targetId !== targetId || rescue.actionKey !== actionKey ||
+        !ctx || ctx.targetId !== targetId || ctx.actionKey !== actionKey || !target || target.isBot ||
+        !helper || helper.isBot || helper.id === targetId || now > rescue.deadlineAt) return false;
+    rescue.phase = 'confirmed';
+    rescue.confirmedBy = helperId;
+    rescue.confirmedAt = now;
+    rescue.deadlineAt = now + AFK_RESCUE_MS;
+    return true;
+  };
+
+  Engine.markHumanActive = function (room, pid, now = Date.now()) {
+    const player = U.byId(room, pid), ctx = Engine.afkContext(room);
+    if (!player || player.isBot || !ctx || ctx.targetId !== pid) return false;
+    room.afkRescue = null;
+    if (!room.humanActivityAt) room.humanActivityAt = {};
+    room.humanActivityAt[pid] = now;
+    if (room.status !== 'voting' && room.status !== 'person_voting') room.turnStartTime = now;
+    return true;
+  };
+
+  Engine.finishAfkTakeover = function (room, targetId, actionKey, now = Date.now()) {
+    const rescue = room && room.afkRescue, ctx = Engine.afkContext(room);
+    if (!rescue || !ctx || rescue.targetId !== targetId || rescue.actionKey !== actionKey ||
+        ctx.targetId !== targetId || ctx.actionKey !== actionKey || now < Number(rescue.deadlineAt || Infinity)) return false;
+    const changed = Engine.replaceWithBot(room, targetId);
+    if (changed) room.turnStartTime = now;
+    return changed;
   };
 
   const freeColor = room => {
@@ -150,7 +224,7 @@
     }
     const p = {
       id, name: cleanName, isBot, botId, colorId: freeColor(room), seatIndex: freeSeat(room),
-      role: '', voteBank: 0, isAmbushed: false, isPermanentlyAmbushed: false, pendingAmbush: false, pendingAmbushTiming: null, pendingAmbushSourceRound: null, activeAmbushTiming: null, activeAmbushSourceRound: null, confusedRound: -1
+      role: '', voteBank: 0, isAmbushed: false, isPermanentlyAmbushed: false, pendingAmbush: false, pendingAmbushTiming: null, pendingAmbushSourceRound: null, pendingImmediateAmbush: false, pendingImmediateAmbushTiming: null, pendingImmediateAmbushSourceRound: null, pendingPermanentAmbush: false, activeAmbushTiming: null, activeAmbushSourceRound: null, confusedRound: -1
     };
     room.players.push(p);
     return p;
@@ -220,6 +294,8 @@
     if (!room.spectators.some(s => s.id === p.id)) room.spectators.push({ id: p.id, name: p.name });
 
     const oldId = p.id;
+    if (room.afkRescue && room.afkRescue.targetId === oldId) room.afkRescue = null;
+    if (room.humanActivityAt) delete room.humanActivityAt[oldId];
     const newId = U.uid('bot_' + botDef.id);
 
     p.id = newId; p.name = botDef.name; p.isBot = true; p.botId = botDef.id;
@@ -272,8 +348,8 @@
     room.players.forEach((p, i) => {
       p.role = roles[i];
       p.voteBank = C.CHIPS_PER_ROUND;
-      p.isAmbushed = p.isPermanentlyAmbushed = p.pendingAmbush = false;
-      p.pendingAmbushTiming = p.pendingAmbushSourceRound = p.activeAmbushTiming = p.activeAmbushSourceRound = null;
+      p.isAmbushed = p.isPermanentlyAmbushed = p.pendingAmbush = p.pendingImmediateAmbush = p.pendingPermanentAmbush = false;
+      p.pendingAmbushTiming = p.pendingAmbushSourceRound = p.pendingImmediateAmbushTiming = p.pendingImmediateAmbushSourceRound = p.activeAmbushTiming = p.activeAmbushSourceRound = null;
       p.confusedRound = (p.role === '黃煙煙' || p.role === '木戶加奈') ? Math.floor(U.rng() * 3) : -1;
       p.genes = p.isBot && GD.Genes ? GD.Genes.load(p.botId) : undefined;
     });
@@ -290,6 +366,7 @@
     room.currentTurnPlayerId = room.plan.starterId;
     room.currentSpeakerId = null;
     room.personVotes = {};
+    room.humanActivityAt = {}; room.afkRescue = null;
     room.gameOver = null;
     room.learning = null;
     room.status = 'playing';
@@ -310,10 +387,39 @@
     return done;
   };
 
+  function activateAmbushForTurn(room, player) {
+    if (!player || (!player.pendingImmediateAmbush && !player.pendingAmbush && !player.pendingPermanentAmbush)) return false;
+    const wasDeferred = !!player.pendingAmbush || player.pendingImmediateAmbushTiming === 'deferred';
+    player.isAmbushed = true;
+    if (player.pendingPermanentAmbush) player.isPermanentlyAmbushed = true;
+    player.activeAmbushTiming = wasDeferred ? 'deferred' : (player.pendingImmediateAmbushTiming || 'immediate');
+    player.activeAmbushSourceRound = player.pendingAmbushSourceRound || player.pendingImmediateAmbushSourceRound || null;
+    player.pendingAmbush = false;
+    player.pendingAmbushTiming = null;
+    player.pendingAmbushSourceRound = null;
+    player.pendingImmediateAmbush = false;
+    player.pendingImmediateAmbushTiming = null;
+    player.pendingImmediateAmbushSourceRound = null;
+    player.pendingPermanentAmbush = false;
+    // 若該玩家的 turn log 已被 UI／重連流程預先建立，必須同步更新，否則策略讀到舊的 blind=false/null。
+    const rd = U.curRound(room);
+    const existingLog = rd && rd.turnLogs && rd.turnLogs[player.id];
+    if (existingLog) {
+      existingLog.blind = true;
+      existingLog.blindTiming = player.activeAmbushTiming;
+      existingLog.blindSourceRound = player.activeAmbushSourceRound;
+    }
+    return true;
+  }
+
   Engine.log = function (room, pid) {
     const rd = U.curRound(room);
     const p = U.byId(room, pid);
-    if (room.status === 'playing' && room.currentTurnPlayerId === pid) ensureInPassOrder(rd, pid);
+    // 防舊存檔／重連：只在目標真的成為當前行動者時啟動排程，絕不在偷襲者選定目標時曝光。
+    if (room.status === 'playing' && room.currentTurnPlayerId === pid) {
+      activateAmbushForTurn(room, p);
+      ensureInPassOrder(rd, pid);
+    }
     if (!rd.turnLogs[pid]) {
       rd.turnLogs[pid] = {
         inspect: [], ability: '無技能操作', skillTag: '', blind: Rules.isBlind(p),
@@ -337,10 +443,9 @@
     if (log.inspect.length >= Rules.inspectQuota(p)) return false;
     const res = Rules.inspect(beast, p, rd, room.currentRoundIdx);
     log.inspect.push(res);
-    if (log.inspect.length >= Rules.inspectQuota(p)) {
-      log.step = 'b';
-      room.turnStartTime = Date.now();
-    }
+    room.afkRescue = null;
+    room.turnStartTime = Date.now();
+    if (log.inspect.length >= Rules.inspectQuota(p)) log.step = 'b';
     return res;
   };
 
@@ -348,7 +453,7 @@
     if (!myTurn(room, pid, 'b')) return false;
     const rd = U.curRound(room), p = U.byId(room, pid), log = Engine.log(room, pid);
     ensureInPassOrder(rd, pid);
-    const done = () => { log.step = 'c'; room.turnStartTime = Date.now(); return true; };
+    const done = () => { log.step = 'c'; room.afkRescue = null; room.turnStartTime = Date.now(); return true; };
     if (!action || action.kind === 'skip') return done();
     if (Rules.isBlind(p)) { log.ability = '技能被偷襲封鎖'; return done(); }
 
@@ -400,11 +505,15 @@
     if (remaining.length > 0) {
       const actualNextId = (remaining.length === 1 && !nextId) ? remaining[0].id : nextId;
       if (!remaining.some(x => x.id === actualNextId)) return false;
+      room.afkRescue = null;
       rd.passOrder.push(actualNextId);
       log.nextPlayerId = actualNextId;
       room.currentTurnPlayerId = actualNextId;
+      // 受襲者只有在真正接到手機、成為 currentTurnPlayerId 後，才看到致盲狀態。
+      activateAmbushForTurn(room, U.byId(room, actualNextId));
       room.turnStartTime = Date.now();
     } else {
+      room.afkRescue = null;
       startDiscussion(room, rd, pid);
     }
     p.isAmbushed = false;
@@ -420,6 +529,7 @@
     room.currentSpeakerId = rd.speechOrder[0];
     room.currentTurnPlayerId = null;
     room.turnStartTime = Date.now();
+    room.afkRescue = null;
     room.status = 'discussion';
   }
 
@@ -428,19 +538,35 @@
     const rd = U.curRound(room), p = U.byId(room, pid);
     const body = pass ? '（過，先聽後面的人分析）' : String(text || '').trim();
     if (!body) return false;
-    const parsed = pass ? Claims.parse('', room) : Claims.parse(body, room);
+    const parsed = pass ? Claims.parse('', room, rd, pid) : Claims.parse(body, room, rd, pid);
     const isHuman = p ? !p.isBot : (source === 'human');
+    const normalizedSource = isHuman ? 'human' : (source === 'human' ? 'bot' : source);
     const label = isHuman ? '[真人]' : '[AI]';
     rd.speeches.push({
-      playerId: pid, speakerName: p.name, colorId: p.colorId, text: body, source: isHuman ? 'human' : source,
+      playerId: pid, speakerName: p.name, colorId: p.colorId, text: body, source: normalizedSource,
       summary: pass ? `${label} 選擇先過` : (summary || Claims.summarize(parsed, label, room, body)),
       p: parsed, 
       time: ''
     });
-    rd.speechIndex++;
-    if (rd.speechIndex >= rd.speechOrder.length) { room.status = 'voting'; room.currentSpeakerId = null; }
-    else room.currentSpeakerId = rd.speechOrder[rd.speechIndex];
+    room.afkRescue = null;
     room.turnStartTime = Date.now();
+    rd.speechIndex++;
+    if (p && !p.isBot) {
+      if (!room.humanActivityAt) room.humanActivityAt = {};
+      room.humanActivityAt[pid] = Date.now();
+    }
+    if (rd.speechIndex >= rd.speechOrder.length) {
+      room.status = 'voting'; room.currentSpeakerId = null;
+      const phaseStartedAt = Date.now();
+      if (!room.humanActivityAt) room.humanActivityAt = {};
+      (room.players || []).forEach(player => {
+        if (player && !player.isBot && rd.votes[player.id] === undefined) room.humanActivityAt[player.id] = phaseStartedAt;
+      });
+      room.turnStartTime = phaseStartedAt;
+    } else {
+      room.currentSpeakerId = rd.speechOrder[rd.speechIndex];
+      room.turnStartTime = Date.now();
+    }
     return true;
   };
 
@@ -479,8 +605,34 @@
     const maxChips = Engine.availableChips(room, pid);
     if (spend > maxChips) return false;
 
+    // Keep public statement, personal commitment, actual ballot and abstention as separate facts.
+    // This is an audit trail only: it never forces the ballot to match the speech.
+    const speech = [...(rd.speeches || [])].reverse().find(item => item && String(item.playerId) === String(pid));
+    let parsedSpeech = {};
+    try { parsedSpeech = speech ? Claims.parseRecord(speech, room, rd) : {}; } catch (_) {}
+    const commitments = Array.isArray(parsedSpeech.voteCommitments) ? parsedSpeech.voteCommitments : [];
+    const publicCalls = [...new Set([...(parsedSpeech.callBeasts || []), parsedSpeech.callBeast].filter(Boolean))];
+    const promised = commitments.filter(item => item && item.binding !== false).map(item => ({ beast: item.beast, chips: Number(item.chips) || null, text: item.text || '', binding: true, kind: item.kind || 'explicit' }));
+    const softIntents = Array.isArray(parsedSpeech.voteIntents) ? parsedSpeech.voteIntents.map(item => ({ beast: item.beast, binding: false, kind: item.kind || 'soft-intent', intensity: Number(item.intensity) || 0 })) : [];
+    const fulfilled = promised.map(item => ({
+      ...item,
+      actualChips: Number(clean[item.beast]) || 0,
+      honored: (Number(clean[item.beast]) || 0) > 0,
+      fulfilledChips: item.chips == null ? ((Number(clean[item.beast]) || 0) > 0 ? null : 0)
+        : Math.min(item.chips, Number(clean[item.beast]) || 0)
+    }));
+    if (!rd.voteAudit) rd.voteAudit = {};
+    rd.voteAudit[pid] = {
+      publicCalls, commitments: promised, softIntents, commitmentResults: fulfilled,
+      actualBallot: { ...clean }, totalSpent: spend, abstained: spend === 0,
+      abstentionReason: spend === 0 ? (parsedSpeech.abstentionReason || null) : null,
+      recordedAt: Date.now()
+    };
     rd.votes[pid] = clean;
     p.voteBank = maxChips - spend;
+    if (!room.humanActivityAt) room.humanActivityAt = {};
+    if (!p.isBot) room.humanActivityAt[pid] = Date.now();
+    if (room.afkRescue && room.afkRescue.targetId === pid) room.afkRescue = null;
 
     if (room.players.length === 8 && room.players.every(x => rd.votes[x.id] !== undefined)) {
       rd.voteResults = Rules.tally(room, rd);
@@ -492,7 +644,17 @@
   Engine.advance = function (room) {
     if (room.status !== 'voting' || !U.curRound(room).voteResults) return false;
     const idx = room.currentRoundIdx, rd = U.curRound(room);
-    if (idx >= 2) { room.status = 'person_voting'; room.turnStartTime = Date.now(); return true; }
+    room.afkRescue = null;
+    if (idx >= 2) {
+      room.status = 'person_voting';
+      const phaseStartedAt = Date.now();
+      if (!room.humanActivityAt) room.humanActivityAt = {};
+      (room.players || []).forEach(player => {
+        if (player && !player.isBot && !(room.personVotes || {})[player.id]) room.humanActivityAt[player.id] = phaseStartedAt;
+      });
+      room.turnStartTime = phaseStartedAt;
+      return true;
+    }
     const tail = rd.passOrder[rd.passOrder.length - 1] || room.players[0].id;
     const next = Engine.drawRound(room, idx + 2);
     next.passOrder = [tail];
@@ -502,15 +664,22 @@
       const curBallot = rd.votes[p.id] || {};
       const curSpent = U.sum(Object.values(curBallot).map(v => parseInt(v, 10) || 0));
       p.voteBank = Math.max(0, prevAvail - curSpent) + C.CHIPS_PER_ROUND;
-      p.isAmbushed = !!p.pendingAmbush;
-      p.activeAmbushTiming = p.pendingAmbush ? (p.pendingAmbushTiming || 'deferred') : null;
-      p.activeAmbushSourceRound = p.pendingAmbush ? (p.pendingAmbushSourceRound || idx + 1) : null;
+      // 已行動者的延遲偷襲只移入下一輪待啟動佇列；不在整輪開始時提早通知受害者。
+      p.isAmbushed = false;
+      if (p.pendingAmbush) {
+        p.pendingImmediateAmbush = true;
+        p.pendingImmediateAmbushTiming = p.pendingAmbushTiming || 'deferred';
+        p.pendingImmediateAmbushSourceRound = p.pendingAmbushSourceRound || idx + 1;
+      }
       p.pendingAmbush = false;
       p.pendingAmbushTiming = null;
       p.pendingAmbushSourceRound = null;
     });
     room.currentRoundIdx = idx + 1;
+    room.humanActivityAt = room.humanActivityAt || {};
+    room.afkRescue = null;
     room.currentTurnPlayerId = tail;
+    activateAmbushForTurn(room, U.byId(room, tail));
     room.turnStartTime = Date.now();
     room.status = 'playing';
     return true;
@@ -521,6 +690,9 @@
     const p = U.byId(room, pid);
     if (!p || !U.byId(room, targetId) || room.personVotes[pid]) return false;
     room.personVotes[pid] = targetId;
+    if (!room.humanActivityAt) room.humanActivityAt = {};
+    if (!p.isBot) room.humanActivityAt[pid] = Date.now();
+    if (room.afkRescue && room.afkRescue.targetId === pid) room.afkRescue = null;
     if (room.players.length === 8 && room.players.every(x => room.personVotes[x.id])) {
       room.gameOver = Rules.score(room);
       room.status = 'gameover';
