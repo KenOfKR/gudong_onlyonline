@@ -15,131 +15,64 @@
     gameover: '🏆 終局揭曉與對局覆盤'
   };
 
-  /* ★ 全螢幕 AFK 警告彈窗元件 */
+  /* 真人 AFK 救援提示：狀態來自 Firebase 共用房間文件，不在各瀏覽器各自接管。 */
   function ensureAFKModal() {
     let ov = document.getElementById('afkOverlay');
     if (ov) return ov;
     if (!document.body) return null;
     ov = document.createElement('div');
     ov.id = 'afkOverlay';
-    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:none;align-items:center;justify-content:center;flex-direction:column;color:white';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.86);z-index:9999;display:none;align-items:center;justify-content:center;flex-direction:column;color:white;padding:20px;text-align:center';
     ov.innerHTML = `
       <div style="font-size:2rem;margin-bottom:15px;font-weight:bold">你還在嗎？</div>
-      <div style="font-size:1.1rem;margin-bottom:25px;color:#d1d5db">由於閒置過久，即將轉交電腦接管</div>
-      <div id="afkCount" style="font-size:6rem;font-weight:900;color:#ef4444;line-height:1;margin-bottom:30px">10</div>
-      <button type="button" class="btn gold big" id="afkAliveBtn" style="padding:15px 40px;font-size:1.3rem;font-weight:bold;box-shadow:0 0 15px rgba(245,208,138,0.5)">我還在這！（延長時間）</button>
-    `;
+      <div id="afkMessage" style="font-size:1.1rem;margin-bottom:25px;color:#d1d5db">其他真人正在確認你是否仍在線</div>
+      <div id="afkCount" style="font-size:6rem;font-weight:900;color:#fbbf24;line-height:1;margin-bottom:30px">10</div>
+      <button type="button" class="btn gold big" id="afkAliveBtn" style="padding:15px 40px;font-size:1.3rem;font-weight:bold">我還在，回到遊戲</button>`;
     document.body.appendChild(ov);
     ov.querySelector('#afkAliveBtn').addEventListener('click', e => {
       e.stopPropagation();
-      ov.style.display = 'none';
-      localTurnFallbackTime = Date.now();
-      GD.Net.act(r => { r.turnStartTime = Date.now(); return true; });
+      const room = Net.room(), rescue = room && room.afkRescue;
+      if (!rescue || rescue.targetId !== Net.myId) return;
+      Net.act(r => Engine.markHumanActive && Engine.markHumanActive(r, Net.myId));
     });
     return ov;
   }
 
   let afkInterval = null;
-  let isProcessingAFK = false;
-  let lastActionKey = '';
-  let localTurnFallbackTime = Date.now();
-
-  function getAFKTargets(room) {
-    if (!room || room.status === 'waiting' || room.status === 'gameover') return [];
-    let raw = [];
-    if (room.status === 'playing') raw = [room.currentTurnPlayerId];
-    else if (room.status === 'discussion') raw = [room.currentSpeakerId];
-    else if (room.status === 'voting') {
-      const rd = room.rounds[room.currentRoundIdx];
-      if (rd && !rd.voteResults) {
-        raw = room.players.filter(p => !p.isBot && rd.votes[p.id] === undefined).map(p => p.id);
-      }
-    } else if (room.status === 'person_voting') {
-      raw = room.players.filter(p => !p.isBot && !room.personVotes[p.id]).map(p => p.id);
-    }
-    return raw.filter(id => { const p = U.byId(room, id); return p && !p.isBot; });
-  }
-
   function checkAFK() {
     const room = Net.room();
     const ov = ensureAFKModal();
-    if (!room || room.status === 'waiting' || room.status === 'gameover') {
+    const rescue = room && room.afkRescue;
+    if (!rescue || !room || ['waiting', 'gameover'].includes(room.status)) {
+      if (ov) ov.style.display = 'none';
+      document.querySelectorAll('.afk-rescue-panel').forEach(el => el.remove());
+      return;
+    }
+    const target = U.byId(room, rescue.targetId);
+    const me = UI.me();
+    if (!target || target.isBot) {
       if (ov) ov.style.display = 'none';
       return;
     }
-
-    const targets = getAFKTargets(room);
-    const rd = room.rounds[room.currentRoundIdx];
-    const curLogStep = (room.status === 'playing' && rd && rd.turnLogs[room.currentTurnPlayerId])
-      ? rd.turnLogs[room.currentTurnPlayerId].step : '';
-    const actionKey = `${room.gameId}|${room.currentRoundIdx}|${room.status}|${curLogStep}|${targets.join(',')}`;
-    if (actionKey !== lastActionKey) {
-      lastActionKey = actionKey;
-      localTurnFallbackTime = Date.now();
-    }
-
-    if (!targets.length) {
-      if (ov) ov.style.display = 'none';
-      document.querySelectorAll('.afk-badge').forEach(el => el.remove());
-      return;
-    }
-
-    const startT = room.turnStartTime || localTurnFallbackTime;
-    const elapsed = Math.max(0, Date.now() - startT);
-    const remaining = 130 - Math.floor(elapsed / 1000); 
-
-    if (targets.includes(Net.myId) && remaining <= 10 && remaining >= 0) {
+    const remain = Math.max(0, Math.ceil((Number(rescue.deadlineAt) - Date.now()) / 1000));
+    if (me && me.id === target.id) {
       if (ov) {
         ov.style.display = 'flex';
-        const cntEl = document.getElementById('afkCount');
-        if (cntEl) cntEl.textContent = Math.max(0, remaining);
+        const count = ov.querySelector('#afkCount');
+        const message = ov.querySelector('#afkMessage');
+        if (count) count.textContent = String(remain);
+        if (message) message.textContent = rescue.phase === 'confirmed'
+          ? '有人幫你按了「他還在」，你有額外 10 秒回到操作畫面。'
+          : '你可能正在說話或沒看螢幕；其他真人可以幫你確認。';
       }
-    } else if (ov) {
-      ov.style.display = 'none';
-    }
+    } else if (ov) ov.style.display = 'none';
 
-    targets.forEach(id => {
-      const seat = document.querySelector(`.seat[data-arg="${id}"]`);
-      if (seat) {
-        let badge = seat.querySelector('.afk-badge');
-        if (remaining <= 10 && remaining >= 0) {
-          const txt = `⏳ 讀秒 ${Math.max(0, remaining)}s`;
-          if (!badge) {
-            seat.insertAdjacentHTML('beforeend', `<div class="afk-badge" style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);background:#b91c1c;color:#fff;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:900;z-index:35;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,0.6);border:1.5px solid #fde68a">${txt}</div>`);
-          } else {
-            badge.textContent = txt;
-          }
-        } else if (badge) {
-          badge.remove();
-        }
-      }
-    });
-
-    document.querySelectorAll('.afk-badge').forEach(el => {
-      const seat = el.closest('.seat');
-      const pid = seat && seat.dataset.arg;
-      if (!targets.includes(pid) || remaining < 0 || remaining > 10) el.remove();
-    });
-
-    if (remaining < 0 && targets.length > 0 && !isProcessingAFK) {
-      isProcessingAFK = true;
-      if (ov) ov.style.display = 'none';
-      Net.act(r => {
-        const nowTargets = getAFKTargets(r);
-        let changed = false;
-        nowTargets.forEach(id => {
-          if (Engine.replaceWithBot(r, id)) changed = true;
-        });
-        if (changed) r.turnStartTime = Date.now();
-        return changed;
-      }).then(ok => {
-        if (ok && GD.Driver) {
-          GD.Driver.reset();
-          GD.Driver.schedule();
-        }
-      }).finally(() => {
-        setTimeout(() => { isProcessingAFK = false; }, 1500);
-      });
+    const panel = document.querySelector(`.seat[data-arg="${target.id}"] .afk-rescue-panel`);
+    if (panel) {
+      const count = panel.querySelector('[data-afk-count]');
+      const text = panel.querySelector('[data-afk-state]');
+      if (count) count.textContent = String(remain);
+      if (text) text.textContent = rescue.phase === 'confirmed' ? '已有人確認，等待本人回來' : '他還在嗎？';
     }
   }
 
@@ -302,6 +235,7 @@
 
     renderIntel(room, me);
     renderOval(room, me, rd);
+    checkAFK(); // Firebase room updates should refresh the target overlay immediately.
     renderColors(room, me);
     renderChains(room, me);
     renderVotes(room);
@@ -402,6 +336,10 @@
     }
 
     let seats = '';
+    const afkRescue = room.afkRescue || null;
+    const afkTarget = afkRescue && U.byId(room, afkRescue.targetId);
+    const canHelpAfk = !!(afkRescue && afkRescue.phase === 'waiting' && me && room.players.some(player => player && player.id === me.id && !player.isBot) && me.id !== afkRescue.targetId);
+    const hasOtherHumanForAfk = !!(afkRescue && room.players.some(player => player && !player.isBot && player.id !== afkRescue.targetId));
     for (let i = 0; i < 8; i++) {
       const p = players[i], rel = (i - mySeat + 8) % 8, ang = (90 + rel * 45) * Math.PI / 180;
       const left = 50 + 45 * Math.cos(ang), top = 50 + 43 * Math.sin(ang);
@@ -433,14 +371,26 @@
         ? `<button type="button" class="btn red gd-kick-btn" data-kick-id="${p.id}" title="${room.status === 'waiting' ? '踢除此座位玩家' : '將離線玩家轉交電腦接管'}" style="position:absolute;top:-10px;right:-10px;width:22px;height:22px;padding:0;line-height:20px;text-align:center;border-radius:50%;z-index:30;font-size:11px;font-weight:900;box-shadow:0 2px 5px rgba(0,0,0,0.45);cursor:pointer">✕</button>`
         : '';
 
-      seats += `<div class="seat ${acting ? 'act' : ''}" style="left:${left}%;top:${top}%;${winnerSeatHalo}" data-act="seat" data-arg="${p.id}" title="點擊插入：${U.esc(U.tag(p))}">
+      const afkPanel = afkRescue && afkTarget && afkTarget.id === p.id
+        ? `<div class="afk-rescue-panel" style="position:absolute;left:50%;top:-58px;transform:translateX(-50%);width:max-content;max-width:190px;background:#7f1d1d;color:#fff;border:2px solid #fbbf24;border-radius:10px;padding:5px 8px;z-index:45;box-shadow:0 3px 12px rgba(0,0,0,.55);text-align:center;cursor:default" data-stop-seat="1"><div style="font-size:11px;font-weight:900;white-space:nowrap"><span data-afk-state>${afkRescue.phase === 'confirmed' ? '已有人確認，等本人回來' : '他還在嗎？'}</span> <b data-afk-count>${Math.max(0, Math.ceil((Number(afkRescue.deadlineAt) - Date.now()) / 1000))}</b>s</div>${canHelpAfk ? '<button type="button" class="btn gold" data-act="afk-rescue" data-arg="' + p.id + '" style="margin-top:4px;padding:3px 10px;font-size:11px;white-space:nowrap">他還在</button>' : '<div style="font-size:9px;margin-top:2px">' + (hasOtherHumanForAfk ? '等待其他真人協助' : '目前沒有其他真人，請本人點選下方確認') + '</div>'}</div>`
+        : '';
+
+      seats += `<div class="seat ${acting ? 'act' : ''}" style="left:${left}%;top:${top}%;z-index:${afkTarget && afkTarget.id === p.id ? 60 : 2};${winnerSeatHalo}" data-act="seat" data-arg="${p.id}" title="點擊插入：${U.esc(U.tag(p))}">
         ${kickBtn}
+        ${afkPanel}
         ${tail ? '<span class="mark tail">尾家</span>' : first ? '<span class="mark">⭐首家</span>' : ''}
         <div class="chip" style="background:${c.hex};color:${c.text};${winnerChipGlow}"><small>${c.short}${isMe ? '（我）' : ''}${p.isBot ? '' : ' 👤'}</small><span>${U.esc(p.name)}</span>${done ? '<div class="done">✓</div>' : ''}</div>
         ${showRole ? `<span class="role" style="${winnerRoleStyle}">${p.role}</span>` : ''}</div>`;
     }
     UI.html('oval', `<div class="felt"><div class="st"><span>${U.esc(status)}</span><span class="red">${U.esc(tip)}</span></div>${centerContentHtml}</div>${seats}`);
   }
+
+  UI.on('afk-rescue', targetId => {
+    const room = Net.room(), rescue = room && room.afkRescue;
+    if (!room || !rescue || rescue.targetId !== targetId || rescue.phase !== 'waiting') return;
+    Net.act(r => Engine.confirmAfkRescue && Engine.confirmAfkRescue(r, Net.myId, targetId, rescue.actionKey))
+      .then(ok => { if (ok) UI.toast('已替隊友確認在線，延長 10 秒'); });
+  });
 
   UI.on('inspect', name => {
     const room = Net.room(), me = UI.me();
