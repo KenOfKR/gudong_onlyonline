@@ -1,0 +1,9 @@
+
+=== 執行 A/A 重現性與亂數隔離校驗 (5 組種子) ===
+A/A AA_SEED_0: identical｜elapsed 6253 ms
+A/A AA_SEED_1: identical｜elapsed 11665 ms
+A/A AA_SEED_2: identical｜elapsed 16153 ms
+A/A AA_SEED_3: identical｜elapsed 20718 ms
+A/A AA_SEED_4: identical｜elapsed 25427 ms
+✓ A/A 重現性與亂數流隔離校驗：5 組種子全數一致｜耗時 25427 ms｜失敗項 0
+✓ 快取落盤校驗：路徑 /tmp/gudong-sim-store-6272.json｜55 bytes｜序列化 0.00 ms｜寫入 1.18 ms｜讀回驗證 0.08 ms

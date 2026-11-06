@@ -1,0 +1,58 @@
+古董局中局 v10.8.11 測試報告
+測試日期：2026-11-04
+基底：v10.8.10 完整專案
+
+一、JavaScript 語法
+- 檢查範圍：js/ 與 tests/ 下全部 JavaScript 檔案
+- 檢查數量：77
+- node --check 失敗：0
+
+二、回歸測試
+- 通過：15 組
+- 失敗：0 組
+
+本次新增測試：
+1. v10-8-11-ambush-privacy-regression.js
+   - 未行動目標：偷襲選定當下不揭露，直到目標真正輪到才致盲。
+   - 方震遭偷襲連帶許願：兩者按各自傳牌時點啟動，不互相提前洩漏。
+   - 已行動目標：延至下一輪自己真正輪到時才生效。
+   - 同時確認預先建立的 turn log 會補齊 blind、blindTiming、blindSourceRound。
+2. v10-8-11-fang-strategy-regression.js
+   - 方震第六位控尾：已直接查驗好人優先保留第八位，未確認者第七位。
+   - 第三輪具多筆陣營查驗且身分被爭議時，真方震可依真實紀錄揭露身分。
+   - 真方震不會選擇需要兩尊獸首查驗能力的許願作假身分。
+   - 假扮黃煙煙的公開能力表演須有一輪「無法辨別真偽」，且該輪不報獸首真偽。
+3. v10-8-11-source-provenance-regression.js
+   - AI 玩家不會被呼叫端誤標成 human；真人仍保留 human 來源。
+
+既有回歸測試：
+- v10-8-10-timeline-consensus-regression.js
+- v10-8-9-observation-firewall-regression.js
+- v10-8-8-voting-coalition-regression.js
+- abstain-policy-smoke.js
+- v10-8-6-content-driven-speech-smoke.js
+- conversation-continuity-smoke.js
+- player-reasoning-regression-smoke.js
+- v10-8-strategic-info-smoke.js
+- public-speech-attribution-smoke.js
+- tactics-smoke.js
+- ui-smoke.js
+- fang-round3-targeted-v3.js
+
+三、UI 冒煙測試
+- UI 渲染：67 次
+- UI 渲染失敗：0
+- 終局覆盤：8 份
+- 發言摘要區、R1/R2/R3 票型頁籤及大廳清單均正常。
+
+四、規則／相容性保留檢查
+- 傳牌尾家決定公開發言起點：保留且既有測試通過。
+- 公開主張與實際票單可以分離：保留。
+- 合法棄票：保留且棄票測試通過。
+- 壞人角色偽裝、策略性分票：保留且戰術回歸測試通過。
+- 本次未修改角色技能效果、獸首真偽、籌碼數、排名結算及勝利門檻。
+
+五、尚未完成的驗證
+- 尚未完成 25／100 種子的大樣本勝率測試。
+- 本報告證明本次修正符合定向場景與既有回歸，不代表整體勝率已統計證明提升。
+- 建議部署後再以多人線上房間驗證 Firestore 同步、重連及多裝置畫面一致性。

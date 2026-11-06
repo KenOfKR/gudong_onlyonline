@@ -1,0 +1,31 @@
+古董局中局 v10.8.12 完整版安裝說明
+
+1. 先備份目前 GitHub Pages 專案與本機專案資料夾。
+2. 解壓 gudong_v10_8_12_full.zip。
+3. 以完整專案資料夾作為新版本；確認 index.html、css/、js/、assets/、tests/ 位於同一專案根目錄，不要只覆蓋單一 JS 檔。
+4. 沿用既有 Firebase／Cloudflare Worker 設定；本版沒有要求更換金鑰或服務位址。
+5. 本機測試：在專案根目錄執行 `node local-server.cjs`，開啟 `http://127.0.0.1:8000`。
+6. 確認首頁及 `js/config.js` 版本均顯示 10.8.12。
+7. 部署 GitHub Pages 後，使用兩個以上真人帳號加入同一線上房間，實測真人閒置 2 分鐘後的 10 秒協助確認、其他真人按「他還在」、當事人自行返回、無人確認後 BOT 接手，以及重連後狀態同步。
+
+主要變更：
+- 口語／顏色簡稱／多獸首／數量型陣營假設解析與矛盾標記。
+- 證據來源拆分、早期共識稽核、方震陣營與獸首證據分離、老朝奉專屬後驗。
+- 生肖同票規則、已投票更新、公開承諾與實際票單分離。
+- 全角色能力矩陣、許願雙來源假扮要求、跨輪角色承諾一致性。
+- Gemini 超時熔斷與因果式學習紀錄。
+- 真人逾時協助確認：維持原 120 秒閒置門檻，進入 10 秒共同警告；其他真人可協助延長一次 10 秒，當事人亦可自行返回。
+
+測試指令：
+- `node tests/claims-natural-language-regression.js`
+- `node tests/room-0947-natural-language-regression.js`
+- `node tests/human-afk-rescue-regression.js`
+- `node tests/v10-8-12-public-evidence-regression.js`
+- `node tests/v10-8-12-position-validation-regression.js`
+- `node tests/v10-8-12-xu-roleplay-regression.js`
+- `node tests/v10-8-12-forecast-tie-regression.js`
+- `node tests/v10-8-12-role-capability-regression.js`
+- `node tests/v10-8-12-causal-learning-regression.js`
+- `node tests/sim.js 5 --aa`
+
+完整項目請參照 `TEST-REPORT_v10.8.12.txt`。正式 Firebase 多裝置同步仍需線上房間驗收；本版尚未完成 25／100 種子勝率評估。

@@ -1,0 +1,250 @@
+===== abstain-policy-smoke.js =====
+棄票策略測試通過：零票候選、非 anchor 票型、好人棄票與壞人公開表演棄票皆正確。
+
+PASS abstain-policy-smoke.js attempt=1
+
+===== claims-natural-language-regression.js =====
+Claims natural-language regression PASS: abbreviated roles, color-only stances, paired beasts, skill self-report, count constraints, contradictions, vote promises, and separate pass/speech positions.
+
+PASS claims-natural-language-regression.js attempt=1
+
+===== conversation-continuity-smoke.js =====
+v10.8.3 延續性測試通過：歷史角色轉述、明確指控、否定句與過期 metadata
+
+PASS conversation-continuity-smoke.js attempt=1
+
+===== gemini-fallback-smoke.js =====
+Gemini fallback 測試通過：429 逐模型切換、完整上下文、冷卻、單次總等待上限與實際延遲紀錄均正確。
+
+PASS gemini-fallback-smoke.js attempt=1
+
+===== human-afk-rescue-regression.js =====
+Human AFK rescue regression PASS: shared timeout, human-only helper, single extension, self-return, stale-token safety, per-player phase clocks, rescue preservation, and legal abstention audit.
+
+PASS human-afk-rescue-regression.js attempt=1
+
+===== human-attention-regression.js =====
+真人發言注意力回歸通過：R2 雙人指控＋歷史票型、Mind 弱證據整合、BOT 不得遮蔽未回應真人、R3 角色比較／陣營技能事實／票向禁投與最終備援台詞。
+
+PASS human-attention-regression.js attempt=1
+
+===== human-claim-role-flip-regression.js =====
+真人指控／角色歸屬／許願反轉時序回歸通過。
+
+PASS human-claim-roSUMMARY pass=42 fail=0 total=42 retried_pass=0
+Log: TEST-RUN_v10.8.14.log
+mind.js 公式級 smoke tests 全部通過
+  1. 真人／Bot source 標籤不再造成硬編碼指控權重差異
+  2. 具體矛盾證據在高多疑度下獲得更高嫌疑權重
+  3. 沒有證據變化時，後驗基礎信任不因 skepticism 單獨改變
+
+PASS mind_gene_patch_smoke.js attempt=1
+
+===== player-reasoning-regression-smoke.js =====
+v10.8.3 玩家推理回歸通過：以實際對局姓名與傳牌順序驗證雙人候選、歷史查驗反轉、公開提示延續及終局排名／指認一致。
+
+PASS player-reasoning-regression-smoke.js attempt=1
+
+===== public-speech-attribution-smoke.js =====
+公開發言解析測試通過：原有歸屬／引用回歸，加上複數嫌疑集合、歷史查驗回報與否定歸屬保護。
+
+PASS public-speech-attribution-smoke.js attempt=1
+
+===== room-0947-natural-language-regression.js =====
+Room 0947 language regression PASS: role/color shorthand, paired beast claims, unresolved 3-computer count group, self-contradiction, vote promise, and two-person candidate set.
+
+PASS room-0947-natural-language-regression.js attempt=1
+
+===== tactics-smoke-random-diagnostic.js =====
+戰術引擎冒煙測試通過：1068 條台詞｜49 類｜歷史歸因/原話摘要/多票與角色偽裝全數通過
+
+PASS tactics-smoke-random-diagnostic.js attempt=1
+
+===== tactics-smoke.js =====
+[MULTI-ORDER] A: one interjecting bot: PASS order=隻貓
+[MULTI-ORDER] B: two interjecting bots: PASS order=凡凡 -> 老吳
+[MULTI-ORDER] C: three interjecting bots: PASS order=柏仰 -> 順欸 -> Abby
+[MULTI-ORDER] All 3 multiplayer order scenarios passed.
+戰術引擎冒煙測試通過：1068 條台詞｜49 類｜歷史歸因/原話摘要/多票與角色偽裝全數通過
+
+PASS tactics-smoke.js attempt=1
+
+===== test_bg_takeover.js =====
+=== 模擬 8 真人連線與 Net 大廳背景接管測試 ===
+[開局] 玩家總數：8 ｜ 真人：8
+[動作] 模擬其他無關玩家開啟大廳，觸發 Net.lobby() 背景清理與接管...
+[接管後] 新主機：p_mw4d84ar_4s3y ｜ 玩家總數：8 ｜ 真人：8 ｜ 旁觀者：0
+✓ 測試通過：背景接管僅轉移主機權，並未將真人踢為電腦！
+
+PASS test_bg_takeover.js attempt=1
+
+===== test_net_failover.js =====
+=== 模擬主機異常斷線與長時間背景接管測試 ===
+[0 秒] 開局完成。主機: human_1 ｜ 真人數: 8
+
+[30 秒] 主機異常斷線，完全沒有發送 hostBeat...
+[30 秒] 其他玩家刷新大廳，觸發 Net.lobby()...
+[接管成功] 新主機: p_mw4d84c5_47yz ｜ 玩家總數: 8 ｜ 真人數: 8 ｜ 旁觀者: 0
+
+[60 秒] 新主機接管後繼續運行 30 秒，期間多次觸發大廳刷新...
+[60 秒狀態] 當前主機: p_mw4d84c5_47yz ｜ 真人數: 8 ｜ 旁觀者: 0
+
+✓ 測試通過：主機斷線移交與長時間心跳判定皆穩定，無真人被誤踢！
+
+PASS test_net_failover.js attempt=1
+
+===== test_net_race.js =====
+=== 模擬真實 Firebase 並行接管與延遲快照防禦 ===
+
+[初始狀態] 遠端 DB 主機: human_A (rev: 1)
+
+[並行競爭] B 發起 Transaction，但在寫入瞬間，C 搶先完成了接管 (注入衝突)...
+  -> ⚡ [中斷] C 搶在 B 寫入前完成了交易，DB rev 變為 2！
+  -> B 發現房間已不處於超時狀態 (當前主機: human_C)，放棄接管。
+  -> B 的 Net.act 結果: false
+  -> 遠端 DB 目前主機: human_C (rev: 2)
+
+[延遲心跳] 舊主機 A 送出過期的 update (繞過 Transaction)...
+  -> A 傳送更新後，本地認知的主機: human_C (rev: 2)
+  -> ✓ 系統成功攔截無 rev 遞增的主機篡改。
+
+[最終驗證] 真人數: 8 ｜ 旁觀者: 0
+
+✓ 測試通過：Transaction 重試、延遲心跳防禦與真人座位保護皆符合預期！
+[net] 遠端交易重試 (1/8)： [MockDB] Transaction conflict: Document modified (Expected rev 1, got 2)
+
+PASS test_net_race.js attempt=1
+
+===== ui-smoke.js =====
+古董局中局 v10.8.14 已啟動
+UI 冒煙測試：渲染 66 次｜失敗 0｜終局面板 86341 字元｜覆盤 8 份
+發言區含摘要： true ｜票型頁籤含 R1/R2/R3： true ｜大廳清單： 1 間
+
+PASS ui-smoke.js attempt=1
+
+===== v10-8-10-timeline-consensus-regression.js =====
+PASS v10.8.10 timeline/consensus regression
+
+PASS v10-8-10-timeline-consensus-regression.js attempt=1
+
+===== v10-8-11-ambush-privacy-regression.js =====
+PASS v10.8.11 ambush privacy/timing regression (3 scenarios)
+
+PASS v10-8-11-ambush-privacy-regression.js attempt=1
+
+===== v10-8-11-fang-strategy-regression.js =====
+PASS v10.8.11 Fang/role-performance regression (4 scenarios)
+
+PASS v10-8-11-fang-strategy-regression.js attempt=1
+
+===== v10-8-11-source-provenance-regression.js =====
+PASS v10.8.11 speech source provenance regression
+
+PASS v10-8-11-source-provenance-regression.js attempt=1
+
+===== v10-8-12-causal-learning-regression.js =====
+Causal learning regression PASS: speech/claim attribution, promise-vs-ballot gap, forecast, evidence, ranking outcome, and final target provenance.
+
+PASS v10-8-12-causal-learning-regression.js attempt=1
+
+===== v10-8-12-forecast-tie-regression.js =====
+Forecast/tie regression PASS: exact zodiac tie-break, 0947 8/7/7 case, observed ballot refresh, and speech/ballot independence.
+
+PASS v10-8-12-forecast-tie-regression.js attempt=1
+
+===== v10-8-12-position-validation-regression.js =====
+Position validation regression PASS: passOrder and speechOrder are independently validated and incorrect AI claims are rejected.
+
+PASS v10-8-12-position-validation-regression.js attempt=1
+
+===== v10-8-12-public-evidence-regression.js =====
+Public evidence regression PASS: early 2-speaker source audit, independent checks retained, same-speech contradiction downweighted, count hypothesis carried into Mind, and P(Evil)/P(Lao) kept distinct.
+
+PASS v10-8-12-public-evidence-regression.js attempt=1
+
+===== v10-8-12-role-capability-regression.js =====
+Role capability regression PASS: all eight role profiles, inspect quotas, Fang/Xu incompatibility, and remaining disguise pool.
+
+PASS v10-8-12-role-capability-regression.js attempt=1
+
+===== v10-8-12-xu-roleplay-regression.js =====
+Fake Xu roleplay regression PASS: every non-Xu fake Xu has two distinct source beasts while one result may remain withheld.
+
+PASS v10-8-12-xu-roleplay-regression.js attempt=1
+
+===== v10-8-13-claim-context-regression.js =====
+Public claim context regression PASS: quoted and aggregate mentions do not become self-inspection claims.
+
+PASS v10-8-13-claim-context-regression.js attempt=1
+
+===== v10-8-13-team-role-bluff-regression.js =====
+Team role bluff regression PASS: public-only coordination, nonzero remaining bluff opportunity, no suppression without a teammate claim.
+
+PASS v10-8-13-team-role-bluff-regression.js attempt=1
+
+===== v10-8-13-yao-ambush-pass-regression.js =====
+Yao ambush pass regression PASS: candidate comparison, Lao skill/adjacency tradeoff, direct-pass legality, estimate caveat, public/private information boundary and deterministic output.
+
+PASS v10-8-13-yao-ambush-pass-regression.js attempt=1
+
+===== v10-8-3-reasoning-smoke.js =====
+v10.8.3 推理回歸通過：查驗反轉、引用歸屬、弱候選、口頭承諾投票、合法棄票、歷史 totals 缺漏與方震陣營查驗／老朝奉身分分離。
+
+PASS v10-8-3-reasoning-smoke.js attempt=1
+
+===== v10-8-5-speed-speech-smoke.js =====
+v10.8.6 內容導向發言測試通過：0–3 名證據式候選、未收斂時保留待觀察、長發言不因字數被拒、左上角數量徽章移除且 1,068 條策略資料保留。
+
+PASS v10-8-5-speed-speech-smoke.js attempt=1
+
+===== v10-8-6-content-driven-speech-smoke.js =====
+v10.8.6 內容導向發言測試通過：0–3 名證據式候選、未收斂時保留待觀察、長發言不因字數被拒、左上角數量徽章移除且 1,068 條策略資料保留。
+
+PASS v10-8-6-content-driven-speech-smoke.js attempt=1
+
+===== v10-8-8-voting-coalition-regression.js =====
+v10.8.9 voting/coalition regression passed: pass-tail order, observation firewall, deferred ambush window, motivated good-role bluff, filler guard.
+
+PASS v10-8-8-voting-coalition-regression.js attempt=1
+
+===== v10-8-9-observation-firewall-regression.js =====
+v10.8.9 observation firewall / Bayesian joint-world / camp certainty / coalition forecast regression passed.
+
+PASS v10-8-9-observation-firewall-regression.js attempt=1
+
+===== v10-8-public-roleplay-smoke.js =====
+v10.8.3 公開表演與贗品目標一致性測試通過：認壞選贗品、跳壞票向契約、好人偽裝池與內心台詞分層；1,068 條台詞／49 類保持不變
+
+PASS v10-8-public-roleplay-smoke.js attempt=1
+
+===== v10-8-strategic-info-smoke.js =====
+v10.8.6 回歸測試通過：尾家左側發言、來源中立、資訊能力與陣營分離、左上角台詞數徽章移除、1,068 條台詞資料仍保留
+
+PASS v10-8-strategic-info-smoke.js attempt=1
+
+===== vote-policy-smoke.js =====
+投票策略測試通過：人格化上限、零票候選、非 anchor 分配、籌碼帳目及末輪投入皆正確。
+
+PASS vote-policy-smoke.js attempt=1
+
+===== v10-8-14-dialogue-claims-regression.js =====
+PASS v10.8.14 dialogue/claims regression: repeated soft vote intent, tentative vs explicit promise, dialogue simplification, and independent source classification.
+
+PASS v10-8-14-dialogue-claims-regression.js attempt=1
+
+===== v10-8-14-role-inference-regression.js =====
+PASS v10.8.14 role inference regression: separate pZheng/pEvil/pLao, public handshake, partner mark, and private-mind firewall.
+
+PASS v10-8-14-role-inference-regression.js attempt=1
+
+===== v10-8-14-role-persistence-regression.js =====
+PASS v10.8.14 role persistence regression: preceding-round continuation, same-round boundary, explicit switch, and unexplained-switch protection.
+
+PASS v10-8-14-role-persistence-regression.js attempt=1
+
+===== v10-8-14-score-desperation-regression.js =====
+PASS v10.8.14 score/desperation regression: Lao last-round trigger, pZheng shield, and explicitly heuristic win-probability calibration.
+
+PASS v10-8-14-score-desperation-regression.js attempt=1
+
+SUMMARY pass=42 fail=0 total=42 retried_pass=0
