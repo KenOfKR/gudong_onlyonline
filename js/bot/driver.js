@@ -6,13 +6,11 @@
   const { U, Engine, Mind, Strategy, Speech, Gemini } = GD;
   const D = GD.CONFIG.BOT_DELAY_MS;
   const AFK_LIMIT_MS = 120000;    // 真人超時 2 分鐘未動開始進入警告
-  const WARNING_BUFFER_MS = 10000; // 扎扎實實的 10 秒倒數緩衝
 
   let timer = null;
   let pendingTaskKey = null;
   const inflight = new Set();
   const attempts = new Map();
-  const afkWarningMap = new Map();
 
   const Driver = { thinking: null };
 
@@ -48,54 +46,24 @@
     return true;
   }
 
-  /** ★ 採用絕對時間戳記計算，不受瀏覽器分頁休眠影響的 10 秒扎實倒數 */
-  function findAfkHuman(room) {
-    if (!room || !Engine.replaceWithBot) return null;
+  /** AFK 狀態存在共用房間文件；只有 Driver 主機負責啟動／完成狀態轉移。 */
+  function findAfkTask(room) {
+    if (!room || !Engine.afkContext) return null;
+    const ctx = Engine.afkContext(room);
+    if (!ctx) return null;
     const now = Date.now();
-    const elapsed = now - (room.turnStartTime || room.updatedAt || now);
-    
-    let targetId = null;
-    if (room.status === 'playing') {
-      const p = U.byId(room, room.currentTurnPlayerId);
-      if (p && !p.isBot) targetId = p.id;
-    } else if (room.status === 'discussion') {
-      const p = U.byId(room, room.currentSpeakerId);
-      if (p && !p.isBot) targetId = p.id;
-    } else if (room.status === 'voting') {
-      const rd = U.curRound(room);
-      if (rd && !rd.voteResults) {
-        const p = room.players.find(x => !x.isBot && rd.votes[x.id] === undefined);
-        if (p) targetId = p.id;
+    const rescue = room.afkRescue;
+    if (!rescue || rescue.actionKey !== ctx.actionKey || rescue.targetId !== ctx.targetId) {
+      if (now - ctx.startedAt >= AFK_LIMIT_MS) {
+        return { type: 'afk-start', targetId: ctx.targetId, actionKey: ctx.actionKey,
+          key: [room.gameId, 'afk-start', ctx.actionKey].join('|'), delay: 100 };
       }
-    } else if (room.status === 'person_voting') {
-      const p = room.players.find(x => !x.isBot && !room.personVotes[x.id]);
-      if (p) targetId = p.id;
-    }
-
-    if (!targetId) {
-      afkWarningMap.clear();
       return null;
     }
-
-    // 若尚未滿 2 分鐘，清除倒數紀錄
-    if (elapsed < AFK_LIMIT_MS) {
-      afkWarningMap.delete(targetId);
-      return null;
+    if (now >= Number(rescue.deadlineAt || Infinity)) {
+      return { type: 'afk', targetId: ctx.targetId, actionKey: ctx.actionKey,
+        key: [room.gameId, 'afk-takeover', ctx.actionKey, rescue.deadlineAt].join('|'), delay: 100 };
     }
-
-    // 剛滿 2 分鐘：以絕對時間戳記種下 10 秒倒數起點
-    if (!afkWarningMap.has(targetId)) {
-      afkWarningMap.set(targetId, now);
-      return null;
-    }
-
-    // 檢查絕對時間是否真的滿了 10 秒（10000 毫秒）
-    const warningStart = afkWarningMap.get(targetId);
-    if (now - warningStart >= WARNING_BUFFER_MS) {
-      afkWarningMap.delete(targetId);
-      return U.byId(room, targetId);
-    }
-
     return null;
   }
 
@@ -104,10 +72,8 @@
     const key = (...a) => [room.gameId, room.currentRoundIdx, room.status, ...a].join('|');
     const bot = id => { const p = U.byId(room, id); return p && p.isBot ? p : null; };
 
-    const afkHuman = findAfkHuman(room);
-    if (afkHuman) {
-      return { type: 'afk', targetId: afkHuman.id, key: key('afk', afkHuman.id, room.turnStartTime || 0), delay: 100 };
-    }
+    const afkTask = findAfkTask(room);
+    if (afkTask) return afkTask;
 
     switch (room.status) {
       case 'playing': { const b = bot(room.currentTurnPlayerId); return b && { type: 'turn', bot: b, key: key(b.id, U.curRound(room).passOrder.length), delay: D.turn }; }
@@ -168,7 +134,8 @@
           models: Array.isArray(Gemini.state.lastAttemptModels) ? Gemini.state.lastAttemptModels.slice() : [],
           usedModel: Gemini.state.lastModel || null
         };
-        const cleaned = raw && Gemini.clean(raw);
+        const rawCleaned = raw && Gemini.clean(raw);
+        const cleaned = rawCleaned && Speech.simplifyDialogue ? Speech.simplifyDialogue(rawCleaned) : rawCleaned;
         const v = cleaned ? Speech.validate(cleaned, bot, snap, plan, A) : { ok: false, why: Gemini.state.lastError || '無回應' };
         if (v.ok) { text = cleaned; source = 'gemini'; } else gemFail = v.why;
       }
@@ -264,7 +231,8 @@
     let ok = false;
     try {
       switch (task.type) {
-        case 'afk':     ok = await GD.Net.act(r => Engine.replaceWithBot && Engine.replaceWithBot(r, task.targetId)); break;
+        case 'afk-start': ok = await GD.Net.act(r => Engine.beginAfkRescue && Engine.beginAfkRescue(r, task.targetId, task.actionKey)); break;
+        case 'afk':     ok = await GD.Net.act(r => Engine.finishAfkTakeover && Engine.finishAfkTakeover(r, task.targetId, task.actionKey)); break;
         case 'turn':   ok = await GD.Net.act(r => doTurn(r, task.bot.id)); break;
         case 'speech': ok = await doSpeech(task.bot.id); break;
         case 'vote':   ok = await GD.Net.act(doVotes); break;
@@ -294,7 +262,7 @@
 
   Driver.schedule = schedule;
   Driver.isDriver = isDriver;
-  Driver.reset = () => { clearTimeout(timer); pendingTaskKey = null; inflight.clear(); attempts.clear(); afkWarningMap.clear(); };
+  Driver.reset = () => { clearTimeout(timer); pendingTaskKey = null; inflight.clear(); attempts.clear(); };
 
   GD.bus.on('room', schedule);
   setInterval(schedule, 1000);

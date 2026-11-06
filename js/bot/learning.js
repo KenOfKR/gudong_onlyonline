@@ -66,6 +66,62 @@
     return facts;
   }
 
+  function buildCausalLessons(room, bot) {
+    const lessons = [];
+    (room.rounds || []).forEach((rd, index) => {
+      if (!rd) return;
+      const speech = (rd.speeches || []).find(item => item && item.playerId === bot.id) || null;
+      let parsed = {};
+      try { parsed = speech && GD.Claims ? GD.Claims.parseRecord(speech, room, rd) : {}; } catch (_) {}
+      const audit = rd.voteAudit && rd.voteAudit[bot.id] || null;
+      const ballot = { ...((rd.votes && rd.votes[bot.id]) || {}) };
+      const result = rd.voteResults || null;
+      const ranked = result ? [result.rank1, result.rank2].filter(Boolean) : [];
+      lessons.push({
+        round: index + 1,
+        decision: {
+          declaredBeasts: [...new Set([...(parsed.callBeasts || []), parsed.callBeast].filter(Boolean))],
+          claims: (parsed.claims || []).map(item => ({ beast: item.beast, real: item.real })),
+          voteCommitments: (parsed.voteCommitments || []).map(item => ({ beast: item.beast, chips: item.chips ?? null, binding: item.binding !== false, kind: item.kind || 'explicit' })),
+          voteIntents: (parsed.voteIntents || []).map(item => ({ beast: item.beast, binding: false, kind: item.kind || 'soft-intent', intensity: Number(item.intensity) || 0 })),
+          abstentionReason: parsed.abstentionReason || null,
+          roleClaim: parsed.selfRole || null,
+          actualBallot: ballot,
+          totalSpent: Object.values(ballot).reduce((n, value) => n + (Number(value) || 0), 0),
+          abstained: Object.values(ballot).every(value => !(Number(value) > 0))
+        },
+        evidenceBeforeDecision: (rd.mind && rd.mind[bot.id] && rd.mind[bot.id].claimEvidence || []).map(item => ({
+          speakerId: item.playerId, beast: item.beast, real: item.real, source: item.type,
+          weight: item.weight, passIndex: item.passIndex, speechIndex: item.speechIndex
+        })),
+        forecast: rd.mind && rd.mind[bot.id] ? {
+          voteForecast: rd.mind[bot.id].voteForecast || null,
+          ballotModel: rd.mind[bot.id].ballotModel || null,
+          scoreProjection: rd.mind[bot.id].scoreProjection || null
+        } : null,
+        commitmentAudit: audit ? JSON.parse(JSON.stringify(audit)) : null,
+        outcome: result ? {
+          rank1: { ...result.rank1 }, rank2: { ...result.rank2 },
+          selectedTopTwo: ranked.map(item => ({ beast: item.name, real: item.isReal, votes: item.votes })),
+          actualTruthOfDeclared: (parsed.claims || []).map(item => {
+            const beast = (rd.beasts || []).find(candidate => candidate.name === item.beast);
+            return { beast: item.beast, claimedReal: item.real, actualReal: beast ? beast.isReal : null,
+              correctAgainstTruth: beast ? item.real === beast.isReal : null };
+          })
+        } : null
+      });
+    });
+    const personVote = room.personVotes && room.personVotes[bot.id] || null;
+    const target = personVote ? U.byId(room, personVote) : null;
+    const lao = (room.players || []).find(player => player && player.role === '老朝奉');
+    return {
+      rounds: lessons,
+      finalDecision: { targetId: personVote, targetName: target && target.name || null,
+        targetRole: target && target.role || null, hitLao: !!(target && lao && target.id === lao.id),
+        topPosteriorEvidence: [...(room.rounds || [])].reverse().map(rd => rd.mind && rd.mind[bot.id] && rd.mind[bot.id].suspects || []).find(Boolean) || [] }
+    };
+  }
+
   function evaluate(room, bot) {
     const g = room.gameOver, good = GD.isGood(bot.role);
     const won = good ? g.xuWon : !g.xuWon;
@@ -211,7 +267,7 @@
     const after = {};
     Genes.KEYS.forEach(k => { after[k] = Genes.clamp(before[k] + delta[k]); });
     Genes.KEYS.forEach(k => { delta[k] = U.round3(after[k] - before[k]); });
-    return { botId: bot.botId, name: bot.name, role: bot.role, won, before, after, delta, notes: kept, lr: U.round3(lr), games: rec.games + 1 };
+    return { botId: bot.botId, name: bot.name, role: bot.role, won, before, after, delta, notes: kept, causalLessons: buildCausalLessons(room, bot), lr: U.round3(lr), games: rec.games + 1 };
   }
 
   function finalize(room) {
@@ -234,6 +290,6 @@
     return true;
   }
 
-  GD.Learning = { evaluate, finalize, ballotFacts, STEP_CAP };
+  GD.Learning = { evaluate, finalize, ballotFacts, buildCausalLessons, STEP_CAP };
   if (typeof module !== 'undefined' && module.exports) module.exports = GD.Learning;
 })(typeof window !== 'undefined' ? window : global);

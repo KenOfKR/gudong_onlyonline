@@ -11,7 +11,7 @@
   'use strict';
   const C = GD.CONFIG;
 
-  const state = { mode: null, cooldownUntil: 0, lastError: '', calls: 0, ok: 0, lastModel: '', fallbackCount: 0, lastCallMs: 0, lastAttempts: 0, lastAttemptModels: [], totalCallMs: 0 };
+  const state = { mode: null, cooldownUntil: 0, circuitUntil: 0, timeoutStreak: 0, lastError: '', calls: 0, ok: 0, lastModel: '', fallbackCount: 0, lastCallMs: 0, lastAttempts: 0, lastAttemptModels: [], totalCallMs: 0 };
 
   const enabled = () => GD.store.get(C.STORAGE.useGemini, true) !== false;
 
@@ -96,6 +96,7 @@
   async function generate(prompt, opts = {}) {
     if (!enabled()) { state.lastError = '已在設定中關閉雲端大腦'; state.lastCallMs = 0; state.lastAttempts = 0; state.lastAttemptModels = []; state.lastModel = ''; return null; }
     if (Date.now() < state.cooldownUntil) { state.lastError = '雲端大腦冷卻中（429）'; state.lastCallMs = 0; state.lastAttempts = 0; state.lastAttemptModels = []; state.lastModel = ''; return null; }
+    if (Date.now() < state.circuitUntil) { state.lastError = '雲端大腦逾時熔斷中，暫時改用本地發言'; state.lastCallMs = 0; state.lastAttempts = 0; state.lastAttemptModels = []; state.lastModel = ''; return null; }
     const base = C.PROXY_URL.replace(/\/+$/, '');
     const models = [...new Set((Array.isArray(C.GEMINI_MODELS) ? C.GEMINI_MODELS : []).filter(Boolean))];
     if (!models.length) { state.lastError = '沒有設定可用的 Gemini 模型'; state.lastCallMs = 0; state.lastAttempts = 0; return null; }
@@ -166,6 +167,8 @@
           state.ok++;
           state.lastError = '';
           state.cooldownUntil = 0;
+          state.timeoutStreak = 0;
+          state.circuitUntil = 0;
           return finish(text);
         }
         lastFailure = `模型 ${model} 回應沒有文字`;
@@ -185,6 +188,18 @@
       state.lastError = lastFailure;
     }
     if (!lastFailure && !last429) state.lastError = 'Gemini 單次等待預算已用完';
+    const timedOut = /逾時|單次等待已達|等待預算已用完/.test(String(lastFailure || state.lastError));
+    if (timedOut && maxRetryMs <= 0) {
+      state.timeoutStreak = (Number(state.timeoutStreak) || 0) + 1;
+      const threshold = Math.max(1, Number(C.GEMINI_CIRCUIT_FAILURES) || 1);
+      if (state.timeoutStreak >= threshold) {
+        state.circuitUntil = Date.now() + Math.max(1000, Number(C.GEMINI_CIRCUIT_OPEN_MS) || 90000);
+        state.lastError = `Gemini 連續逾時，熔斷 ${Math.round((state.circuitUntil - Date.now()) / 1000)} 秒，改用本地發言`;
+      }
+    } else if (maxRetryMs > 0) {
+      // 配額冷卻獨立於網路逾時熔斷；不把 429 當成逾時樣本。
+      state.timeoutStreak = 0;
+    }
     return finish(null);
   }
 

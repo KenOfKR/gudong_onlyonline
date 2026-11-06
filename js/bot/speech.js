@@ -509,7 +509,7 @@
     );
     const claims = (Array.isArray(u.claims) ? u.claims : []).filter(c => c && !withheldBeasts.has(c.beast));
     if (u.correction) clauses.push('收到更正，以你最新說法為準');
-    if (claims.length) clauses.push(`你主張${claims.map(c => `${B(c.beast)}${c.real ? '真品' : '贗品'}`).join('、')}，我會納入本輪判斷`);
+    if (claims.length) clauses.push(`你主張${claims.map(c => `${B(c.beast)}${c.real ? '真品' : '贗品'}`).join('、')}；我會自己核對，不會只因這句話就跟票`);
 
     const roleClaims = Array.isArray(u.roleClaims) ? u.roleClaims : [];
     if (roleClaims.length) {
@@ -752,6 +752,12 @@
     const extra = [
       plan.laoTimingAudit ? '擾亂技能時序規則：技能是否能影響查驗，只看本輪傳牌順位（passOrder）；公開發言順序（speechOrder）只決定誰先說話，所有傳牌行動完成後才進入公開發言。不可因某人較晚發言就推斷技能尚未使用；也不可因本輪沒有確認反轉就排除老朝奉，必須保留「未啟動／刻意保留技能／證據不足」等假設。' : '',
       (plan.consensusAudit || []).map(group => `公開共識拆解：${B(group.beast)}${real(group.real)}目前有${group.speakerCount}人提出；其中${group.selfReportedDirect}人自稱親查、${group.inference}人明說推論、${group.echo}人屬附和、${group.unattributed}人未交代來源、${group.limitedView}人視野受限。自稱親查仍是公開自述，不等於系統驗證；重複主張不可當成同數量的獨立證據。請自然點出這個差異，不要直接否定真偽結論。`).join(' ') ,
+      (A.uncertaintyReports || []).map(item => `「驗不到」原因紀錄：第${item.round}輪${U.tag(U.byId(room, item.playerId))}自述原因為 ${item.reason}；這是玩家自述，尚未由公開事件獨立驗證。除非另有可核對的技能與傳牌紀錄，不要把它直接當成已證實的偷襲、封鎖、困惑或擾亂，也不要僅憑驗不到就判定其角色。`).join(' '),
+      (A.publicCountConstraints || []).map(item => {
+        const ids = item.populationResolved ? (item.populationIds || []).map(id => U.byId(room, id)).filter(Boolean).map(U.tag) : [];
+        const group = ids.length ? ids.join('、') : '三名電腦玩家（目前無法完整對應個別座位）';
+        return `數量型陣營假設：有玩家推測${group}之中約有 ${item.min}–${item.max} 名壞人。這是低權重的群體數量推測，不是位置 1–${item.max}、也不是對任何具名玩家的直接指控；只能用來檢查陣營組合，不能把每個群體成員都當成壞人。`;
+      }).join(' '),
       plan.explain ? `${plan.explain.callerName}請你說明過去把票投在贗品上的原因。只引用當時可見的公開發言和實際票數；不要補寫不存在的理由。` : '',
       plan.askId ? (() => {
         const target = U.byId(room, plan.askId);
@@ -759,6 +765,7 @@
       })() : '',
       plan.xuYuanLine ? `可以自然使用這句公開話術一次：「${plan.xuYuanLine}」。不要藉此暗示其他未核准的查驗結果。` : '',
       plan.withholdInfo ? '只陳述上方列出的核准公開結果，不得自行增加其他獸首的真偽宣稱。' : '',
+      plan.roleBluff && plan.roleBluff.role === '許願' && plan.roleBluff.abilityProfile ? `假扮許願的能力輪廓：兩尊不同獸首來源為 ${plan.roleBluff.abilityProfile.beastNames.join('、')}；本輪可公開 ${plan.roleBluff.abilityProfile.publicBeastNames.join('、')}，其餘來源可以保留。不得把推論說成系統驗證，也不得洩漏 withheld 資訊。` : '',
       plan.followHuman ? `可以回應${plan.followHuman.callerName}的公開主張，並說明是否支持。` : '',
       plan.publicRolePressure ? (() => { const speaker = U.byId(room, plan.publicRolePressure.speakerId); const speakerTag = speaker ? U.tag(speaker) : plan.publicRolePressure.speakerName; return `前手${speakerTag}把你指為【${plan.publicRolePressure.role}】（${plan.publicRolePressure.polarity === 'fake' ? '假冒指控' : '角色指認'}）。必須直接回應：指出這項角色判斷尚缺哪些可核對的技能時點；若你有核准的角色偽裝版本，可明確對跳；不可假裝這項指控沒有發生。`; })() : '',
       plan.roleBluff && plan.roleBluff.motive === 'protect_pressured_ally' && plan.roleBluff.protectedAllyId ? (() => { const ally = U.byId(room, plan.roleBluff.protectedAllyId); return ally ? `目前${U.tag(ally)}正在承受公開質疑。你的角色主張必須有自然的公開理由：要求大家先核對對方被指控的技能時點、行動和票型，再決定是否集火。不要說自己在保護盟友、假跳或轉移焦點，也不要只丟下一句身分宣稱。` : ''; })() : '',
@@ -1499,6 +1506,8 @@
             `我手上的查驗顯示${sayTxt}。`
           ]));
         }
+      } else if (plan.revealFang) {
+        parts.push(`我沒有獸首查驗能力；【${plan.beast}】是依公開線索與票型做出的推論，不是我親自驗出的結果。`);
       } else if (!plan.fakeFangClaim && plan.withholdInfo) {
         parts.push(`目前已有可信的前置公開線索支持這個方向，我暫不重複攤開已被提過的查驗細節；這輪我投${B(plan.beast)}，後續仍看票型能否獨立印證。`);
       } else if (!plan.fakeFangClaim) {
@@ -1528,6 +1537,8 @@
         if (group.limitedView) countParts.push(`${group.limitedView}人視野受限`);
         if (countParts.length) parts.push(`目前關於【${group.beast}】有${group.speakerCount}人提出同方向看法，但來源拆開是${countParts.join('、')}；自稱查驗仍是公開自述，不能把同一個結論的重複出現直接算成同等數量的獨立驗證。`);
       });
+    } else if (plan.roleAbilityCover === 'unreadable') {
+      parts.push(`這輪我遇到無法辨別真偽的情況，沒有直接獸首結果；我的票向是依其他公開線索另行判斷，不能把推論當成親自查驗。`);
     } else if (plan.evilRolePerformance) {
       parts.push(`【${plan.beast}】是贗品，我主張這輪把票投向【${plan.beast}】，也請大家一起投這尊。`);
     } else if (plan.mode === 'lie' || plan.mode === 'follow') {
@@ -1671,7 +1682,13 @@
     }
 
     const safeParts = bot.role === '方震'
-      ? parts.filter(part => !String(part || '').includes('方震'))
+      ? parts.filter(part => {
+          // 真方震原則上不自曝；只有策略明確判定具備多筆真實能力紀錄、
+          // 並產生 decisive_reveal 時，才保留那一段完整核驗聲明。
+          if (plan.trueRoleSignal && plan.trueRoleSignal.reveal &&
+              String(part || '').trim() === String(plan.trueRoleSignal.line || '').trim()) return true;
+          return !String(part || '').includes('方震');
+        })
       : parts;
     // 保留有證據價值的主張、人物回應、角色承諾與票向；只移除重複模板，不按字數刪除內容。
     const voteTag = B(plan.beast);
@@ -1731,8 +1748,18 @@
       if (key.length >= 8) currentTemplateKeys.add(key);
       if (targetVote) keptPrimaryVote = true;
     }
+    // 鄭國渠早期盲認票是刻意分票的訊號；公開發言只講主票方向，不把它說成硬承諾。
+    if (plan.zhengBlindSignal && plan.zhengBlindSignal.beast && plan.zhengBlindSignal.mainBeast) {
+      compactParts.push(`我目前把${B(plan.zhengBlindSignal.mainBeast)}放在主票方向；${B(plan.zhengBlindSignal.beast)}的爭議也會一起核對。`);
+    }
+    const forecastRows = plan.voteForecast && Array.isArray(plan.voteForecast.ranking)
+      ? plan.voteForecast.ranking.filter(row => row && row.name).slice(0, 2) : [];
+    if (forecastRows.length) {
+      const forecastText = forecastRows.map(row => `${B(row.name)}約${Math.round(Number(row.expectedVotes) || 0)}票`).join('、');
+      compactParts.push(`目前票數預估是${forecastText}，但這只是預測，最後仍以實際投票為準。`);
+    }
     // normalizeTemplate 已刪除跨輪與本輪重複句；不再因篇幅門檻刪除證據或人物回應。
-    let assembled = compactParts.join('');
+    let assembled = simplifyDialogue(compactParts.join(''));
     // 確保公開主票方向存在；即使補上後較長，也不截斷原有推理內容。
     const finalCallParse = Claims.parse(assembled, room, ctx.rd);
     if (plan.beast && !(finalCallParse.callBeasts || []).includes(plan.beast)) {
@@ -1754,7 +1781,7 @@
       if (sanitized && auditPublicConsistency(sanitized, room, bot, plan, A).ok &&
           publicResponseAudit(sanitized, publicThreadForSpeech, bot, plan).ok &&
           auditPublicPerformanceClaim(plan, sanitizedParsed.claims, sanitizedParsed.callBeasts).ok &&
-          auditPrivateThoughtLeakage(sanitized).ok) return sanitized;
+          auditPrivateThoughtLeakage(sanitized).ok) return simplifyDialogue(sanitized);
 
       // Last-resort construction retains required strategy contracts instead of dropping all role-play.
       const safeParts = [];
@@ -1765,7 +1792,11 @@
       }
       const visibleClaims = (plan.claims || []).filter(c => c && c.beast &&
         (ctx.rd.beasts || []).some(b => b.name === c.beast));
-      if (!ctx.isGood && !plan.confess && !plan.evilRolePerformance && ['lie', 'follow'].includes(plan.mode)) {
+      if (plan.roleAbilityCover === 'unreadable') {
+        // 偽裝黃煙煙／木戶加奈的指定「驗不到」輪，
+        // 不得因一般 lie/follow 備援而額外宣稱本輪獸首真偽。
+        safeParts.push('這輪我無法辨別真偽，沒有直接獸首查驗結果。');
+      } else if (!ctx.isGood && !plan.confess && !plan.evilRolePerformance && ['lie', 'follow'].includes(plan.mode)) {
         safeParts.push(`我目前主張${B(plan.beast)}是真品，請把這個公開立場和後續票型一起核對。`);
       }
       if (plan.roleBluff && plan.roleBluff.role === '方震' && plan.roleBluff.targetId) {
@@ -1776,6 +1807,9 @@
         if (target) safeParts.push(`我是方震，我查驗${U.tag(target)}是${plan.fakeFangClaim.isGoodCamp ? '好人' : '壞人'}。`);
       } else if (plan.roleBluff) {
         safeParts.push(`我是${plan.roleBluff.role}，後續請依公開紀錄核對。`);
+      } else if (plan.revealFang) {
+        safeParts.push(`我沒有獸首查驗能力；【${plan.beast}】是依公開線索與票型做出的推論，不是我親自驗出的結果。`);
+        if (plan.trueRoleSignal && plan.trueRoleSignal.line) safeParts.push(plan.trueRoleSignal.line);
       } else if (plan.trueRoleSignal && plan.trueRoleSignal.line) {
         safeParts.push(plan.trueRoleSignal.line);
       } else if (visibleClaims.length && bot.role !== '方震') {
@@ -1797,9 +1831,9 @@
       if (withheldInfoLine && !fallbackSpeech.includes('\u66ab\u4e0d\u91cd\u8907\u6524\u958b')) {
         fallbackSpeech = [fallbackSpeech, withheldInfoLine].filter(Boolean).join('');
       }
-      return fallbackSpeech;
+      return simplifyDialogue(fallbackSpeech);
     }
-    return assembled;
+    return simplifyDialogue(assembled);
   }
   function rndPick(p) { return Math.random() < p; }
 
@@ -1951,7 +1985,10 @@
     if (!s || !room || !Claims || typeof Claims.parse !== 'function') return { ok: true };
 
     // 先檢查未被標記為引用的「自身宣稱」是否對同一獸首同時判真又判假。
-    const parsed = Claims.parse(s, room);
+    const validationRound = U.curRound(room);
+    const parsed = Claims.parse(s, room, validationRound, bot && bot.id);
+    const invalidPosition = (parsed.positionClaims || []).find(item => item.verified === false);
+    if (invalidPosition) return { ok: false, why: `公開發言把${invalidPosition.kind === 'pass' ? '傳牌／掌眼' : '公開發言'}順位說成第${invalidPosition.claimed}位，但正式紀錄是第${invalidPosition.actual}位` };
     const verdicts = new Map();
     for (const claim of (parsed.claims || [])) {
       if (!claim || !claim.beast || typeof claim.real !== 'boolean') continue;
@@ -2088,7 +2125,35 @@
   }
 
   function isFillerAcknowledgement(text) {
-    return /(?:我(?:有)?(?:聽到|聽見|收到)(?:了)?|我的?這邊(?:有)?收到|我記下了)/.test(String(text || ''));
+    return /^\s*(?:我(?:有)?(?:聽到|聽見|收到)(?:了)?|我的?這邊(?:有)?收到|我記下了)[。！？!?,，\s]*$/u.test(String(text || ''));
+  }
+
+  function simplifyDialogue(text) {
+    let value = String(text || '').replace(/[\t\r]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    if (!value) return '';
+    const boilerplate = [
+      /我會納入本輪判斷[。！？]?/g,
+      /我會把這點納入考量[。！？]?/g,
+      /我會列入參考[。！？]?/g,
+      /包漿與工藝都穩[。！？]?/g,
+      /這些資訊我都會納入分析[。！？]?/g,
+      /我已經完整聽取你的發言[。！？]?/g
+    ];
+    boilerplate.forEach(pattern => { value = value.replace(pattern, ''); });
+    // 去掉逐字重複的句子，但保留相同句子中帶有不同獸首／人物的獨立內容。
+    const sentences = value.match(/[^。！？!?；;]+[。！？!?；;]?/g) || [value];
+    const seen = new Set();
+    const kept = [];
+    for (const sentence of sentences) {
+      const one = String(sentence || '').trim();
+      if (!one) continue;
+      const key = one.replace(/[，,、\s]/g, '').toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key); kept.push(one);
+    }
+    value = kept.join('');
+    value = value.replace(/^[，,；;。！？!?\s]+|[，,；;\s]+$/g, '').trim();
+    return value;
   }
 
   function validate(text, bot, room, plan, A) {
@@ -2104,7 +2169,10 @@
     if (!publicAudit.ok) return publicAudit;
     const privateLeakAudit = auditPrivateThoughtLeakage(s);
     if (!privateLeakAudit.ok) return privateLeakAudit;
-    const parsed = Claims.parse(s, room);
+    const validationRound = U.curRound(room);
+    const parsed = Claims.parse(s, room, validationRound, bot && bot.id);
+    const invalidPosition = (parsed.positionClaims || []).find(item => item.verified === false);
+    if (invalidPosition) return { ok: false, why: `公開發言把${invalidPosition.kind === 'pass' ? '傳牌／掌眼' : '公開發言'}順位說成第${invalidPosition.claimed}位，但正式紀錄是第${invalidPosition.actual}位` };
     if (plan && typeof plan.publicSuspectBrief === 'string' && plan.publicSuspectBrief) {
       const namedTags = Array.isArray(plan.publicSuspectTags) ? plan.publicSuspectTags : [];
       const missingNames = namedTags.filter(tag => !s.includes(tag));
@@ -2222,12 +2290,16 @@
     // 認壞／跳壞以「贗品主張＋同目標號召」為硬性契約；一般壞人偽裝好人維持原本帶風向規則。
     const performanceAudit = auditPublicPerformanceClaim(plan, claims, parsed.callBeasts);
     if (!performanceAudit.ok) return performanceAudit;
-    if (!plan.confess && !plan.evilRolePerformance && !GD.isGood(bot.role) && ['lie', 'follow'].includes(plan.mode)) {
+    if (!plan.confess && !plan.evilRolePerformance && !plan.roleAbilityCover && !GD.isGood(bot.role) && ['lie', 'follow'].includes(plan.mode)) {
       const targetClaims = claims.filter(c => c && c.beast === plan.beast && typeof c.real === 'boolean');
       if (!targetClaims.some(c => c.real === true) || targetClaims.some(c => c.real === false)) {
         const modeName = plan.mode === 'lie' ? '帶風向' : '附和';
         return { ok: false, why: `${modeName}計畫要求宣稱【${plan.beast}】為真品` };
       }
+    }
+    // 假扮黃煙煙／木戶加奈的「驗不到」輪，不能同時又公開獸首真偽結果。
+    if (plan.roleAbilityCover === 'unreadable' && (!parsed.unsure || claims.length)) {
+      return { ok: false, why: '黃煙煙／木戶加奈偽裝的能力輪廓要求本輪驗不到且不得公開獸首真偽' };
     }
     // 許願不可同時報出 2 尊
     if (bot.role === '許願' && new Set(claims.map(c => c.beast)).size >= 2) return { ok: false, why: '許願報了 2 尊' };
@@ -2242,8 +2314,9 @@
     if (!parsed.callBeasts.includes(plan.beast)) return { ok: false, why: `沒有號召投【${plan.beast}】` };
     if (plan.bluff && (parsed.unsure || /驗不到|看不懂|看不到|無法辨別/.test(s))) return { ok: false, why: '方震不可說自己驗不到' };
     if (plan.hideBlind && (parsed.blind || /被偷襲|遭偷襲|眼前一片黑|一片黑|偷襲/.test(s))) return { ok: false, why: '被偷襲者不輕易說出被偷襲' };
-    // 不得自曝真實角色；預先計畫的假跳方震是明確的戰術例外，且只能報指定對象／陣營。
-    if (new RegExp(`我是(?:【)?${bot.role}`).test(s)) return { ok: false, why: '自曝角色' };
+    // 不得自曝真實角色；預先計畫的真方震終局揭露是有多筆能力紀錄支撐的明確例外。
+    const plannedTrueFangReveal = bot.role === '方震' && !!(plan.trueRoleSignal && plan.trueRoleSignal.reveal) && parsed.selfRole === '方震';
+    if (new RegExp(`我是(?:【)?${bot.role}`).test(s) && !plannedTrueFangReveal) return { ok: false, why: '自曝角色' };
     const plannedFangClaim = plan.fakeFangClaim || (plan.roleBluff && plan.roleBluff.role === '方震' && plan.roleBluff.targetId ? plan.roleBluff : null);
     const plannedFakeFangOK = !!plannedFangClaim && parsed.selfRole === '方震' &&
       parsed.campChecks.length === 1 &&
@@ -2254,17 +2327,24 @@
     if ((plan.fakeFangClaim || (plan.roleBluff && plan.roleBluff.role === '方震')) && !plannedFakeFangOK) {
       return { ok: false, why: '假跳方震發言未依計畫報出指定的單一陣營查驗' };
     }
-    if (/(我|本人)[^，。！？]{0,4}(查驗|驗)[^，。！？]{0,6}(陣營|是好人|是壞人|為好人|為壞人|老朝奉陣營)/.test(s) && !plannedFakeFangOK) {
+    const trueFangEvidence = plannedTrueFangReveal ? (plan.trueRoleSignal.verifiedCampChecks || []) : [];
+    const trueFangEvidenceOK = plannedTrueFangReveal && trueFangEvidence.length >= 2 &&
+      trueFangEvidence.every(entry => {
+        const target = U.byId(room, entry.targetId);
+        return !!target && s.includes(target.name) && s.includes(entry.camp === 'good' ? '好人' : '壞人');
+      }) && (parsed.campChecks || []).every(check => trueFangEvidence.some(entry =>
+        entry.targetId === check.targetId && entry.camp === check.camp));
+    if (/(我|本人)[^，。！？]{0,4}(查驗|驗)[^，。！？]{0,6}(陣營|是好人|是壞人|為好人|為壞人|老朝奉陣營)/.test(s) && !plannedFakeFangOK && !trueFangEvidenceOK) {
       return { ok: false, why: '洩漏陣營查驗（方震身分）' };
     }
-    if (parsed.campChecks.length && !plannedFakeFangOK) return { ok: false, why: '洩漏陣營查驗（方震身分）' };
+    if (parsed.campChecks.length && !plannedFakeFangOK && !trueFangEvidenceOK) return { ok: false, why: '洩漏陣營查驗（方震身分）' };
     if (plan.roleBluff && parsed.selfRole !== plan.roleBluff.role) {
       return { ok: false, why: `角色偽裝計畫要求公開假稱【${plan.roleBluff.role}】` };
     }
     if (!plan.roleBluff && !plan.fakeFangClaim && parsed.selfRole && parsed.selfRole !== bot.role) {
       return { ok: false, why: '未計畫的角色偽裝' };
     }
-    if (bot.role === '方震' && disclosesFangIdentity(s)) return { ok: false, why: '方震洩漏自己的真實角色' };
+    if (bot.role === '方震' && disclosesFangIdentity(s) && !plannedTrueFangReveal) return { ok: false, why: '方震洩漏自己的真實角色' };
     if (plan.confess) {
       /* 認壞只能說「我認壞」，不得報出具體角色（老朝奉 / 藥不然 / 鄭國渠），也不得指名同伴 */
       if (!parsed.selfEvil) return { ok: false, why: '認壞計畫但發言沒有明確認壞' };
@@ -2281,7 +2361,7 @@
   }
 
   GD.Speech = { buildPrompt, localSpeech, validate, isFillerAcknowledgement, history, publicVoteCommitmentHistory, auditPublicConsistency,
-    latestPublicThread, compactPublicReply, publicResponseAudit, disclosesFangIdentity,
+    latestPublicThread, compactPublicReply, publicResponseAudit, disclosesFangIdentity, simplifyDialogue,
     buildPublicPerformanceContract, auditPublicPerformanceClaim, auditPrivateThoughtLeakage };
   if (typeof module !== 'undefined' && module.exports) module.exports = GD.Speech;
 })(typeof window !== 'undefined' ? window : global);

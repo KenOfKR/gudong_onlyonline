@@ -288,6 +288,15 @@
   /** 用成對比較機率估算每尊獸首進入前二的機率，避免把期望票數當作確定名次。 */
   function probabilitiesTopTwo(names, mean, variance) {
     const out = {};
+    // 當所有剩餘票勢都沒有不確定性時，直接套用 Rules.tally 的確定排序：票數高者優先，同票按生肖順序。
+    // 不再用連續常態近似把確定同票誤當成各半機率。
+    const deterministic = names.every(name => Math.abs(Number(variance[name]) || 0) < 1e-9);
+    if (deterministic) {
+      const ranked = names.slice().sort((a, b) =>
+        (Number(mean[b]) || 0) - (Number(mean[a]) || 0) || zodiacIndex(a) - zodiacIndex(b));
+      names.forEach(name => { out[name] = ranked.indexOf(name) < 2 ? 1 : 0; });
+      return out;
+    }
     names.forEach(name => {
       let dp = [1, 0, 0, 0];
       names.filter(other => other !== name).forEach(other => {
@@ -371,7 +380,9 @@
     const pXuCaught = U.clamp(pLao * pXu * xuExposure, 0, 1);
     const expectedRoleBonuses = pLaoCaught + (1 - pFangCaught) + 2 * (1 - pXuCaught);
     const expectedTotalScore = expectedSavedReal + expectedRoleBonuses;
-    const estimatedWinProbability = sigmoid((expectedTotalScore - threshold) / 0.78);
+    const roundsRemaining = Math.max(0, 3 - completedRounds);
+    const uncertaintyScale = 2.75 + 0.25 * roundsRemaining + 0.12 * Math.sqrt(completedRounds);
+    const estimatedWinProbability = sigmoid((expectedTotalScore - threshold) / uncertaintyScale);
     return {
       completedRounds, publicRank2RealPoints, hiddenRank1Expected: round2(hiddenRank1Expected),
       completedExpectedSavedReal: round2(completedExpected), currentExpectedSavedReal: round2(currentExpected),
@@ -383,7 +394,9 @@
       expectedTotalScore: round2(expectedTotalScore),
       pointsNeededAfterExpectedRoleBonuses: round2(Math.max(0, threshold - expectedTotalScore)),
       estimatedWinProbability: round2(estimatedWinProbability),
-      note: '以本 Bot 自己的角色後驗估計保真與終局任務效用；非讀取其他 AI 私有心智或真實身分'
+      probabilityCalibration: { method: 'wide-logistic-small-sample', uncertaintyScale: round2(uncertaintyScale), roundsRemaining,
+        isHeuristic: true, requiresPairedSeedAndHumanCalibration: true },
+      note: '以本 Bot 自己的角色後驗估計保真與終局任務效用；機率是保守啟發式，不是實測勝率，也不讀取其他 AI 私有心智或真實身分'
     };
   }
 
