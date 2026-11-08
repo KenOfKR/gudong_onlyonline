@@ -7,7 +7,7 @@
   const GD = root.GD || (root.GD = {});
 
   GD.CONFIG = {
-    VERSION: '10.8.14',
+    VERSION: '10.8.16',
     PROXY_URL: 'https://gudong-proxy.gjack61112.workers.dev',
     GEMINI_MODELS: ['gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-3.6-flash', 'gemini-2.5-flash'],
     GEMINI_TIMEOUT_MS: 10000,
