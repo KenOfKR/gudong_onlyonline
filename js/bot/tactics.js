@@ -328,6 +328,49 @@
     return map;
   }
 
+  /**
+   * 壞人公開資訊下的贗品集火選擇：只使用公開發言、已投票、票數預測與自己視角的真偽後驗。
+   * 當原目標明顯落後，且另一尊低真偽後驗的贗品更有機會進前二時，允許反向分票／轉移。
+   */
+  function chooseEvilCoalitionTarget(room, botOrId, mindRecord) {
+    const rd = currentRound(room);
+    const names = beastNames(rd);
+    if (!rd || !names.length || !mindRecord) return null;
+    const post = posteriorMap(mindRecord.post, room);
+    const forecast = forecastVotes(room, botOrId, mindRecord.beliefProfile || null);
+    const current = names.includes(mindRecord.beast) ? mindRecord.beast : null;
+    const rows = names.map(name => ({
+      name,
+      pReal: Number.isFinite(post[name]) ? post[name] : 0.5,
+      pTopTwo: U.clamp(Number(forecast.pTopTwo && forecast.pTopTwo[name]) || 0, 0, 1),
+      expectedVotes: Number(forecast.expectedVotes && forecast.expectedVotes[name]) || 0,
+      callSupport: Number(forecast.callSupport && forecast.callSupport[name]) || 0
+    }));
+    const fakeRows = rows.filter(row => row.pReal <= 0.48)
+      .sort((a, b) => (b.pTopTwo + Math.min(3, b.callSupport) * 0.018) -
+        (a.pTopTwo + Math.min(3, a.callSupport) * 0.018) || b.expectedVotes - a.expectedVotes);
+    if (!fakeRows.length) return { current, target: current, shouldRedirect: false, reason: 'no-supported-counterfeit' };
+    const best = fakeRows[0];
+    const own = rows.find(row => row.name === current) || null;
+    if (!own || best.name === current) return { current, target: current, shouldRedirect: false, reason: 'current-target-best' };
+    const gap = best.pTopTwo - own.pTopTwo;
+    const currentUnderdog = own.pTopTwo < 0.42 && best.pTopTwo >= 0.42;
+    const decisiveAdvantage = gap >= 0.12 && best.pTopTwo >= 0.38;
+    const shouldRedirect = currentUnderdog || decisiveAdvantage;
+    return {
+      current, target: shouldRedirect ? best.name : current, shouldRedirect,
+      reason: currentUnderdog ? 'current-target-underdog' : decisiveAdvantage ? 'higher-counterfeit-top-two' : 'insufficient-top-two-gap',
+      gap: round2(gap),
+      currentPTopTwo: round2(own.pTopTwo), targetPTopTwo: round2(best.pTopTwo),
+      currentExpectedVotes: round2(own.expectedVotes), targetExpectedVotes: round2(best.expectedVotes),
+      targetCallSupport: best.callSupport, targetPReal: round2(best.pReal),
+      publicRanking: rows.slice().sort((a, b) => b.expectedVotes - a.expectedVotes).map(row => ({
+        name: row.name, expectedVotes: round2(row.expectedVotes), pTopTwo: round2(row.pTopTwo),
+        pReal: round2(row.pReal), callSupport: row.callSupport
+      }))
+    };
+  }
+
   function forecastExpectedRealTopTwo(forecast, post) {
     const pm = posteriorMap(post, null);
     return Object.keys(forecast.pTopTwo || {}).reduce((n, name) => n + (forecast.pTopTwo[name] || 0) * (Number.isFinite(pm[name]) ? pm[name] : 0.5), 0);
@@ -515,10 +558,15 @@
       const marginalPoints = expectedGoodPoints - baseExpectedGoodPoints;
       const projectedWin = sigmoid((globalScore.expectedTotalScore + marginalPoints - globalScore.winScore) / 0.78);
       let utility = isGood ? projectedWin + expectedGoodPoints * 0.025 : -projectedWin;
+      let counterfeitTopTwoGain = 0;
       if (!isGood) {
-        // 壞人次要目標：在壓低好人整局勝率之外，提高低真品後驗獸首進前二的期望。
-        utility += names.reduce((n, name) => n + (pTop[name] || 0) * (1 - (post[name] ?? 0.5)) * 0.075, 0);
-        if (mindRecord.padBeast && names.includes(mindRecord.padBeast)) utility += (pTop[mindRecord.padBeast] || 0) * 0.04;
+        // 壞人不只追求「假貨的前二機率」，還要獎勵本次投票真正帶來的增幅；
+        // 否則所有票型共享相同的靜態目標分數，難以學會把落後贗品推過前二門檻。
+        counterfeitTopTwoGain = names.reduce((n, name) =>
+          n + ((pTop[name] || 0) - (baseTopTwo[name] || 0)) * (1 - (post[name] ?? 0.5)), 0);
+        utility += counterfeitTopTwoGain * (idx === 2 ? 0.42 : 0.34);
+        // 原先 padBeast 仍是弱偏好，不可蓋過更有機會進前二的替代目標。
+        if (mindRecord.padBeast && names.includes(mindRecord.padBeast)) utility += (pTop[mindRecord.padBeast] || 0) * 0.02;
       }
       const spent = sum(ballot);
       const held = Math.max(0, cap - spent);
@@ -549,7 +597,7 @@
       // 第一票不另行加分，避免「先提高支出上限」後又在效用中重複獎勵參與。
       const firstVoteBonus = 0;
       // 效益相近時仍由個人保留成本與行動風格共同決定，不再讓全體套用同一留票門檻。
-      if (!best || utility > best.utility + 1e-8) best = { ballot, utility, expectedGoodPoints, pTop, forecastAfter: mean, spent, held, commitmentBonus, firstVoteBonus, coordinationBonus };
+      if (!best || utility > best.utility + 1e-8) best = { ballot, utility, expectedGoodPoints, pTop, forecastAfter: mean, spent, held, commitmentBonus, firstVoteBonus, coordinationBonus, counterfeitTopTwoGain };
     });
     const clean = {};
     Object.entries(best.ballot).forEach(([name, n]) => { if (n > 0) clean[name] = n; });
@@ -572,7 +620,8 @@
         spendStyle: round2(spendStyle),
         targetConfidence: round2(targetConfidence),
         racePressure: round2(racePressure),
-        objective: isGood ? 'max_expected_whole_game_win_probability' : 'minimize_good_win_probability_and_push_fake_top_two',
+        counterfeitTopTwoGain: round2(best.counterfeitTopTwoGain || 0),
+        objective: isGood ? 'max_expected_whole_game_win_probability' : 'minimize_good_win_probability_and_raise_fake_top_two_probability',
         baseExpectedGoodPoints: round2(baseExpectedGoodPoints), marginalExpectedGoodPoints: round2(best.expectedGoodPoints - baseExpectedGoodPoints),
         baselineWinProbability: globalScore.estimatedWinProbability,
         projectedWinProbability: round2(sigmoid((globalScore.expectedTotalScore + best.expectedGoodPoints - baseExpectedGoodPoints - globalScore.winScore) / 0.78))
@@ -700,6 +749,7 @@
   }
 
   T.forecastVotes = forecastVotes;
+  T.chooseEvilCoalitionTarget = chooseEvilCoalitionTarget;
   T.historicalBallotProfile = historicalBallotProfile;
   T.probabilitiesTopTwo = probabilitiesTopTwo;
   T.scoreProjection = scoreProjection;

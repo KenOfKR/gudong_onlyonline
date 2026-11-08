@@ -958,8 +958,9 @@
         if (!seenRoleClaim.has(onceKey)) {
           seenRoleClaim.add(onceKey);
           bump(rec, {
-            roles: { [role]: 0.9 },
-            why: `第${rr + 1}輪公開自稱【${role}】，後續需要用能力時點、票型與其他人的對跳驗證`,
+            // 自稱只是一項可被策略性偽造的公開訊號；不應壓過能力與行動證據。
+            roles: { [role]: 0.22 },
+            why: `第${rr + 1}輪公開自稱【${role}】；先保留說法，仍須比對技能與行動是否相容`,
             say: null
           });
         }
@@ -967,9 +968,11 @@
         const knownUniqueRole = role === bot.role || (ctx.partner && role === ctx.partner.role);
         if (knownUniqueRole) {
           bump(rec, {
-            evil: 7,
-            roles: { [role]: -0.8 },
-            why: `公開自稱【${role}】與本視角已知的唯一角色身分衝突；可能是擋刀或欺騙，仍須看後續行動`,
+            // 即使自稱的是觀察者已知被占用的角色，也可能是好人反反心理或擋刀；
+            // 只能小幅降低該角色可信度，不能直接把發言者推成壞人。
+            evil: 1.8,
+            roles: { [role]: -0.28 },
+            why: `公開自稱【${role}】與本視角已知的唯一角色位置不一致；可能是偽裝或反反心理，仍須看能力和行動`,
             say: null
           });
         }
@@ -993,7 +996,7 @@
         bump(rec, {
           // 對跳能證明「這組說法有衝突」，但不能單憑衝突就把每個宣稱者都加上壞人分。
           // 各人的 evil 分數由可驗證能力時點、行為、票型與其他獨立證據決定；角色宣稱本身只降低該角色的相對可信度。
-          roles: { [role]: -0.55 },
+          roles: { [role]: -0.20 },
           why: `角色爭議：${tags.join('與')}都曾公開自稱唯一角色【${role}】，至少一個版本需要反查；不以對跳人數直接判定誰是壞人`,
           say: `公開紀錄中${tags.join('與')}都自稱【${role}】，角色唯一，但人數本身不能定罪；須再比技能時點、票型與獨立證據`
         });
@@ -1003,8 +1006,9 @@
       if (roles.size < 2 || !prof[pid]) return;
       const names = [...roles];
       bump(prof[pid], {
-        evil: 12 + (names.length - 2) * 4,
-        roles: Object.fromEntries(names.map(role => [role, -0.65])),
+        // 跨輪改口是可疑線索，但也可能是刻意反反心理；沒有能力衝突時不直接定性。
+        evil: 2.5 + (names.length - 2) * 1.0,
+        roles: Object.fromEntries(names.map(role => [role, -0.22])),
         why: `跨輪身份說法改變：曾自稱【${names.join('】與【')}】，需要檢查是否為刻意變換偽裝`,
         say: `${U.tag(prof[pid].player)}跨輪自稱【${names.join('】與【')}】，身份版本前後改變，需對照原始發言與技能紀錄`
       });

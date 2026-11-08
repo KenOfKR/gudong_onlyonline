@@ -77,11 +77,53 @@
       const ballot = { ...((rd.votes && rd.votes[bot.id]) || {}) };
       const result = rd.voteResults || null;
       const ranked = result ? [result.rank1, result.rank2].filter(Boolean) : [];
+      const ownCalls = [...new Set([...(parsed.speakerCalls || parsed.callBeasts || []), parsed.callBeast].filter(Boolean))];
+      const ownMind = rd.mind && rd.mind[bot.id] || null;
+      const forecast = ownMind ? (ownMind.voteForecast || ownMind.ballotModel || null) : null;
+      const publicCallSupport = { before: {}, all: {} };
+      const ownSpeechIndex = (rd.speeches || []).findIndex(item => item && String(item.playerId) === String(bot.id));
+      (rd.speeches || []).forEach((publicSpeech, speechIndex) => {
+        if (!publicSpeech || !GD.Claims) return;
+        let publicParsed = {};
+        try { publicParsed = GD.Claims.parseRecord(publicSpeech, room, rd) || {}; } catch (_) {}
+        const calls = [...new Set([...(publicParsed.speakerCalls || publicParsed.callBeasts || []), publicParsed.callBeast].filter(Boolean))];
+        calls.forEach(name => {
+          publicCallSupport.all[name] = (publicCallSupport.all[name] || 0) + 1;
+          // 因果上的「當時已存在的公開支持」只計算自己發言前的他人，不把後手資訊倒灌回決策。
+          if (publicSpeech.playerId !== bot.id && ownSpeechIndex >= 0 && speechIndex < ownSpeechIndex)
+            publicCallSupport.before[name] = (publicCallSupport.before[name] || 0) + 1;
+        });
+      });
+      const declaredTarget = ownCalls[ownCalls.length - 1] || ownCalls[0] || null;
+      const observedVotesByBeast = {};
+      Object.values(rd.votes || {}).forEach(playerBallot => Object.entries(playerBallot || {}).forEach(([name, raw]) => {
+        observedVotesByBeast[name] = (observedVotesByBeast[name] || 0) + Math.max(0, Number(raw) || 0);
+      }));
+      const actualTopTwoNames = ranked.map(item => item && item.name).filter(Boolean);
+      const forecastRows = forecast && (forecast.ranking || forecast.before || forecast.after) || [];
+      const forecastTarget = declaredTarget && forecastRows.find(item => item && item.name === declaredTarget) || null;
+      const strategyOutcome = declaredTarget ? {
+        declaredTarget,
+        publicCallSupportBeforeDecision: Number(publicCallSupport.before[declaredTarget]) || 0,
+        publicCallSupportFinal: Number(publicCallSupport.all[declaredTarget]) || 0,
+        observedVotes: Number(observedVotesByBeast[declaredTarget]) || 0,
+        ownBallotVotes: Number(ballot[declaredTarget]) || 0,
+        expectedVotesAtDecision: forecastTarget && Number.isFinite(Number(forecastTarget.expectedVotes)) ? Number(forecastTarget.expectedVotes) : null,
+        predictedPTopTwo: forecastTarget && Number.isFinite(Number(forecastTarget.pTopTwo)) ? Number(forecastTarget.pTopTwo) : null,
+        actualTopTwo: actualTopTwoNames,
+        declaredTargetReachedTopTwo: actualTopTwoNames.includes(declaredTarget),
+        declaredTargetActualReal: (rd.beasts || []).find(item => item && item.name === declaredTarget)?.isReal ?? null,
+        callBallotMismatch: Object.entries(ballot).some(([name, chips]) => Number(chips) > 0 && name !== declaredTarget),
+        outcomeCode: actualTopTwoNames.includes(declaredTarget) ? 'declared-target-reached-top-two' : 'declared-target-missed-top-two'
+      } : null;
       lessons.push({
         round: index + 1,
         decision: {
-          declaredBeasts: [...new Set([...(parsed.callBeasts || []), parsed.callBeast].filter(Boolean))],
-          claims: (parsed.claims || []).map(item => ({ beast: item.beast, real: item.real })),
+          declaredBeasts: ownCalls,
+          speakerCalls: ownCalls.slice(),
+          quotedCalls: (parsed.quotedCalls || []).map(item => ({ beast: item.beast, sourcePlayerIds: (item.sourcePlayerIds || []).slice() })),
+          claims: (parsed.speakerClaims || parsed.claims || []).map(item => ({ beast: item.beast, real: item.real })),
+          quotedClaims: (parsed.quotedClaims || []).map(item => ({ beast: item.beast, real: item.real, sourcePlayerIds: (item.sourcePlayerIds || []).slice() })),
           voteCommitments: (parsed.voteCommitments || []).map(item => ({ beast: item.beast, chips: item.chips ?? null, binding: item.binding !== false, kind: item.kind || 'explicit' })),
           voteIntents: (parsed.voteIntents || []).map(item => ({ beast: item.beast, binding: false, kind: item.kind || 'soft-intent', intensity: Number(item.intensity) || 0 })),
           abstentionReason: parsed.abstentionReason || null,
@@ -99,6 +141,7 @@
           ballotModel: rd.mind[bot.id].ballotModel || null,
           scoreProjection: rd.mind[bot.id].scoreProjection || null
         } : null,
+        strategyOutcome,
         commitmentAudit: audit ? JSON.parse(JSON.stringify(audit)) : null,
         outcome: result ? {
           rank1: { ...result.rank1 }, rank2: { ...result.rank2 },
@@ -226,8 +269,12 @@
         if (inTop && goodVotesOnMyLie >= 2) {
           add('deception', 0.03, `成功推動贗品【${m.beast}】吸引 ${goodVotesOnMyLie} 張好人選票並擠進前二`);
         } else if (goodVotesOnMyLie === 0) {
-          // 嚴格失敗懲罰：自己公開推假貨卻完全沒好人買單
-          add('deception', -0.025, `強推贗品【${m.beast}】但好人 0 票買單，帶風向失敗`);
+          // 失敗原因保留可回查細節：好人買單數與目標是否進前二分開記錄。
+          const reachedTopTwo = vr.rank1.name === m.beast || vr.rank2.name === m.beast;
+          const totalVotes = room.players.reduce((n, player) => n + (Number(rd.votes && rd.votes[player.id] && rd.votes[player.id][m.beast]) || 0), 0);
+          add('deception', -0.025, reachedTopTwo
+            ? `公開推贗品【${m.beast}】進入前二，但好人 0 票買單；主要靠壞人票，欺敵效果有限（總票 ${totalVotes}）`
+            : `公開推贗品【${m.beast}】未進前二、好人 0 票買單（總票 ${totalVotes}）；目標人氣與票數不足，需改善轉移或分票`);
         }
       });
 

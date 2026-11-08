@@ -126,7 +126,10 @@
       return '【公開表演規則：不要照讀內心計畫】你選擇公開認壞，但只承認自己是壞人陣營，不說出真正的具體角色或同伴；不得把私密查驗結果全部攤開。公開立場必須明確：' + target + '是贗品，這輪要把票推向同一尊。不可同時稱它為真品，也不可使用「票數取捨」來模糊矛盾。內部目的、私密資訊與真正動機都只是決策材料，不能直接當台詞。';
     }
     if (plan && plan.evilRolePerformance) {
-      return '【公開表演規則：不要照讀內心計畫】這輪刻意公開自稱【' + bluffRole + '】，只呈現這個公開版本，不要說出自己真正角色、同伴或「我在假扮／轉移焦點」等內心話。公開立場必須明確：' + target + '是贗品，並號召把票投向同一尊。不得把同一尊同時說成真品；不得以「票數取捨」帶過相反行動。';
+      const identityRule = plan.roleBluff && plan.roleBluff.explicitClaim === false
+        ? '這輪採漸進式表現，不要直接自報角色；用符合公開行為的自然說法即可，直到被點名或有必要時才明確對跳。'
+        : '這輪已核准明確角色主張，必要時才自稱【' + bluffRole + '】；不要每輪重複自我介紹。';
+      return '【公開表演規則：不要照讀內心計畫】' + identityRule + '只呈現對外版本，不要說出自己真正角色、同伴或「我在假扮／轉移焦點」等內心話。公開立場必須明確：' + target + '是贗品，並號召把票投向同一尊。不得把同一尊同時說成真品；不得以「票數取捨」帶過相反行動。';
     }
     return '【內心計畫與公開台詞分層】真正角色、私密查驗、秘密同伴、欺騙目的、風險估計與策略理由只是內部決策材料，禁止直接照抄進台詞。台詞是經過包裝的公開表演：只說角色此刻願意公開的立場，配一個與本局具體玩家、獸首、原話或票型相關的理由，再給清楚的呼籲。避免「我要轉移焦點／隱藏身分／建立可信度／根據陣營效益／這只是戰術／票數取捨」等內心分析口吻；不要把抽象分析報告當成自然對話，也不可為了圓場捏造證據。';
   }
@@ -734,7 +737,9 @@
         ? `本輪對外身分說法：我是方震；對${U.tag(target)}的公開陣營判斷是${plan.fakeFangClaim.isGoodCamp ? '好人' : '壞人'}。`
         : '本輪不提出角色身分主張。';
     } else if (plan.roleBluff && plan.roleBluff.role) {
-      publicIdentity = `本輪對外身分說法：我是【${plan.roleBluff.role}】。`;
+      publicIdentity = plan.roleBluff.explicitClaim === false
+        ? `內部偽裝方向是【${plan.roleBluff.role}】，但本輪採漸進表現，不要直接說出角色名稱；先用自然的發言方式與可核對行動建立合理性。若沒有人追問，不必自我介紹。`
+        : `本輪核准對外身分主張為【${plan.roleBluff.role}】；只有在被質疑、需要對跳或策略確有收益時，才自然地明確表態，不要把自稱當成證明。`;
     } else if (plan.trueRoleSignal && plan.trueRoleSignal.line) {
       publicIdentity = `可以自然使用這句公開提示一次：「${plan.trueRoleSignal.line}」。不要補充未核准的角色能力或查驗細節。`;
     }
@@ -743,7 +748,7 @@
     if (plan.confess) {
       publicObjectives.push(`公開承認「我認壞」，但不說具體角色或同伴。明確主張【${plan.beast}】是贗品，並號召投向同一尊。`);
     } else if (plan.evilRolePerformance) {
-      publicObjectives.push(`依對外身分說法自然發言；明確主張【${plan.beast}】是贗品，並號召投向同一尊。不要透露這是偽裝。`);
+      publicObjectives.push(`${plan.roleBluff && plan.roleBluff.explicitClaim === false ? '不要主動自報角色；以行為和一個自然的角色特徵慢慢鋪陳。' : '依核准的身分主張自然回應，避免反覆自我介紹。'}明確主張【${plan.beast}】是贗品，並號召投向同一尊。不要透露這是偽裝。`);
     } else {
       publicObjectives.push(`依核准的公開立場發言：${approvedClaimText}`);
       publicObjectives.push(`本輪主要公開票向是【${plan.beast}】；用一個具體、可由全桌核對的理由說明，不要把內部計算當作理由。`);
@@ -788,7 +793,7 @@
         ]
       : plan.evilRolePerformance
       ? [
-          `1. 自然維持公開身分說法「我是${plan.roleBluff && plan.roleBluff.role || ''}」，不要說自己在假扮。`,
+          `1. ${plan.roleBluff && plan.roleBluff.explicitClaim === false ? '不要直接自報角色；用自然表現逐步建立印象，沒有被追問時不必揭露身分。' : `只在必要時明確維持公開身分說法「我是${plan.roleBluff && plan.roleBluff.role || ''}」，不要說自己在假扮。`}`, 
           `2. 清楚說【${plan.beast}】是贗品，並把自己的主要票向放在同一尊。`,
           `3. 號召大家投【${plan.beast}】；其餘籌碼可以合理分配，但這尊必須是主票方向。`
         ]
@@ -1449,7 +1454,7 @@
       });
       return claims.length ? claims[claims.length - 1] : null;
     })();
-    const currentPublicRoleClaim = (plan.roleBluff && plan.roleBluff.role) || (plan.fakeFangClaim ? '方震' : null);
+    const currentPublicRoleClaim = (plan.roleBluff && plan.roleBluff.explicitClaim !== false ? plan.roleBluff.role : null) || (plan.fakeFangClaim ? '方震' : null);
     if (currentPublicRoleClaim && previousPublicRoleClaim && previousPublicRoleClaim.role !== currentPublicRoleClaim) {
       publicRoleSwitchLine = `我第${previousPublicRoleClaim.round}輪曾自稱【${previousPublicRoleClaim.role}】，現在改稱【${currentPublicRoleClaim}】；兩個版本矛盾，請核對原話與技能時點。`;
       parts.push(publicRoleSwitchLine);
@@ -1464,12 +1469,24 @@
         const pressuredAlly = U.byId(room, plan.roleBluff.protectedAllyId);
         if (pressuredAlly) parts.push(`場上對${U.tag(pressuredAlly)}的角色質疑還缺少能核對的技能時點；先把身分主張攤開，應該分別檢驗每個人的行動，不要只憑猜測集火。`);
       }
-      parts.push(plan.roleBluff.role === '方震' && roleTarget
-        ? `我是方震，我查驗${U.tag(roleTarget)}是${plan.roleBluff.isGoodCamp ? '好人' : '壞人'}，後續請用公開票型反查。`
-        : plan.roleBluff.fakeConfess
-          ? `我是${plan.roleBluff.role}，我認壞。先別把這句當成定案，請用接下來的公開票型和角色對跳反查。`
-          : `我是${plan.roleBluff.role}，後續請用公開紀錄驗證。`);
-      if (plan.roleBluff.persist && !plan.roleBluff.fakeConfess) {
+      if (plan.roleBluff.explicitClaim !== false) {
+        parts.push(plan.roleBluff.role === '方震' && roleTarget
+          ? `我是方震，我查驗${U.tag(roleTarget)}是${plan.roleBluff.isGoodCamp ? '好人' : '壞人'}，後續請用公開紀錄核對。`
+          : plan.roleBluff.fakeConfess
+            ? `我是${plan.roleBluff.role}，我認壞。先別把這句當成定案，請用接下來的公開票型和角色對跳反查。`
+            : `我是${plan.roleBluff.role}，這輪先把話說清楚；後面有矛盾再拿紀錄對。`);
+      } else if (plan.roleBluff.role === '方震' && roleTarget && plan.roleBluff.explicitClaim !== false) {
+        parts.push(`我這輪查的是${U.tag(roleTarget)}的陣營，結果是${plan.roleBluff.isGoodCamp ? '好人' : '壞人'}；先看後續行動有沒有對得上。`);
+      } else if (plan.roleBluff.role === '許願' && plan.roleBluff.abilityProfile) {
+        const publicBeast = plan.roleBluff.abilityProfile.publicBeastNames && plan.roleBluff.abilityProfile.publicBeastNames[0];
+        if (publicBeast) parts.push(`我手上的線索不只一尊，這輪先公開【${publicBeast}】這筆。`);
+      } else if (plan.roleBluff.role === '黃煙煙' || plan.roleBluff.role === '木戶加奈') {
+        if (plan.roleAbilityCover === 'unreadable') parts.push('這輪有一尊我看不清，先不硬報真偽。');
+        else parts.push('我會先看器物本身的狀況，不急著跟著票勢下結論。');
+      } else {
+        parts.push('先看這輪實際行動和票型，身分不必靠自我介紹定案。');
+      }
+      if (plan.roleBluff.persist && !plan.roleBluff.fakeConfess && plan.roleBluff.explicitClaim !== false) {
         const denySeed = GD.DialogueBank ? GD.DialogueBank.hash(`${bot.botId || bot.id}:${ctx.t}:${ctx.myPos}:persistent-denial:${plan.roleBluff.role}`) : ctx.t;
         const denial = GD.DialogueBank ? freshPickLine('persistentDenial', denySeed, { role: plan.roleBluff.role, round: ctx.t + 1 })
           : `我不會只因為有人重複質疑就撤回【${plan.roleBluff.role}】的身分主張，請用公開紀錄反駁。`;
@@ -1805,8 +1822,10 @@
       } else if (plan.fakeFangClaim && plan.fakeFangClaim.targetId) {
         const target = U.byId(room, plan.fakeFangClaim.targetId);
         if (target) safeParts.push(`我是方震，我查驗${U.tag(target)}是${plan.fakeFangClaim.isGoodCamp ? '好人' : '壞人'}。`);
-      } else if (plan.roleBluff) {
+      } else if (plan.roleBluff && plan.roleBluff.explicitClaim !== false) {
         safeParts.push(`我是${plan.roleBluff.role}，後續請依公開紀錄核對。`);
+      } else if (plan.roleBluff) {
+        safeParts.push('先看這輪實際行動和票型，身分不必靠自我介紹定案。');
       } else if (plan.revealFang) {
         safeParts.push(`我沒有獸首查驗能力；【${plan.beast}】是依公開線索與票型做出的推論，不是我親自驗出的結果。`);
         if (plan.trueRoleSignal && plan.trueRoleSignal.line) safeParts.push(plan.trueRoleSignal.line);
@@ -2098,7 +2117,9 @@
       /我(?:想|要|正在)建立可信度/,
       /我(?:想|要|正在)轉移焦點/,
       /為了隱藏(?:我的)?(?:身分|身份)/,
-      /(?:後驗機率|預期保真得分|陣營效益|風險估計|候選池|內部權重)/
+      /(?:後驗機率|後驗|預期保真得分|陣營效益|風險估計|候選池|內部權重)/,
+      /(?:資訊來源拆解|來源拆解|獨立驗證|獨立查驗|共識審計|來源未明|策略模型|證據鏈|證據權重|來源權重|情報根源|原始來源|同源轉述|技能時序窗口)/,
+      /(?:預期票數|投票預測模型|票數預測模型|P\s*\(\s*(?:Evil|Lao|Yao|Zheng|Real|TopTwo)\s*\))/i
     ];
     return patterns.some(pattern => pattern.test(s))
       ? { ok: false, why: '發言洩漏內心計畫或私密決策語言，必須改寫成公開理由' }
@@ -2245,7 +2266,7 @@
     }
 
     // A planned role bluff remains legal, but a cross-round switch must acknowledge the public contradiction.
-    const plannedPublicRole = (plan.roleBluff && plan.roleBluff.role) || (plan.fakeFangClaim ? '方震' : null);
+    const plannedPublicRole = (plan.roleBluff && plan.roleBluff.explicitClaim !== false && plan.roleBluff.role) || (plan.fakeFangClaim ? '方震' : null);
     if (plannedPublicRole) {
       let previousPublicRole = null;
       for (let ri = 0; ri < room.currentRoundIdx; ri++) {
@@ -2322,9 +2343,10 @@
       parsed.campChecks.length === 1 &&
       parsed.campChecks[0].targetId === plannedFangClaim.targetId &&
       parsed.campChecks[0].camp === (plannedFangClaim.isGoodCamp ? 'good' : 'evil');
-    const plannedFalseRoleOK = !!plan.roleBluff && parsed.selfRole === plan.roleBluff.role && parsed.selfRole !== bot.role;
+    const roleClaimRequired = !!plan.roleBluff && plan.roleBluff.explicitClaim !== false;
+    const plannedFalseRoleOK = !!plan.roleBluff && (roleClaimRequired ? parsed.selfRole === plan.roleBluff.role : (!parsed.selfRole || parsed.selfRole === plan.roleBluff.role)) && plan.roleBluff.role !== bot.role;
     const plannedFalseConfessOK = plannedFalseRoleOK && !!plan.roleBluff.fakeConfess && parsed.selfEvil;
-    if ((plan.fakeFangClaim || (plan.roleBluff && plan.roleBluff.role === '方震')) && !plannedFakeFangOK) {
+    if ((plan.fakeFangClaim || (plan.roleBluff && plan.roleBluff.role === '方震' && plan.roleBluff.explicitClaim !== false)) && !plannedFakeFangOK) {
       return { ok: false, why: '假跳方震發言未依計畫報出指定的單一陣營查驗' };
     }
     const trueFangEvidence = plannedTrueFangReveal ? (plan.trueRoleSignal.verifiedCampChecks || []) : [];
@@ -2338,8 +2360,11 @@
       return { ok: false, why: '洩漏陣營查驗（方震身分）' };
     }
     if (parsed.campChecks.length && !plannedFakeFangOK && !trueFangEvidenceOK) return { ok: false, why: '洩漏陣營查驗（方震身分）' };
-    if (plan.roleBluff && parsed.selfRole !== plan.roleBluff.role) {
+    if (plan.roleBluff && plan.roleBluff.explicitClaim !== false && parsed.selfRole !== plan.roleBluff.role) {
       return { ok: false, why: `角色偽裝計畫要求公開假稱【${plan.roleBluff.role}】` };
+    }
+    if (plan.roleBluff && plan.roleBluff.explicitClaim === false && parsed.selfRole && parsed.selfRole !== plan.roleBluff.role) {
+      return { ok: false, why: '漸進式偽裝不得無故改成另一個角色版本' };
     }
     if (!plan.roleBluff && !plan.fakeFangClaim && parsed.selfRole && parsed.selfRole !== bot.role) {
       return { ok: false, why: '未計畫的角色偽裝' };

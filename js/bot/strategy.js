@@ -230,12 +230,21 @@
       return hasUnable || ctx.t < 2 ? 0.82 : 0.35;
     }
     if (role === '方震') {
+      const ownLogs = (room.rounds || []).slice(0, ctx.t + 1).map(rd => rd && rd.turnLogs && rd.turnLogs[bot.id]).filter(Boolean);
+      const hasOwnCampCheck = ownLogs.some(log => !!(log.fangTargetId && ['good', 'evil'].includes(log.fangCamp)));
       const candidates = (room.players || []).filter(player => player && player.id !== bot.id &&
         !(ctx.partner && player.id === ctx.partner.id));
-      return candidates.length ? 0.78 : 0.15;
+      // 沒有自己的陣營查驗紀錄時，只能低調鋪陳，不能直接假稱「我查了某人」。
+      return hasOwnCampCheck ? 0.82 : (candidates.length && ctx.t === 0 ? 0.47 : 0.12);
     }
     if (role === '平民') return 0.78;
-    if (role === '鄭國渠' || role === '老朝奉' || role === '藥不然') return 0.72;
+    const ownLogs = (room.rounds || []).slice(0, ctx.t + 1).map(rd => rd && rd.turnLogs && rd.turnLogs[bot.id]).filter(Boolean);
+    const ownAmbush = ownLogs.some(log => !!(log.ambushTargetId || (log.ambushIds || []).length || /偷襲/.test(String(log.ability || ''))));
+    const ownBlock = ownLogs.some(log => /封鎖|封住/.test(String(log.ability || '') + ' ' + String(log.skillTag || '')));
+    const ownDisruption = ownLogs.some(log => /擾亂/.test(String(log.ability || '') + ' ' + String(log.skillTag || '')) || log.laoSkillDecision === 'activate');
+    if (role === '鄭國渠') return ownBlock ? 0.82 : (ctx.t === 0 ? 0.49 : 0.16);
+    if (role === '藥不然') return ownAmbush ? 0.82 : (ctx.t === 0 ? 0.49 : 0.16);
+    if (role === '老朝奉') return ownDisruption ? 0.82 : (ctx.t === 0 ? 0.49 : 0.20);
     if (role === '姬雲浮') return 0.62;
     return 0.50;
   }
@@ -1164,12 +1173,13 @@
     return candidates.length ? candidates[0].name : null;
   }
   // 好人不假扮壞人角色或假認壞；這會破壞好人勝利目標並製造錯誤的票向訊號。
-  function buildRoleBluffPool(bot, ctx) {
+  function buildRoleBluffPool(bot, ctx, allowCounterBluff = false) {
     const isGood = ctx && typeof ctx.isGood === 'boolean' ? ctx.isGood : !!(GD.isGood && bot && GD.isGood(bot.role));
     return [...(GD.ROLE_ORDER || []).filter(role => role !== (bot && bot.role) &&
       // 真方震沒有許願的雙獸首查驗能力，不能選這個必須能交代兩筆查驗的假身分。
       !(bot && bot.role === '方震' && role === '許願') &&
-      (!isGood || !GD.ROLES || !GD.ROLES[role] || GD.ROLES[role].camp !== 'evil')), '平民'];
+      // 好人平時只用好人角色做掩護；被公開指認時才開放低機率反反心理，不代表承諾角色是真實身分。
+      (!isGood || allowCounterBluff || !GD.ROLES || !GD.ROLES[role] || GD.ROLES[role].camp !== 'evil')), '平民'];
   }
   function enforcePublicTargetAnchor(ballot, target, maxSpend) {
     const limit = Math.max(0, Math.floor(Number(maxSpend) || 0));
@@ -1222,6 +1232,9 @@
   }
   S.chooseCounterfeitTarget = chooseCounterfeitTarget;
   S.buildRoleBluffPool = buildRoleBluffPool;
+  S.roleBluffFeasibility = roleBluffFeasibility;
+  S.latestPublicRoleClaims = latestPublicRoleClaims;
+  S.chooseRoleBluffRole = chooseRoleBluffRole;
   S.findCrediblePressuredAlly = findCrediblePressuredAlly;
   S.enforcePublicTargetAnchor = enforcePublicTargetAnchor;
 
@@ -1308,6 +1321,7 @@
       roleBluff: openingRoleBluff, roleSwapTrap: roleSwapContext, ambushFrame: null, ambushFrameHypothesis: null,
       tacticalLine: '', tactics: null, padBeast: null, partnerBeast: null, why };
     const log = ctx.log;
+    const explicitRoleSwapFrame = !!(plan.roleSwapTrap || plan.ambushFrame || log.ambushFrameTactic);
     if (ctx.isGood && A.laoTiming) {
       const topTiming = (A.laoTiming.candidates || []).slice(0, 3).map(candidate => {
         const player = U.byId(room, candidate.playerId);
@@ -1754,7 +1768,8 @@
 
     /* ---- 動態角色偽裝：身分宣稱是戰術承諾，後續必須能被公開紀錄驗證 ---- */
     if (!plan.confess && !plan.fakeFangClaim) {
-      const rolePool = buildRoleBluffPool(bot, ctx);
+      const allowGoodCounterBluff = !!(ctx.isGood && plan.publicRolePressure);
+      const rolePool = buildRoleBluffPool(bot, ctx, allowGoodCounterBluff);
       const feasibilityRows = rolePool.map(role => ({ role, feasibility: roleBluffFeasibility(role, bot, ctx, A) }));
       const feasibleRolePool = feasibilityRows.filter(item => item.feasibility >= 0.45).map(item => item.role);
       rolePool.splice(0, rolePool.length, ...feasibleRolePool);
@@ -1765,13 +1780,14 @@
         Number(group.speakerCount || 0) >= 3 && (Number(group.selfReportedDirect || 0) + Number(group.inference || 0)) >= 2);
       const laoNoConsensusBoost = !ctx.isGood && bot.role === '老朝奉' && !stableGoodConsensus ? 0.20 : 0;
       const baseRoleBluffChance = ctx.isGood
-        ? (pressuredAllyForRoleBluff
-            ? U.clamp(0.055 + 0.12 * genes.deception + (t === 2 ? 0.035 : 0) + 0.045 * genes.assertiveness, 0.05, 0.22)
+        ? ((pressuredAllyForRoleBluff || allowGoodCounterBluff)
+            ? U.clamp(0.035 + 0.075 * genes.deception + (t === 2 ? 0.02 : 0) + 0.045 * genes.assertiveness + (allowGoodCounterBluff ? 0.035 : 0), 0.035, 0.19)
             : 0)
-        : U.clamp(0.20 + 0.27 * genes.deception + (plan.evilPosture === 'desperate' ? 0.12 : plan.evilPosture === 'conceal' ? -0.07 : 0) + (t > 0 ? 0.06 : 0) + (plan.publicRolePressure ? 0.16 : 0) + laoNoConsensusBoost, 0.12, 0.82);
+        : U.clamp(0.045 + 0.16 * genes.deception + (plan.evilPosture === 'desperate' ? 0.10 : plan.evilPosture === 'conceal' ? -0.025 : 0) +
+            (t > 0 ? 0.035 : 0) + (plan.publicRolePressure ? 0.14 : 0) + (explicitRoleSwapFrame ? 0.18 : 0) +
+            laoNoConsensusBoost * 0.35, 0.025, 0.48);
       const teamRolePosture = ctx.isGood ? { multiplier: 1, active: false, reason: 'good-side' }
         : teamRoleBluffAdjustment(room, bot, ctx.partner, t);
-      const explicitRoleSwapFrame = !!(plan.roleSwapTrap || plan.ambushFrame || log.ambushFrameTactic);
       const roleBluffChance = !ctx.isGood && teamRolePosture.active && !explicitRoleSwapFrame
         ? U.clamp(baseRoleBluffChance * teamRolePosture.multiplier, 0.03, 0.78)
         : baseRoleBluffChance;
@@ -1831,6 +1847,35 @@
           ? `我決定公開假稱自己是【${plan.roleBluff.role}】，並採取持續承諾路線：後續若沒有確切矛盾，不因壓力自行改口，直到終局都接受公開紀錄反查`
           : `我決定公開假稱自己是【${plan.roleBluff.role}】，用角色承諾改變對手對查驗與終局鑑人的判斷；後續要承擔被對跳與按時序反查的風險`);
       }
+    }
+
+    // 身分偽裝採漸進式表現：沒有被點名／對跳時，不急著在第一句自報角色。
+    // 已公開承諾沿用原版本，但下一輪不重複自我介紹；被追問或執行協同換位時才明確對跳。
+    if (plan.roleBluff && plan.roleBluff.role) {
+      const priorPublicClaims = latestPublicRoleClaims(room, t, null);
+      const ownPriorClaim = priorPublicClaims.get(bot.id) || null;
+      const roleCanBePubliclySupported = (() => {
+        const logs = (room.rounds || []).slice(0, t + 1).map(historyRound => historyRound && historyRound.turnLogs && historyRound.turnLogs[bot.id]).filter(Boolean);
+        if (plan.roleBluff.role === '方震') return logs.some(log => !!(log.fangTargetId && ['good', 'evil'].includes(log.fangCamp)));
+        if (plan.roleBluff.role === '許願') return !!(plan.roleBluff.abilityProfile && plan.roleBluff.abilityProfile.beastNames.length >= 2);
+        if (plan.roleBluff.role === '黃煙煙' || plan.roleBluff.role === '木戶加奈') return !!plan.roleBluff.abilityProfile || logs.some(log => log.blind === false && log.inspect && log.inspect.some(item => item && item.displayedReal === null));
+        if (plan.roleBluff.role === '鄭國渠') return logs.some(log => /封鎖|封住/.test(String(log.ability || '') + ' ' + String(log.skillTag || '')));
+        if (plan.roleBluff.role === '藥不然') return logs.some(log => !!(log.ambushTargetId || (log.ambushIds || []).length));
+        if (plan.roleBluff.role === '老朝奉') return logs.some(log => /擾亂/.test(String(log.ability || '') + ' ' + String(log.skillTag || '')) || log.laoSkillDecision === 'activate');
+        return true;
+      })();
+      // 明確的藥不然／老朝奉換位框架本身就是預先規劃的特殊戰術；
+      // 其他偽裝則必須先有可公開核對的能力表現，才可直接報角色。
+      const explicitClaimNeeded = !!(explicitRoleSwapFrame || (roleCanBePubliclySupported &&
+        (plan.publicRolePressure || (t >= 2 && plan.evilPosture === 'desperate' && !ownPriorClaim))));
+      plan.roleBluff.explicitClaim = explicitClaimNeeded;
+      plan.roleBluff.presentation = explicitClaimNeeded ? 'direct-claim' : (ownPriorClaim ? 'quiet-continuation' : 'gradual-cover');
+      plan.roleBluff.previousPublicRole = ownPriorClaim && ownPriorClaim.role || null;
+      plan.roleBluff.reassert = explicitClaimNeeded && !!ownPriorClaim;
+      if (!explicitClaimNeeded) plan.roleBluff.fakeConfess = false;
+      plan.roleBluff.coverStyle = plan.roleBluff.role === '許願' ? 'selective-two-source' :
+        ['黃煙煙', '木戶加奈'].includes(plan.roleBluff.role) ? 'one-unreadable-round' :
+        plan.roleBluff.role === '方震' ? 'single-camp-check' : 'public-behavior-first';
     }
 
     // 假扮許願的任何非許願角色，都必須能交代兩尊不同獸首的來源；但可以謹慎隱藏其中一筆。
@@ -2102,19 +2147,26 @@
         const cb = publicSpeechData(sp, room, rd).callBeast;
         if (cb) callCounts[cb] = (callCounts[cb] || 0) + 1;
       });
-      if ((callCounts[m.beast] || 0) <= 1 && spend >= 2) {
-        const rallyFake = [...m.post]
-          .filter(b => b.name !== m.beast && b.p <= 0.48 && (callCounts[b.name] || 0) >= 1)
-          .sort((a, b) => (callCounts[b.name] || 0) - (callCounts[a.name] || 0) || (zIdx(a.name) - zIdx(b.name)))[0];
-        if (rallyFake) {
-          if (rnd() < (m.evilPosture === 'desperate' ? 0.90 : 0.25 + 0.65 * genes.camouflage)) {
-            // 高偽裝力：留 1 票支持自己口頭喊的獸首，其餘合流別隻假貨
-            ballot[m.beast] = 1;
-            ballot[rallyFake.name] = spend - 1;
-            return finalizePublicPerformanceBallot(ballot);
-          } else if (rnd() < (m.evilPosture === 'desperate' ? 0.65 : 0.60 * (1 - genes.camouflage))) {
-            // 低偽裝力：直接棄守自己口頭宣稱的獸首（0 票矛盾），全票轉投別隻
-            ballot[rallyFake.name] = spend;
+      if (spend >= 2 && GD.Tactics && typeof GD.Tactics.chooseEvilCoalitionTarget === 'function') {
+        const redirect = GD.Tactics.chooseEvilCoalitionTarget(room, bot.id, m);
+        const rallyFake = redirect && redirect.shouldRedirect
+          ? m.post.find(b => b.name === redirect.target && b.p <= 0.48)
+          : (callCounts[m.beast] <= 1 ? [...m.post]
+            .filter(b => b.name !== m.beast && b.p <= 0.48 && (callCounts[b.name] || 0) >= 1)
+            .sort((a, b) => (callCounts[b.name] || 0) - (callCounts[a.name] || 0) || (zIdx(a.name) - zIdx(b.name)))[0] : null);
+        if (rallyFake && rallyFake.name !== m.beast) {
+          m.coalitionRedirect = redirect || null;
+          const redirectChance = m.evilPosture === 'desperate' ? 0.92 : U.clamp(0.18 + 0.48 * genes.deception + 0.22 * genes.camouflage, 0.15, 0.82);
+          if (rnd() < redirectChance) {
+            if (genes.camouflage >= 0.62 && spend >= 2 && rnd() < 0.68) {
+              // 保留一票維持公開立場，其餘投入更有機會進前二的替代贗品。
+              ballot[m.beast] = 1;
+              ballot[rallyFake.name] = spend - 1;
+            } else {
+              // 可以讓公開號召與實際票向不同；這是有目的的分票／轉移，不是解析錯誤。
+              ballot[rallyFake.name] = spend;
+            }
+            m.coalitionRedirect.executed = true;
             return finalizePublicPerformanceBallot(ballot);
           }
         }
