@@ -1,0 +1,18 @@
+古董局中局 v10.8.16 A/A 重現性測試
+測試命令：node tests/sim.js 5 --aa
+測試結果：5/5 組固定種子摘要一致
+
+AA_SEED_0: identical｜elapsed 5906 ms
+AA_SEED_1: identical｜elapsed 9871 ms
+AA_SEED_2: identical｜elapsed 14843 ms
+AA_SEED_3: identical｜elapsed 19064 ms
+AA_SEED_4: identical｜elapsed 23567 ms
+
+總耗時：23567 ms
+失敗項：0
+快取落盤：通過
+序列化：0.00 ms
+寫入：1.30 ms
+讀回驗證：0.05 ms
+
+說明：A/A 只驗證相同版本、相同初始條件與固定種子下的重現性，不代表勝率提高，也不等於 A/B 勝率實驗。

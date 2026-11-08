@@ -1,0 +1,1 @@
+JavaScript syntax check: 100/100 passed, 0 failed

@@ -1,0 +1,39 @@
+古董局中局 v10.8.16 完整版安裝說明
+
+一、安裝
+1. 先備份目前正在使用的遊戲資料夾。
+2. 解壓 gudong_v10_8_16_full.zip 到新的獨立資料夾，不要直接覆蓋舊版。
+3. 確認 index.html、css/、js/、assets/、tests/ 及 local-server.cjs 都在同一專案根目錄。
+4. 在專案根目錄執行：node local-server.cjs
+5. 使用瀏覽器開啟：http://127.0.0.1:8000
+6. 確認首頁顯示 v10.8.16。
+
+二、建議驗收
+node --check js/core/claims.js
+node --check js/bot/mind.js
+node --check js/bot/strategy.js
+node --check js/bot/tactics.js
+node --check js/bot/speech.js
+node --check js/bot/learning.js
+node tests/v10-8-16-public-attribution-regression.js
+node tests/v10-8-16-dialogue-coherence-regression.js
+node tests/v10-8-16-role-bluff-regression.js
+node tests/v10-8-16-role-posterior-regression.js
+node tests/v10-8-16-evil-coalition-regression.js
+node tests/run-v10-8-16-regressions.js
+node tests/sim.js 5 --aa
+
+三、版本重點
+- 引述他人的獸首真假與投票號召，不再污染自己的主張與票向。
+- 「我主張投羊」是公開號召；「我會投羊」才是硬承諾。
+- 假跳角色採漸進式表現，不會每輪無故自報身分。
+- 好人受到角色指認時，也可低機率採取反反心理。
+- 壞人可依公開票數預測將贗品票轉移到更可能進前二的目標。
+- Learning 會保存決策當時可見的支持與結算後結果，兩者分開。
+
+四、限制
+- 本包基於使用者上傳的 v10.8.14 專案 RAR，並以 v10.8.15 對局紀錄新增回歸案例；不是從未提供的 v10.8.15 原始碼直接升級。
+- 本包含前端與本機伺服器原始碼，不含 Cloudflare Worker 原始碼。
+- Gemini fallback 測試使用 mock，不代表正式 Worker 對每個模型 ID 均已通過線上驗證。
+- A/A 固定種子只驗證相同條件的重現性，不代表勝率提升。
+- 正式 Firebase 多裝置與真人盲測仍須在實際部署環境驗收。
