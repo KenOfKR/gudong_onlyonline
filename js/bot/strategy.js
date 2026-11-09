@@ -10,6 +10,35 @@
   const S = {};
   const ZODIAC_LIST = ['鼠', '牛', '虎', '兔', '龍', '蛇', '馬', '羊', '猴', '雞', '狗', '豬'];
 
+  S.collectPublicRoleHypotheses = function (room, excludeSpeakerId = null, throughRoundIndex = null) {
+    const rounds = Array.isArray(room && room.rounds) ? room.rounds : [];
+    const end = Number.isInteger(throughRoundIndex) ? Math.min(throughRoundIndex, rounds.length - 1) : rounds.length - 1;
+    const hypotheses = new Map();
+    for (let roundIndex = 0; roundIndex <= end; roundIndex++) {
+      const historyRound = rounds[roundIndex];
+      (historyRound && historyRound.speeches || []).forEach(sp => {
+        if (!sp || !sp.playerId || String(sp.playerId) === String(excludeSpeakerId)) return;
+        let parsed = sp.p || {};
+        if (GD.Claims && GD.Claims.parseRecord) {
+          try { parsed = GD.Claims.parseRecord(sp, room, historyRound); } catch (_) {}
+        }
+        const sourceRound = historyRound.roundNum || roundIndex + 1;
+        const add = (candidateId, role, polarity, text) => {
+          if (!candidateId || !role || role === '平民' || polarity === 'deny' || polarity === 'fake') return;
+          const key = `${candidateId}|${role}`;
+          if (!hypotheses.has(key)) hypotheses.set(key, {
+            candidateId, role, sourceSpeakerId: sp.playerId, sourceRound,
+            sourceText: String(text || '').slice(0, 180), sources: new Set()
+          });
+          hypotheses.get(key).sources.add(String(sp.playerId));
+        };
+        add(sp.playerId, parsed.selfRole, 'claim', sp.text);
+        (parsed.roleClaims || []).forEach(claim => add(claim.playerId, claim.role, claim.polarity, claim.text || sp.text));
+      });
+    }
+    return [...hypotheses.values()].map(item => ({ ...item, sources: [...item.sources] }));
+  };
+
   // Mind.context() exposes a sanitized clone of the player's inspection log so audit-only flags
   // never enter decision logic. Strategy metadata still needs an explicit write-through to the
   // real private turn log; keep that mutation narrow and keyed only to the acting player's record.
@@ -113,7 +142,7 @@
     }
     const chorus = A && A.consensusAlerts && A.consensusAlerts[0];
     if (chorus) {
-      lines.push(`【${chorus.beast}】目前有${chorus.speakerCount}人提出相同真偽主張，其中自稱親查${chorus.selfReportedDirect}人、推論${chorus.inference}人、附和${chorus.echo}人、未交代來源${chorus.unattributed}人、視野受限${chorus.limitedView}人；這些是公開說法，不等於同數量的獨立驗證。`);
+      lines.push(`【${chorus.beast}】的看法被多人提到，但部分來源是玩家自述或沿用前面說法；我會先核對原始依據，不把重複次數當成新證據。`);
     }
 
     return {
@@ -1349,6 +1378,50 @@
       }));
     }
     plan.publicRolePressure = publicRolePressure(room, rd, bot);
+    // 低頻角色討論：同時讀取公開自稱與對他人的明確角色假設，不讀取其他人的私有推理。
+    if (bot.isBot && t >= 1 && t <= 2 && GD.DialogueBank && !plan.publicRolePressure) {
+      const discussionEvents = (room.rounds || []).flatMap(historyRound => Object.values(historyRound.mind || {})
+        .map(record => record && record.roleDiscussionEvent).filter(event => event && event.gameEvent));
+      const initiatingEvent = discussionEvents.find(event => event.phase !== 'response') || null;
+      const hasResponse = discussionEvents.some(event => event.phase === 'response');
+      const publicRoleHypotheses = S.collectPublicRoleHypotheses(room, bot.id, t);
+      const publicRoleSourceIds = new Set(publicRoleHypotheses.flatMap(item => item.sources));
+      const stableRolePlayerKey = id => {
+        const player = U.byId(room, id);
+        return player ? String(player.botId || player.name || `seat:${player.seatIndex}`) : String(id || '');
+      };
+      const eventHash = GD.DialogueBank.hash(`${room.roomId || ''}:${t}:role-discussion:${bot.botId || bot.id}`);
+      let roleDiscussionEligible = false;
+      let roleDiscussionRoll = eventHash % 100;
+      if (!initiatingEvent && publicRoleHypotheses.length >= 2 && publicRoleSourceIds.size >= 2 && eventHash % 100 < 30) {
+        roleDiscussionEligible = true;
+        const candidates = publicRoleHypotheses.filter(candidate => !(bot.role === '方震' && candidate.candidateId === bot.id))
+          .sort((a, b) => `${stableRolePlayerKey(a.candidateId)}:${a.role}`.localeCompare(`${stableRolePlayerKey(b.candidateId)}:${b.role}`));
+        const candidate = candidates.length ? candidates[eventHash % candidates.length] : null;
+        if (candidate) plan.roleDiscussionEvent = {
+          gameEvent: true, phase: 'initiate', eventId: `${t}:${stableRolePlayerKey(candidate.candidateId)}:${candidate.role}`,
+          act: ['question', 'counterpoint', 'probe'][Math.floor(eventHash / 7) % 3],
+          candidateId: candidate.candidateId, candidateRole: candidate.role,
+          sourceSpeakerId: candidate.sourceSpeakerId, sourceRound: candidate.sourceRound,
+          sourceText: candidate.sourceText, sourceCount: candidate.sources.length
+        };
+      } else if (!initiatingEvent && publicRoleHypotheses.length >= 2 && publicRoleSourceIds.size >= 2) {
+        roleDiscussionEligible = true;
+      } else if (initiatingEvent && !hasResponse && String(initiatingEvent.candidateId) !== String(bot.id)) {
+        const responseHash = GD.DialogueBank.hash(`${room.roomId || ''}:${initiatingEvent.eventId}:response:${bot.botId || bot.id}`);
+        roleDiscussionRoll = responseHash % 100;
+        roleDiscussionEligible = true;
+        if (responseHash % 100 < 38) plan.roleDiscussionEvent = {
+          ...initiatingEvent, gameEvent: true, phase: 'response',
+          act: responseHash % 2 ? 'counterpoint' : 'probe', responseTo: initiatingEvent.sourceSpeakerId
+        };
+      }
+      plan.roleDiscussionAudit = {
+        eligible: roleDiscussionEligible, phase: initiatingEvent ? 'response' : 'initiate',
+        clueCount: publicRoleHypotheses.length, independentSourceCount: publicRoleSourceIds.size,
+        roll: roleDiscussionRoll, triggered: !!plan.roleDiscussionEvent
+      };
+    }
     if (ctx.partner && plan.publicRolePressure && plan.publicRolePressure.speakerId === ctx.partner.id) {
       plan.publicRolePressure = null;
     }
@@ -1683,7 +1756,7 @@
       })();
       const signalEligible = !!roleSignalCategory && (
         bot.role !== '許願' || (!log.blind && myIns.length >= 2)
-      ) && (bot.role !== '方震' || !!latestFangEvidence);
+      ) && (bot.role !== '方震' || (!!latestFangEvidence && (roleClaimed || directlyPressured)));
       const abilityEvidence = (
         bot.role === '許願' && myIns.length >= 2 ||
         bot.role === '方震' && !!latestFangEvidence ||
@@ -1698,12 +1771,13 @@
         : 0.03 + 0.06 * genes.deception;
       if (t > 0) trueSignalChance += 0.015;
       if (t === 2) trueSignalChance += 0.025;
-      if (roleClaimed) trueSignalChance += ctx.isGood ? 0.28 : 0.22;
-      if (directlyPressured) trueSignalChance += 0.10;
-      if (abilityEvidence) trueSignalChance += 0.05;
+      if (roleClaimed) trueSignalChance += ctx.isGood ? 0.22 : 0.18;
+      if (directlyPressured) trueSignalChance += 0.20;
+      if (abilityEvidence && bot.role !== '方震') trueSignalChance += 0.05;
       trueSignalChance = U.clamp(trueSignalChance, 0.02, 0.62);
       // 許願應靠判斷與言行一致性建立可信度，不應反覆暗示自己握有額外查驗。
       if (bot.role === '許願') trueSignalChance = U.clamp(trueSignalChance * 0.45, 0.01, 0.26);
+      if (bot.role === '方震' && !roleClaimed && !directlyPressured) trueSignalChance = 0;
       if (signalledEarlier && !roleClaimed && !directlyPressured) trueSignalChance = 0;
       // Derive the signal roll from a stable context hash instead of consuming Math.random().
       // This keeps existing vote/ability random streams unchanged when the optional signal is added.
@@ -1966,6 +2040,7 @@
       const seed = GD.DialogueBank && GD.DialogueBank.hash ? GD.DialogueBank.hash(seedText) : undefined;
       plan.tactics = GD.Tactics.publicNarrative(room, bot, A, plan, seed);
       plan.tacticalLine = plan.tactics && plan.tactics.line || '';
+      plan.tacticalStrategy = plan.tactics && plan.tactics.strategy || null;
       if (plan.tactics && plan.tactics.score) {
         why.push(`全局盤面估算：保真部分約 ${plan.tactics.score.expectedSavedReal} 分，公開第二名確真累積 ${plan.tactics.score.publicRank2RealPoints} 分；票數預測仍有不確定性`);
       }
@@ -2029,12 +2104,15 @@
       teamDeceptionPosture: plan.teamDeceptionPosture || null,
       estimatedGoodScore: plan.estimatedGoodScore == null ? null : plan.estimatedGoodScore,
       roleBluff: plan.roleBluff || null,
+      roleDiscussionEvent: plan.roleDiscussionEvent || null,
+      roleDiscussionAudit: plan.roleDiscussionAudit || null,
       zhengBlindSignal: plan.zhengBlindSignal || null,
       roleSwapTrap: plan.roleSwapTrap || null,
       ambushFrame: plan.ambushFrame || null,
       ambushFrameHypothesis: plan.ambushFrameHypothesis || null,
       trueRoleSignal: plan.trueRoleSignal ? { role: plan.trueRoleSignal.role, kind: plan.trueRoleSignal.kind, reveal: !!plan.trueRoleSignal.reveal, verifiedCampChecks: plan.trueRoleSignal.verifiedCampChecks || [], category: plan.trueRoleSignal.category, line: plan.trueRoleSignal.line, hasAbilityEvidence: !!plan.trueRoleSignal.hasAbilityEvidence } : null,
       tacticalCategory: plan.tactics && plan.tactics.category || null,
+      tacticalStrategy: plan.tacticalStrategy || null,
       tacticalLine: plan.tacticalLine || '',
       xuYuanLine: plan.xuYuanLine || null,
       voteForecast: plan.tactics && plan.tactics.forecast ? {
@@ -2093,6 +2171,36 @@
     const ownSpeech = (rd.speeches || []).find(sp => String(sp && sp.playerId) === String(bot.id));
     const ownSpeechData = publicSpeechData(ownSpeech, room, rd);
     const promisedBeast = ownSpeechData.voteCommitmentBinding ? (ownSpeechData.voteCommitment || null) : null;
+    const annotateBallotTactic = (candidate, diagnostic) => {
+      const positive = Object.entries(candidate || {}).filter(([, value]) => Number(value) > 0).sort((a, b) => Number(b[1]) - Number(a[1]));
+      const mode = !positive.length ? 'abstain' : positive.length > 1 ? 'split' : Number(positive[0][1]) <= 1 ? 'probe' : 'concentrate';
+      const projected = diagnostic && diagnostic.projectedTopTwo || [];
+      const votedForProjectedPair = positive.some(([name]) => projected.includes(name));
+      const publicCalls = [...new Set([...(ownSpeechData.speakerCalls || ownSpeechData.callBeasts || []), ownSpeechData.callBeast].filter(Boolean))];
+      const primaryTarget = positive[0] && positive[0][0] || null;
+      const alignsWithPublicCall = !publicCalls.length || positive.some(([name]) => publicCalls.includes(name));
+      const speechTopTwo = (m.voteForecast && m.voteForecast.ranking || []).slice().sort((a, b) => Number(b.expectedVotes) - Number(a.expectedVotes)).slice(0, 2).map(row => row.name);
+      const ballotForecast = GD.Tactics && GD.Tactics.forecastVotes
+        ? GD.Tactics.forecastVotes(room, bot.id, m.beliefProfile) : null;
+      const ballotTopTwo = (ballotForecast && ballotForecast.ranking || []).slice().sort((a, b) => Number(b.expectedVotes) - Number(a.expectedVotes)).slice(0, 2).map(row => row.name);
+      const forecastShifted = speechTopTwo.length > 0 && ballotTopTwo.length > 0 &&
+        speechTopTwo.join('|') !== ballotTopTwo.join('|');
+      const divergenceReason = mode === 'abstain' ? 'preserve_chips_after_low_marginal_value_check'
+        : alignsWithPublicCall ? null
+        : (m.coalitionRedirect && m.coalitionRedirect.executed) ? 'bait_and_redirect_to_improve_fake_top_two'
+          : forecastShifted ? 'updated_after_later_public_speeches_changed_the_top_two_forecast'
+            : (positive.some(([name]) => projected.includes(name)) ? 'joint_top_two_marginal_value_outweighed_the_called_target'
+              : 'private_posterior_value_outweighed_the_called_target');
+      m.ballotTactic = { mode, rationale: mode === 'abstain' ? 'preserve_chips_when_marginal_value_is_low' :
+        mode === 'split' ? 'support_two_targets_for_joint_top_two_value' :
+          mode === 'probe' ? 'single_chip_probe' : 'concentrate_on_high_marginal_target',
+        objective: diagnostic && diagnostic.objective || null, projectedTopTwo: projected.slice(),
+        marginalExpectedGoodPoints: (diagnostic && diagnostic.marginalExpectedGoodPoints) ?? null,
+        alignsWithProjectedTopTwo: votedForProjectedPair,
+        publicCallTargets: publicCalls, primaryTarget,
+        alignsWithPublicCall, divergenceReason,
+        speechForecastTopTwo: speechTopTwo, ballotForecastTopTwo: ballotTopTwo, forecastShifted };
+    };
     const ballot = {};
     const finalizePublicPerformanceBallot = candidate => {
       const hasCandidateVotes = Object.values(candidate || {}).some(value => Number(value) > 0);
@@ -2112,6 +2220,7 @@
         finalBallot = { [m.beast]: spend - 1, [m.zhengBlindSignal.beast]: 1 };
         m.zhengBlindSignal.executed = true;
       }
+      annotateBallotTactic(finalBallot, m.ballotModel);
       m.actualBallot = { ...finalBallot };
       return finalBallot;
     };
@@ -2121,6 +2230,7 @@
       const model = GD.Tactics.optimizeBallot(room, bot, m, spend);
       if (model && model.ballot) {
         m.ballotModel = model.diagnostic || null;
+        annotateBallotTactic(model.ballot, model.diagnostic);
         m.actualBallot = { ...model.ballot };
         return finalizePublicPerformanceBallot(model.ballot);
       }
@@ -2178,6 +2288,7 @@
       const model = GD.Tactics.optimizeBallot(room, bot, m, spend);
       if (model && model.ballot) {
         m.ballotModel = model.diagnostic || null;
+        annotateBallotTactic(model.ballot, model.diagnostic);
         m.actualBallot = { ...model.ballot };
         return finalizePublicPerformanceBallot(model.ballot);
       }

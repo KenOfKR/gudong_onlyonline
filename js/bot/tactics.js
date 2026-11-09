@@ -545,10 +545,11 @@
     const holdStyleFactor = U.clamp(1.38 - spendStyle, 0.45, 1.30);
     const confidenceFactor = 1 - 0.22 * targetConfidence;
     const urgencyFactor = 1 - 0.20 * racePressure;
-    const futureChipValue = (idx === 0 ? 0.13 : idx === 1 ? 0.065 : 0) *
+    const futureChipValue = (idx === 0 ? 0.085 : idx === 1 ? 0.040 : 0) *
       holdStyleFactor * confidenceFactor * urgencyFactor;
-    // 第一票不再在上限決策與效用函數中重複加分；是否參與仍由實際局勢與棄票候選共同決定。
-    const firstVotePreference = 0;
+    // 早期一票有資訊價值：讓投票者表態可供後續校準；回合越晚，這項誘因越弱。
+    // 保留零票候選，當所有目標的預期損失高於參與價值時仍可棄票。
+    const participationBonus = idx === 0 ? 0.11 : idx === 1 ? 0.065 : 0.02;
     let best = null;
     choices.forEach(ballot => {
       const mean = { ...base.expectedVotes };
@@ -571,6 +572,8 @@
       const spent = sum(ballot);
       const held = Math.max(0, cap - spent);
       utility += held * futureChipValue;
+      const firstVoteBonus = spent > 0 ? participationBonus : 0;
+      utility += firstVoteBonus;
       let coordinationBonus = 0;
       if (isGood && spent > 0) {
         const speechCount = Math.max(1, (rd.speeches || []).filter(sp => sp && String(sp.playerId) !== String(bot.id)).length);
@@ -594,8 +597,6 @@
         ? (idx === 0 ? 0.045 : idx === 1 ? 0.035 : 0.020) * spendStyle
         : 0;
       utility += commitmentBonus;
-      // 第一票不另行加分，避免「先提高支出上限」後又在效用中重複獎勵參與。
-      const firstVoteBonus = 0;
       // 效益相近時仍由個人保留成本與行動風格共同決定，不再讓全體套用同一留票門檻。
       if (!best || utility > best.utility + 1e-8) best = { ballot, utility, expectedGoodPoints, pTop, forecastAfter: mean, spent, held, commitmentBonus, firstVoteBonus, coordinationBonus, counterfeitTopTwoGain };
     });
@@ -615,7 +616,7 @@
         futureChipValue: round2(futureChipValue),
         commitmentBonus: round2(best.commitmentBonus || 0),
         firstVoteBonus: round2(best.firstVoteBonus || 0),
-        firstVotePreference: round2(firstVotePreference),
+        participationBonus: round2(participationBonus),
         coordinationBonus: round2(best.coordinationBonus || 0),
         spendStyle: round2(spendStyle),
         targetConfidence: round2(targetConfidence),
@@ -627,6 +628,15 @@
         projectedWinProbability: round2(sigmoid((globalScore.expectedTotalScore + best.expectedGoodPoints - baseExpectedGoodPoints - globalScore.winScore) / 0.78))
       }
     };
+  }
+
+  function choosePublicTactic(state = {}) {
+    if (state.unsupportedTell) return 'sourceAudit';
+    if (state.echoedConsensus) return 'echoBrake';
+    if (state.pairGuardReady) return 'pairGuard';
+    if (state.marginalStopReady) return 'marginalStop';
+    if (state.plannedPivotReady) return 'plannedPivot';
+    return null;
   }
 
   function publicNarrative(room, bot, A, plan, seed) {
@@ -718,6 +728,23 @@
     const roleBonusMoment = score.expectedSavedReal < score.winScore && score.expectedSavedReal >= score.winScore - 3;
     const hasPartnerCoordination = !!(plan.inferredBuddyId || plan.partnerBeast || plan.followHuman || (A && A.ctx && A.ctx.partner));
 
+    // Situation selector: these public strategies are triggered only by visible, auditable state.
+    const unsupportedTell = currentSpeeches.some(sp =>
+      sp && /(?:眼神|微表情|肢體(?:僵硬|反應)|音準|聲音(?:發抖|顫抖)|臉色|面色|呼吸急促).{0,16}(?:看出|證明|代表|顯示|心虛|可疑|緊張)/.test(String(sp.text || '')));
+    const echoedConsensus = !!(forecast.consensusBeast && forecast.consensusCallers >= 3 &&
+      (forecast.claimSupport[forecast.consensusBeast] || 0) <= 1);
+    const postRows = Array.isArray(A && A.post) ? A.post.slice().sort((a, b) =>
+      Number(b.pReal ?? b.p) - Number(a.pReal ?? a.p)) : [];
+    const pairGuardReady = t >= 1 && postRows.length >= 2 &&
+      Number(postRows[0].pReal ?? postRows[0].p) >= 0.57 &&
+      Number(postRows[1].pReal ?? postRows[1].p) >= 0.52;
+    const leadingBeast = voteRank[0] && voteRank[0].name;
+    const marginalStopReady = t >= 1 && leadingBeast &&
+      Number(forecast.pTopTwo && forecast.pTopTwo[leadingBeast]) >= 0.84 && voteGap >= 2.5;
+    const plannedPivotReady = !!(plan.beast && forecast.consensusBeast &&
+      plan.beast !== forecast.consensusBeast && (plan.coalitionRedirect || plan.padBeast || plan.partnerBeast || plan.mode === 'split'));
+    const tacticalStrategy = choosePublicTactic({ unsupportedTell, echoedConsensus, pairGuardReady, marginalStopReady, plannedPivotReady });
+
     if (plan.ambushFrame) category = 'ambushFrame';
     else if (plan.roleSwapTrap || (plan.roleBluff && plan.roleBluff.origin === 'ambush-role-swap')) category = 'roleSwap';
     else if (plan.ambushFrameHypothesis) category = 'passOrderTrap';
@@ -726,6 +753,11 @@
     else if (hasRoleContest && !plan.fakeFangClaim) category = 'roleContestAudit';
     else if (plan.roleBluff || plan.fakeFangClaim) category = 'roleBluff';
     else if (hasRoleClaim) category = 'identityAudit';
+    else if (tacticalStrategy === 'sourceAudit') category = 'sourceAuditTactics';
+    else if (tacticalStrategy === 'echoBrake') category = 'echoBrakeTactics';
+    else if (tacticalStrategy === 'pairGuard') category = 'pairGuardTactics';
+    else if (tacticalStrategy === 'marginalStop') category = 'marginalStopTactics';
+    else if (tacticalStrategy === 'plannedPivot') category = 'plannedPivotTactics';
     else if (hasMicroSignal) category = 'microSignalAnalysis';
     else if (roleBonusMoment && t >= 1) category = 'scoreTradeoff';
     else if (sameTargetCalls >= 2) category = 'crowdPressureAudit';
@@ -745,7 +777,7 @@
     if (bot.role === '方震' && ['roleBluff', 'roleContest', 'roleContestAudit', 'identityAudit'].includes(category)) category = 'evidence';
     const stableSeed = Number.isFinite(seed) ? seed : GD.DialogueBank.hash(`${bot.botId || bot.id}:${t}:${A && A.ctx ? A.ctx.myPos : 0}`);
     const line = GD.DialogueBank ? GD.DialogueBank.pick(category, stableSeed, vars) : '';
-    return { forecast, score, category, line };
+    return { forecast, score, category, line, strategy: tacticalStrategy };
   }
 
   T.forecastVotes = forecastVotes;
@@ -757,6 +789,7 @@
   T.voteSpendLimit = voteSpendLimit;
   T.enumerateAllocations = enumerateAllocations;
   T.publicNarrative = publicNarrative;
+  T.choosePublicTactic = choosePublicTactic;
   T.speechPreference = speechPreference;
   T.chipsAvailable = chipsAvailable;
   T.count = () => GD.DialogueBank && GD.DialogueBank.count ? GD.DialogueBank.count() : 0;

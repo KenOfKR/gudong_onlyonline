@@ -129,6 +129,7 @@
           abstentionReason: parsed.abstentionReason || null,
           roleClaim: parsed.selfRole || null,
           actualBallot: ballot,
+          ballotTactic: rd.mind && rd.mind[bot.id] && rd.mind[bot.id].ballotTactic ? JSON.parse(JSON.stringify(rd.mind[bot.id].ballotTactic)) : null,
           totalSpent: Object.values(ballot).reduce((n, value) => n + (Number(value) || 0), 0),
           abstained: Object.values(ballot).every(value => !(Number(value) > 0))
         },

@@ -115,6 +115,12 @@
     return { type: 'unattributed-assertion', weight: 0.24, selfReportedDirect: false };
   }
 
+  function classifyPublicInspectionReport(sp, parsed) {
+    if (parsed && (parsed.blind || parsed.unsure)) return { type: 'self-reported-inspection-limited', weight: 0.16 };
+    // A claimed check remains a fallible speaker report until corroborated by independently public data.
+    return { type: 'self-reported-inspection', weight: 0.44 };
+  }
+
   function collectPublicClaimEvidence(ctx, prof) {
     const all = [], current = [], currentGroups = new Map();
     for (let r = 0; r <= ctx.t; r++) {
@@ -133,7 +139,7 @@
             ? { type: 'self-contradictory', weight: 0.04, selfReportedDirect: false }
             : classifyPublicClaim(sp, parsed, repeatedSameVerdict);
           const entry = {
-            round: r + 1, playerId: sp.playerId, beast: claim.beast, real: claim.real,
+            kind: 'claim', round: r + 1, speechRound: r + 1, playerId: sp.playerId, beast: claim.beast, real: claim.real,
             speechIndex, passIndex, type: source.type, weight: source.weight,
             selfReportedDirect: source.selfReportedDirect,
             // Keep the text for post-game diagnostics only; callers must not treat it as verified fact.
@@ -142,7 +148,7 @@
           all.push(entry);
           if (r === ctx.t) {
             current.push(entry);
-            const groupKey = key;
+            const groupKey = `claim|${key}`;
             if (!currentGroups.has(groupKey)) currentGroups.set(groupKey, {
               beast: claim.beast, real: claim.real, speakers: new Set(),
               selfReportedDirect: 0, inference: 0, echo: 0, unattributed: 0, limitedView: 0, selfContradictory: 0,
@@ -161,13 +167,40 @@
           if (prof && prof[sp.playerId]) prof[sp.playerId].claimEvidence.push(entry);
           seen.set(key, (seen.get(key) || 0) + 1);
         });
+        (Array.isArray(parsed.inspectionReports) ? parsed.inspectionReports : []).forEach(report => {
+          if (!report || !Number.isInteger(Number(report.round)) || !report.beast || typeof report.claimedReal !== 'boolean') return;
+          const source = classifyPublicInspectionReport(sp, parsed);
+          const sourceKey = `${String(sp.playerId)}|${Number(report.round)}|${report.beast}|${report.claimedReal}`;
+          const entry = {
+            kind: 'inspection-report', round: Number(report.round), reportRound: Number(report.round), speechRound: r + 1,
+            playerId: sp.playerId, beast: report.beast, real: report.claimedReal,
+            speechIndex, passIndex, type: source.type, weight: source.weight, selfReportedDirect: false,
+            verified: false, provenance: 'speaker-self-report', sourceKey,
+            text: String(report.text || sp.text || '')
+          };
+          all.push(entry);
+          if (r === ctx.t) {
+            current.push(entry);
+            const groupKey = `inspection-report|${report.beast}|${report.claimedReal}`;
+            if (!currentGroups.has(groupKey)) currentGroups.set(groupKey, {
+              kind: 'inspection-report', beast: report.beast, real: report.claimedReal, speakers: new Set(),
+              selfReportedDirect: 0, inspectionReports: 0, inference: 0, echo: 0, unattributed: 0, limitedView: 0, selfContradictory: 0,
+              entries: []
+            });
+            const group = currentGroups.get(groupKey);
+            group.speakers.add(String(sp.playerId));
+            if (!group.entries.some(item => item.sourceKey === sourceKey)) group.inspectionReports++;
+            group.entries.push(entry);
+          }
+          if (prof && prof[sp.playerId]) prof[sp.playerId].claimEvidence.push(entry);
+        });
       });
     }
     const groups = [...currentGroups.values()].map(group => ({
       ...group, speakerCount: group.speakers.size, speakers: [...group.speakers]
     })).sort((a, b) => b.speakerCount - a.speakerCount);
     // A chorus is a reason to decompose sources, not an automatic reason to reject the verdict.
-    const alerts = groups.filter(group => group.speakerCount >= 2); // 兩名先行玩家形成同向時就先拆來源；不自動降權獨立查驗。
+    const alerts = groups.filter(group => group.kind !== 'inspection-report' && group.speakerCount >= 2); // 查驗回報與一般真假共識分開計算。
     return { all, current, groups, alerts };
   }
 
@@ -1195,8 +1228,15 @@
     // 多疑度的影響集中在 buildProfiles() 內對矛盾、票型異常等具體證據的加權。
     const base = 0.8;
     const parsedSpeechById = new Map((rd.speeches || []).map(sp => [String(sp.playerId), speechData(sp, ctx.room, rd)]));
-    const claimEvidenceByKey = new Map(((ctx.claimEvidence && ctx.claimEvidence.current) || []).map(entry =>
+    const currentEvidence = (ctx.claimEvidence && ctx.claimEvidence.current) || [];
+    const claimEvidenceByKey = new Map(currentEvidence.filter(entry => entry.kind !== 'inspection-report').map(entry =>
       [`${String(entry.playerId)}|${entry.beast}|${entry.real}`, entry]));
+    const inspectionEvidenceByKey = new Map();
+    currentEvidence.filter(entry => entry.kind === 'inspection-report' && entry.reportRound === ctx.t + 1 && entry.speechRound === ctx.t + 1)
+      .forEach(entry => {
+        const key = `${String(entry.playerId)}|${entry.reportRound}|${entry.beast}|${entry.real}`;
+        if (!inspectionEvidenceByKey.has(key)) inspectionEvidenceByKey.set(key, entry);
+      });
     const trustOf = (pid, parsed) => {
       const r = prof[pid];
       const spPos = pass.indexOf(pid);
@@ -1229,18 +1269,29 @@
           const idx = names.indexOf(publicRank2.name);
           if (idx >= 0) w *= (real.has(idx) === publicRank2.isReal) ? 0.999 : 0.001;
         }
+        const appliedClaimSources = new Set();
+        const appliedInspectionReportSources = new Set();
         rd.speeches.forEach(sp => {
           if (sp.playerId === bot.id) return;
           const a = pass.indexOf(sp.playerId);
           if (a < 0) return;
           const parsed = parsedSpeechById.get(String(sp.playerId)) || {};
           const tr = trustOf(sp.playerId, parsed);
+            const reportedInspectionVerdicts = new Set((parsed.inspectionReports || [])
+              .filter(report => Number(report.round) === ctx.t + 1 && report.beast && typeof report.claimedReal === 'boolean')
+              .map(report => `${report.beast}|${report.claimedReal}`));
           const profile = prof[sp.playerId];
           const evilPrior = profile && profile.knownCamp === 'evil' ? 1
             : profile && profile.knownCamp === 'good' ? 0
             : U.clamp(profile ? profile.pEvil : (EVIL.length - (isGood ? 0 : 1)) / Math.max(1, room.players.length - 1), 0.03, 0.97);
           (Array.isArray(parsed.claims) ? parsed.claims : []).slice(0, 3).forEach(c => {
             const idx = names.indexOf(c.beast); if (idx < 0 || typeof c.real !== 'boolean') return;
+            // A direct report and its same-verdict claim are two stored speech facets,
+            // but one source contribution in the current posterior.
+            if (reportedInspectionVerdicts.has(`${c.beast}|${c.real}`)) return;
+            const claimSourceKey = `${String(sp.playerId)}|${c.beast}|${c.real}`;
+            if (appliedClaimSources.has(claimSourceKey)) return;
+            appliedClaimSources.add(claimSourceKey);
             const objectiveTruth = real.has(idx);
             const asGoodDisplay = objectiveTruth !== (k < a);
             const infoSkill = profile && Number.isFinite(Number(profile.infoSkill)) ? Number(profile.infoSkill) : 50;
@@ -1264,6 +1315,33 @@
             // Shrink uncertain public claims toward neutral instead of multiplying every repeated chorus at full strength.
             const sourceWeight = evidence ? evidence.weight : 0.24;
             w *= 0.5 + (rawLikelihood - 0.5) * sourceWeight;
+          });
+          // Only current-round public reports inform this round's beast posterior. Keep their
+          // original inspection round in evidence, and treat the result as a fallible self-report.
+          (Array.isArray(parsed.inspectionReports) ? parsed.inspectionReports : []).forEach(report => {
+            if (Number(report.round) !== ctx.t + 1 || typeof report.claimedReal !== 'boolean') return;
+            const idx = names.indexOf(report.beast);
+            if (idx < 0) return;
+            const evidenceKey = `${String(sp.playerId)}|${Number(report.round)}|${report.beast}|${report.claimedReal}`;
+            const evidence = inspectionEvidenceByKey.get(evidenceKey);
+            if (!evidence || appliedInspectionReportSources.has(evidenceKey)) return;
+            appliedInspectionReportSources.add(evidenceKey);
+            const objectiveTruth = real.has(idx);
+            const asGoodDisplay = objectiveTruth !== (k < a);
+            const infoSkill = profile && Number.isFinite(Number(profile.infoSkill)) ? Number(profile.infoSkill) : 50;
+            const goodPrior = 1 - evilPrior;
+            const pImmuneAmongGood = goodPrior > 0
+              ? U.clamp(((profile && profile.probs && Number(profile.probs['姬雲浮']) || 0) / 100) / goodPrior, 0, 1)
+              : 0;
+            const goodAccuracy = U.clamp(0.88 + (infoSkill - 50) / 500, 0.78, 0.94);
+            const evilAccuracy = U.clamp(0.50 + (infoSkill - 50) / 300, 0.32, 0.68);
+            const likelihood = (expected, reported, accuracy) => expected === reported ? accuracy : 1 - accuracy;
+            const goodMatch = pImmuneAmongGood * likelihood(objectiveTruth, report.claimedReal, goodAccuracy) +
+              (1 - pImmuneAmongGood) * likelihood(asGoodDisplay, report.claimedReal, goodAccuracy);
+            const evilMatch = likelihood(objectiveTruth, report.claimedReal, evilAccuracy);
+            const rawLikelihood = trustOf(sp.playerId, parsed) *
+              (goodPrior * goodMatch + evilPrior * evilMatch) + (1 - trustOf(sp.playerId, parsed)) * 0.5;
+            w *= 0.5 + (rawLikelihood - 0.5) * evidence.weight;
           });
         });
         cfg.forEach(i => { pReal[i] += w; });
