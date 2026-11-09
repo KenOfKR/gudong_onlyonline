@@ -66,7 +66,7 @@
     return all.filter(p => {
       if (!p || !ALL_ROLES.includes(p.name) || text.includes(`【${p.name}】`)) return true;
       const escaped = p.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const rolePredicate = new RegExp(`(?:是|為|就是|並非|不是|不可能是|應該是|可能是|可能為|疑似|假的|假冒|假扮|冒充)\\s*${escaped}(?=$|[，,。；;！？!?])`);
+      const rolePredicate = new RegExp(`(?:是|為|就是|並非|不是|不可能是|應該是|可能是|可能為|疑似|看起來像|不像|像|假的|假冒|假扮|冒充)\\s*${escaped}(?=$|[，,。；;！？!?])`);
       const roleFirst = new RegExp(`^\\s*${escaped}\\s*(?:可能)?(?:是|為)`);
       const subjectRole = new RegExp(`^.{0,12}${escaped}(?:就是|是|為|根本不是|不是|並非|應該是|可能是)`);
       return !rolePredicate.test(text) && !roleFirst.test(text) || subjectRole.test(text);
@@ -124,10 +124,10 @@
         }
         if (subject) {
           const prefix = before.slice(-18);
-          const polarity = /(?:不是|並非|並不是|不可能是|不屬於)\s*$/.test(prefix) || /(?:不認為|不覺得|不相信|不認定|不指認)[^，。！？；;]{0,14}(?:是|為)\s*$/.test(prefix) ? 'deny'
+          const polarity = /(?:不是|並非|並不是|不可能是|不屬於|不像)\s*$/.test(prefix) || /(?:不認為|不覺得|不相信|不認定|不指認)[^，。！？；;]{0,14}(?:是|為|像)\s*$/.test(prefix) ? 'deny'
             : /(?:假的|假冒|假扮|冒充)\s*$/.test(prefix) ? 'fake' : 'claim';
           const attachedRole = !!subject && /^\s*$/.test(text.slice(subject.end || subject.at || 0, at));
-          const linked = roleFirst || attachedRole || /(?:是|為|就是|不是|並非|並不是|不可能是|不屬於|應該是|可能是|可能為|疑似|認為|懷疑|指控|判定為|認定為|假的|假冒|假扮|冒充)\s*$/.test(prefix);
+          const linked = roleFirst || attachedRole || /(?:是|為|就是|不是|並非|並不是|不可能是|不屬於|應該是|可能是|可能為|疑似|看起來像|不像|像|認為|懷疑|指控|判定為|認定為|假的|假冒|假扮|冒充)\s*$/.test(prefix);
           if (linked && !out.some(x => x.playerId === subject.id && x.role === role && x.polarity === polarity)) {
             out.push({ playerId: subject.id, role, polarity, text: text.trim() });
           }
@@ -218,17 +218,27 @@
   }
 
   // 從公開原話擷取歷史查驗回報；這不是私密查驗證明，必須再和已公開結果核對。
-  function parsePublicInspectionReports(rawText) {
+  function parsePublicInspectionReports(rawText, roundArg) {
     const out = [];
     const numeral = { "一": 1, "二": 2, "三": 3, "1": 1, "2": 2, "3": 3 };
-    const re = /(?:我|本人)?(?:第)?([一二三123])(?:回|輪)(?:曾經|曾|當時)?(?:查驗|驗)(?:了)?\s*【?([鼠牛虎兔龍蛇馬羊猴雞狗豬])】?\s*(?:是)?\s*(真品|真|贗品|假貨|假)/;
+    const historicalRe = /(?:我|本人)?(?:第)?([一二三123])(?:回|輪)(?:曾經|曾|當時)?(?:查驗|驗)(?:了)?\s*【?([鼠牛虎兔龍蛇馬羊猴雞狗豬])】?\s*(?:是)?\s*(真品|真|贗品|假貨|假)/;
+    const currentRe = /^(?:(?:這輪|本輪|這次)\s*(?:我|本人)?|(?:我|本人)\s*(?:這輪|本輪|這次))\s*(?:查驗(?:了|到|出)?|驗過|驗了|驗到|驗出|查到|確認到(?:的)?(?:結果)?(?:是)?|看出)\s*【?([鼠牛虎兔龍蛇馬羊猴雞狗豬])】?\s*(?:的結果)?\s*(?:是)?\s*(真品|真|贗品|假貨|假)/;
     String(rawText || "").split(/[。！？!?\n]+/).forEach(sentence => {
       const clauseText = sentence.trim();
       // Keep comma-linked attribution attached:「前手原話……，我第一回驗……」must not become a current speaker report.
       if (!clauseText || /(?:前手|前一位|上一位|對方|他|她|原話|引用|轉述|轉述內容)/.test(clauseText)) return;
-      const match = clauseText.match(re);
-      if (!match || /(?:沒有|並未|未曾|不曾|不是|不可能|未驗)/.test(clauseText.slice(0, match.index))) return;
-      const item = { round: numeral[match[1]], beast: match[2], claimedReal: /真/.test(match[3]), text: match[0] };
+      let match = clauseText.match(historicalRe);
+      let item;
+      if (match) {
+        if (/(?:沒有|並未|未曾|不曾|不是|不可能|未驗)/.test(clauseText.slice(0, match.index))) return;
+        item = { round: numeral[match[1]], beast: match[2], claimedReal: /真/.test(match[3]), text: match[0] };
+      } else {
+        match = clauseText.match(currentRe);
+        if (!match || /(?:沒有|並未|未曾|不曾|不是|不可能|未驗|不確定)/.test(clauseText.slice(0, match.index))) return;
+        const currentRound = Number(roundArg && roundArg.roundNum);
+        if (!Number.isInteger(currentRound) || currentRound < 1) return;
+        item = { round: currentRound, beast: match[1], claimedReal: /真/.test(match[2]), text: match[0] };
+      }
       if (!out.some(x => x.round === item.round && x.beast === item.beast && x.claimedReal === item.claimedReal)) out.push(item);
     });
     return out;
@@ -288,7 +298,7 @@
     const out = { claims: [], callBeast: null, callBeasts: [], callSuspectId: null, accuse: [], campChecks: [],
                   blind: false, unsure: false, selfRole: null, selfDefense: false, playerStances: [], voteAvoids: [],
                   candidateSets: parsePublicCandidateSets(text, room), countConstraints: parseCountConstraints(text, room),
-                  inspectionReports: parsePublicInspectionReports(text), roleClaims: [], skillClaims: [], selfContradictions: [],
+                  inspectionReports: parsePublicInspectionReports(text, round), roleClaims: [], skillClaims: [], selfContradictions: [],
                   uncertaintyReasons: [], positionClaims: parsePositionClaims(text, room, round, speakerId),
                   roleComparisons: parseRoleComparisons(text),
                   voteCommitments: [], voteCommitment: null, voteCommitmentBinding: false, voteIntents: [], voteIntentBeast: null, voteIntentStrength: 0,
@@ -306,6 +316,13 @@
       let quotedReportBuffer = '';
       let quotedReportSourceIds = [];
       let historicalContextOpen = false;
+      let previousReportedSourceIds = [];
+      const speechHistory = round && Array.isArray(round.speeches) ? round.speeches : [];
+      const speakerSpeechIndex = speechHistory.findIndex(sp => String(sp && sp.playerId) === String(speakerId));
+      const priorSpeaker = speakerSpeechIndex >= 0
+        ? [...speechHistory.slice(0, speakerSpeechIndex)].reverse().find(sp => sp && String(sp.playerId) !== String(speakerId))
+        : [...speechHistory].reverse().find(sp => sp && String(sp.playerId) !== String(speakerId));
+      const priorSpeakerIds = priorSpeaker && priorSpeaker.playerId ? [String(priorSpeaker.playerId)] : [];
       sentence.split(/[，、,；;]+/).forEach(clause => {
       if (!clause) return;
       const trimmedClause = clause.trim();
@@ -397,7 +414,10 @@
         // 「我主張投鼠」會被誤認成說話者自己的承諾。
         const openAt = clause.search(/[「『“\"]/);
         const closeAt = clause.search(/[」』”\"]/);
-        const sourceIds = mentions(clause.slice(0, openAt >= 0 ? openAt : clause.length), room).map(player => player.id);
+        let sourceIds = mentions(clause.slice(0, openAt >= 0 ? openAt : clause.length), room).map(player => String(player.id));
+        if (!sourceIds.length && /^你(?:剛才|先前)?(?:說|主張|表示|宣稱|認為|號召|提出|建議|懷疑)/.test(trimmedClause))
+          sourceIds = previousReportedSourceIds.length ? previousReportedSourceIds.slice() : priorSpeakerIds.slice();
+        if (sourceIds.length) previousReportedSourceIds = sourceIds.slice();
         if (openAt >= 0 && (closeAt < 0 || closeAt < openAt)) {
           quotedReportBuffer = clause.slice(openAt + 1);
           quotedReportSourceIds = sourceIds;
@@ -445,9 +465,28 @@
       const tags = [...clause.matchAll(TAG_RE)].map(m => ({ beast: m[1] || m[2], s: m.index, e: m.index + m[0].length }));
       // 口語「我兩票投羊／我投羊」未必帶獸首括號，也未必同時宣稱真偽，仍是獨立的票單承諾。
       const plainVote = clause.match(/(?:我|本人|我的票)[^，。！？；;]{0,12}(?:投(?:給|向)?|落票(?:在|給)?|押(?:在|給)?)\s*【?([鼠牛虎兔龍蛇馬羊猴雞狗豬])】?/);
+      const softVoteLanguage = /(?:我|本人|我的票)[^，。！？；;]{0,10}(?:可能|想|傾向|偏向|考慮|或許|也許|應該|打算|大概)[^，。！？；;]{0,8}(?:投|落票|押)/.test(clause) ||
+        /(?:我|本人)[^，。！？；;]{0,12}(?:主要|主)票向[^，。！？；;]{0,14}(?:跟隨|偏向|投向|投給|投)/.test(clause);
+      const negativeVoteLanguage = /(?:無法|不能|不會|不願(?:意)?|不想|不打算|不準備|不可能|不一定|先不|別|不要|不准|禁止)[^，。！？；;]{0,8}(?:盲目|跟(?:著|你|他|她|大家)?|照(?:著|抄))?[^，。！？；;]{0,8}(?:投|落票|押)/.test(clause) ||
+        /(?:不想|不打算|不準備|不會|不願(?:意)?|不可能|不一定|先不|別|不要|不准|禁止)(?:會|要)?(?:把票)?(?:投|落票|押)/.test(clause) ||
+        /(?:不投|別投|不要投|想不投|可能不投|也許不投|或許不投|傾向不投|考慮不投|不考慮投|不傾向投)/.test(clause);
+      const historicalVote = (historicalContextOpen || /(?:第\s*[一二三123]\s*(?:回|輪)|上輪|上一輪|前輪|前一輪|過去|先前|當時|曾經|投過)/.test(clause)) &&
+        !/(?:本輪|這輪|這次|目前|現在|我這輪|我本輪)/.test(clause);
+      const quotedVote = /[「『“"]/.test(clause) && /[」』”"]/.test(clause);
       // 「我主張／號召／呼籲投羊」是對外票向，不是本人硬承諾；只有「我會投羊」才進 commitment。
       const callOnlyLanguage = /(?:我|本人)?(?:主張|號召|呼籲|建議|希望|推薦|倡議)[^，。！？；;]{0,14}(?:大家|各位|全場)?(?:把票)?(?:投|落票)/.test(clause);
-      if (plainVote && valid.has(plainVote[1]) && !callOnlyLanguage && !/(?:不投|別投|不要投|可能投|考慮投|建議大家投)/.test(clause) &&
+      if (softVoteLanguage) {
+        const softTarget = (tags.length ? tags[0].beast : (plainVote && plainVote[1])) || null;
+        if (softTarget && valid.has(softTarget) && !negativeVoteLanguage && !inheritedReport && !quotedVote && !historicalVote && !callOnlyLanguage &&
+            !/(?:不想投|不考慮投|不傾向投|不可能投)/.test(clause) &&
+            !out.voteIntents.some(item => item.beast === softTarget && item.kind === 'soft-intent')) {
+          out.voteIntents.push({ beast: softTarget, binding: false, kind: 'soft-intent', intensity: 0.35, text: clause.trim() });
+          out.voteIntentBeast = softTarget;
+          out.voteIntentStrength = Math.max(out.voteIntentStrength, 0.35);
+        }
+      }
+      const directPersonalVote = /^(?:(?:因此|所以|那麼|最後)\s*)?(?:我|本人|我的票)(?:(?:這輪|本輪|這次|目前)\s*)?(?:(?:公開)?(?:決定|承諾)\s*(?:(?:這輪|本輪|這次)\s*)?|(?:會|將|一定|就|先)?\s*(?:把票)?\s*|(?:[一二兩三四五六七八12345678])\s*票\s*)(?:投(?:給|向)?|落票(?:在|給)?|押(?:在|給)?)/.test(clause.trim());
+      if (plainVote && valid.has(plainVote[1]) && directPersonalVote && !softVoteLanguage && !negativeVoteLanguage && !inheritedReport && !quotedVote && !historicalVote && !callOnlyLanguage && !/(?:建議大家投)/.test(clause) &&
           !/(?:應該|可能|考慮|猶豫|不一定|或許|也許)[^，。！？；;]{0,8}(?:投|落票|押)/.test(clause) &&
           !/(?:第\s*[一二三123]\s*(?:回|輪)|上輪|上一輪|前輪|前一輪|曾經|投過)/.test(clause)) {
         const nMatch = clause.match(/([一二兩三四五六七八12345678])\s*票/);
@@ -472,10 +511,10 @@
         const beforeTarget = clause.slice(0, tags[0].s);
         const afterTarget = clause.slice(tags[0].e);
         const explicitFirstPerson = /(?:我|本人|我的票)/.test(beforeTarget);
-        const positiveVoteVerb = /(?:(?:本輪|這輪|這次|目前)\s*)?(?:會|將|就|一定|直接)?\s*(?:把票)?\s*(?:投(?:給|向)?|落票(?:在|給)?|押(?:在|給)?)/.test(beforeTarget);
+        const positiveVoteVerb = directPersonalVote;
         const recommendationOnly = /(?:我|本人)?(?:建議|主張|呼籲|號召|希望|推薦|倡議)(?:這輪|本輪|大家|各位|全場)?[^，。！？；;]{0,10}(?:把票)?(?:投|落票)|我希望大家投/.test(beforeTarget);
         const quotedPromise = /[「『“"]/.test(beforeTarget) && /[」』”"]/.test(afterTarget);
-        const deniedOrUncertain = /(?:不想|不打算|不準備|不會|不願|不可能|不一定|可能|應該|考慮|猶豫|先不|不要|別)\s*(?:會|要)?\s*(?:把票)?\s*(?:投|落票|押)/.test(beforeTarget) ||
+        const deniedOrUncertain = softVoteLanguage || negativeVoteLanguage || /(?:不想|不打算|不準備|不會|不願|不可能|不一定|可能|想|傾向|應該|考慮|猶豫|先不|不要|別)\s*(?:會|要)?\s*(?:把票)?\s*(?:投|落票|押)/.test(beforeTarget) ||
           /(?:不投|別投|不要投|不會投|不打算投|可能投|考慮投)/.test(beforeTarget + afterTarget);
         const historical = /(?:第\s*[一二三123]\s*(?:回|輪)|上輪|上一輪|前輪|前一輪|過去|先前|當時|曾經|投過)/.test(beforeTarget + afterTarget) &&
           !/(?:本輪|這輪|這次|目前|現在)/.test(beforeTarget + afterTarget);
@@ -493,6 +532,9 @@
         !/(?:本輪|這輪|這次|目前|現在|我這輪|我本輪)/.test(clause);
       tags.forEach((t, i) => {
         if (!valid.has(t.beast)) return;
+        const reportOnlyClause = out.inspectionReports.some(report => report.beast === t.beast &&
+          clause.includes(report.text) && /(?:確認到(?:的)?(?:查驗)?結果|查驗結果|檢驗結果)/.test(clause) &&
+          !/(?:整體|綜合|總體|我判斷|我認為|我的判斷|我推測|我主張)/.test(clause));
         // 引用他人宣稱（「藍色【宗彥】在第三位說【鼠】是假」）不算發言者自己的宣稱
         const before = clause.slice(0, t.s);
         const citedPlayers = mentions(before, room);
@@ -530,15 +572,16 @@ const fakeScope = resultScope.replace(/不是假|並非假/g, '');
 const fake = FAKE_RE.test(fakeScope);
 const real = !fake && REAL_RE.test(resultScope);
 
-if ((fake || real) && !publicResultReference && !historicalBeastReference && !verdictIsMentionedAsAnObject) {
+if ((fake || real) && !publicResultReference && !historicalBeastReference && !verdictIsMentionedAsAnObject && !reportOnlyClause) {
   out.claims.push({ beast: t.beast, real });
 }
 
 // 落票判斷只檢查獸首標籤前方的文字。
 const callScope = prefix;
-
+const fullCallPrefix = clause.slice(0, t.s);
 const deniedCall =
-  /(不想(?:去)?投|不打算投|不準備投|不會投|不願(?:意)?投|不可能投|不投|別投|不要投|不想集火|不打算集火|不集火|別集火|不要集火|不跟|別跟|不要跟)/.test(callScope);
+  /(不想(?:去)?投|不打算投|不準備投|不會投|不願(?:意)?投|不可能投|不投|別投|不要投|不想集火|不打算集火|不集火|別集火|不要集火|不跟|別跟|不要跟)/.test(fullCallPrefix) ||
+  /(?:不會|不想|不打算|不準備|不願(?:意)?|無法|不能|拒絕|反對|不支持)[^，。！？；;]{0,12}(?:投|號召|呼籲|建議|集火|跟票|跟投)/.test(fullCallPrefix);
 // 回顧過去的票數不能被當成本輪落票意圖，例如「第1輪我投了2票給【蛇】」。
 // 若同一子句明確標示本輪／這輪／目前，則允許讀取其當前票向。
 const historicalClause = (historicalContextOpen || /(?:第\s*\d+\s*輪|第\s*[一二三123]\s*(?:回|輪)|上輪|上一輪|前輪|前一輪|過去|先前|最近一次|後來公開|開票前|當時|歷史紀錄)/.test(clause)) &&
@@ -610,7 +653,14 @@ if (!deniedCall && !historicalClause && !thirdPartyCall && CALL_RE.test(callScop
       }
       if (/(我認壞|我是壞人|我們是壞人|我屬於壞人|我站壞人)/.test(clause)) out.selfEvil = true;
       if (/(我是好人|我不是壞人|不要投我|別投我|不要集火我|別把票投我|請別投我|我沒做壞事)/.test(clause)) out.selfDefense = true;
-      if (ps.length === 1 && /請[^，。！？]{0,16}(說明|解釋|交代)/.test(clause) && !selfRole) out.asked.push(ps[0].id);
+      if (!selfRole) {
+        const askPattern = /請[^，。！？；;:：]{0,24}(?:說明|解釋|交代)/g;
+        let askMatch;
+        while ((askMatch = askPattern.exec(clause))) {
+          const askPlayers = mentions(askMatch[0], room);
+          if (askPlayers.length === 1 && !out.asked.includes(askPlayers[0].id)) out.asked.push(askPlayers[0].id);
+        }
+      }
       if (ps.length === 1 && !selfRole && !roleClaims.length) {
         const role = ALL_ROLES.find(r => clause.includes(r)) || null;
         // A role name merely appearing beside a player is not an accusation.
@@ -674,8 +724,7 @@ if (!deniedCall && !historicalClause && !thirdPartyCall && CALL_RE.test(callScop
       out.voteIntentStrength = Math.min(1, count / 5);
     }
     const uniqueCommitmentTargets = [...new Set((out.voteCommitments || []).map(item => item.beast))];
-    out.voteCommitment = uniqueCommitmentTargets.length === 1 ? uniqueCommitmentTargets[0]
-      : (!uniqueCommitmentTargets.length && out.voteIntentBeast ? out.voteIntentBeast : null);
+    out.voteCommitment = uniqueCommitmentTargets.length === 1 ? uniqueCommitmentTargets[0] : null;
     out.voteCommitmentBinding = uniqueCommitmentTargets.length === 1;
     const stancesByKey = new Map();
     out.playerStances.forEach(item => {
