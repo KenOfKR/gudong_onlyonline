@@ -153,6 +153,13 @@
       return p;
     },
 
+    publishVoiceTranscript(text) {
+      const clean = String(text || '').trim();
+      if (!room || clean.length < 2 || clean.length > 260) return Promise.resolve(false);
+      const messageId = U.uid('vt');
+      return Net.act(r => Engine.recordVoiceTranscript && Engine.recordVoiceTranscript(r, Net.myId, clean, messageId));
+    },
+
     async join({ code, name, asMode, fillBots = false }) {
       Net.leave(true, true);
       mode = (asMode === 'online' && db) ? 'online' : 'solo';

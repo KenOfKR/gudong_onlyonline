@@ -114,29 +114,49 @@
 
   /* ---- localStorage 包裝：防呆處理 Node.js 環境 ---- */
   const mem = new Map();
-  const ls = (() => { 
-    try { return typeof window !== 'undefined' ? window.localStorage : null; } 
-    catch (e) { return null; } 
+  const failedLocalKeys = new Set();
+  const ls = (() => {
+    try { return typeof window !== 'undefined' ? window.localStorage : null; }
+    catch (e) { return null; }
   })();
-  
+
   GD.store = {
     get(key, fallback) {
       try {
+        // If a previous write hit the browser quota/security boundary, prefer the
+        // in-memory fallback. Reading localStorage first would resurrect stale data
+        // and make a successful-looking drag/drop appear to do nothing.
+        if (failedLocalKeys.has(key) && mem.has(key)) return JSON.parse(mem.get(key));
         const raw = ls ? ls.getItem(key) : mem.get(key);
         return raw == null ? fallback : JSON.parse(raw);
-      } catch (e) { return fallback; }
+      } catch (e) {
+        return mem.has(key) ? JSON.parse(mem.get(key)) : fallback;
+      }
     },
     set(key, val) {
       const raw = JSON.stringify(val);
-      try { if (ls) ls.setItem(key, raw); else mem.set(key, raw); } catch (e) { mem.set(key, raw); }
+      try {
+        if (ls) {
+          ls.setItem(key, raw);
+          failedLocalKeys.delete(key);
+          mem.delete(key);
+        } else mem.set(key, raw);
+        return true;
+      } catch (e) {
+        mem.set(key, raw);
+        failedLocalKeys.add(key);
+        return false;
+      }
     },
-    remove(key) { 
-      try { if (ls) ls.removeItem(key); } catch (e) { /* ignore */ } 
-      mem.delete(key); 
+    remove(key) {
+      try { if (ls) ls.removeItem(key); } catch (e) { /* ignore */ }
+      mem.delete(key);
+      failedLocalKeys.delete(key);
     },
     keys(prefix) {
-      const all = ls ? Object.keys(ls) : [...mem.keys()];
-      return all.filter(k => k.startsWith(prefix));
+      const all = new Set(ls ? Object.keys(ls) : []);
+      mem.forEach((_, key) => all.add(key));
+      return [...all].filter(k => k.startsWith(prefix));
     }
   };
 

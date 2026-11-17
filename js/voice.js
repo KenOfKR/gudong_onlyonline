@@ -1,12 +1,12 @@
 /* ============================================================================
- * voice.js — 按住說話（Web Speech API）與語音後處理
+ * voice.js — 語音輸入、公開字幕與語音指令辨識（Web Speech API）
  *
- *   按住「🎙️ 按住說話」→ 收音；放開 → 取得完整逐字稿 → 同音字校正 → 補上【】 →
- *   產生重點摘要 → 在 SPEECH_SEND_DELAY_MS 內可取消 → 自動發布到聊天欄。
+ * draft 模式：辨識完成後填入發言草稿，由玩家自行送出。
+ * subtitle 模式：只同步已完成辨識的公開文字字幕，不傳送或保存原始音訊。
+ * command 模式：將語音解析成待確認意圖；只有玩家確認後才呼叫既有 Engine 動作。
  *
- * 瀏覽器需支援 SpeechRecognition（Chrome / Edge / Safari；Firefox 目前不支援），
- * 不支援或沒有麥克風權限時，介面會自動退回文字輸入，不影響遊戲進行。
- * correct() 與 prepare() 是純函式，可在 Node 測試。
+ * 本模組不保證離線辨識；瀏覽器／平台需支援 SpeechRecognition。correct()、prepare()
+ * 與 CommandInterceptor.parse() 為可測試的純解析入口。
  * ========================================================================== */
 (function (GD) {
   'use strict';
@@ -61,6 +61,107 @@
     return { text, summary: Claims.summarize(parsed, '[真人]', room, text), parsed };
   }
 
+  function resolveVoicePlayer(text, room) {
+    const source = String(text || '');
+    const players = room && Array.isArray(room.players) ? room.players.filter(p => p) : [];
+    const found = players.filter(player => {
+      const name = String(player.name || '').trim();
+      if (name && (source.includes(`【${name}】`) || (name.length >= 2 && source.includes(name)))) return true;
+      const color = (GD.SEAL_COLORS || []).find(item => item.id === player.colorId);
+      return !!(color && (source.includes(color.name) || source.includes(`${color.short}色`)));
+    });
+    const unique = [...new Map(found.map(p => [String(p.id), p])).values()];
+    return unique.length === 1 ? { player: unique[0] } : { player: null, ambiguous: unique.length > 1, candidates: unique };
+  }
+
+  // 語音只解析成待確認的意圖，不在辨識 callback 內直接操作遊戲狀態。
+  function withIntentSchema(base, extra = {}) {
+    const out = { ...base };
+    const phaseVal = extra.phase || (base.type === 'inspect' || base.type === 'skill' || base.type === 'pass' ? 'playing' : base.type === 'vote' ? 'voting' : base.type === 'personVote' ? 'person_voting' : base.type === 'sendSpeech' || base.type === 'speechDraft' ? 'discussion' : null);
+    const confReq = extra.confirmationRequired !== undefined ? extra.confirmationRequired : !['invalid', 'confirm', 'cancel', 'speechDraft'].includes(base.type);
+    Object.defineProperties(out, {
+      intent: { value: extra.intent || base.type || 'invalid', enumerable: false, configurable: true },
+      target: { value: extra.target !== undefined ? extra.target : (base.targetId || null), enumerable: false, configurable: true },
+      object: { value: extra.object !== undefined ? extra.object : (base.beast || base.kind || null), enumerable: false, configurable: true },
+      amount: { value: extra.amount !== undefined ? extra.amount : null, enumerable: false, configurable: true },
+      phase: { value: phaseVal, enumerable: false, configurable: true },
+      confidence: { value: extra.confidence !== undefined ? extra.confidence : (base.type === 'invalid' ? 0 : 0.92), enumerable: false, configurable: true },
+      requiredArguments: { value: extra.requiredArguments || [], enumerable: false, configurable: true },
+      confirmationRequired: { value: confReq, enumerable: false, configurable: true }
+    });
+    return out;
+  }
+  function parseCommandRaw(raw, room, me, options = {}) {
+    if (options && options.isRemoteTranscript) return { type: 'invalid', reason: '遠端玩家字幕不得觸發本機遊戲操作。' };
+    if (options && options.sourcePlayerId && me && String(options.sourcePlayerId) !== String(me.id)) return { type: 'invalid', reason: '非本人語音不得觸發本機遊戲操作。' };
+    const cleaned = correct(String(raw || '')).replace(/[，。！？!?、\s]/g, '').trim();
+    const hasWake = /^(?:系統指令|語音指令|指令模式)/.test(cleaned);
+    if (options && options.requireWakeWord && !hasWake) return { type: 'invalid', reason: '一般聊天模式不直接執行動作。' };
+    const text = cleaned.replace(/^(?:系統指令|語音指令|指令模式)/, '');
+    if (!text) return { type: 'invalid', reason: '沒有辨識到指令內容。' };
+    if (/(確認執行|確定執行|執行指令|確認操作)$/.test(text)) return { type: 'confirm' };
+    if (/(取消操作|取消指令|取消執行|不要執行)$/.test(text)) return { type: 'cancel' };
+    if (/^(?:系統指令|指令模式)?(?:打出功能牌|使用功能牌|發動技能)$/.test(text)) {
+      return { type: 'invalid', reason: '請說出具體技能，例如「發動擾亂」、「封鎖鼠」、「偷襲藍色玩家」或「查驗陣營藍色玩家」。' };
+    }
+    if (/^(?:送出發言|發布發言|送出陳詞)$/.test(text)) return { type: 'sendSpeech', label: '送出目前陳詞草稿' };
+
+    const beastMatch = text.match(/[【]?([鼠牛虎兔龍蛇馬羊猴雞狗豬])[】]?/);
+    const beast = beastMatch ? beastMatch[1] : null;
+
+    const declaration = text.match(/(?:宣告|聲明|報)(?:【)?([鼠牛虎兔龍蛇馬羊猴雞狗豬])(?:】)?(?:是|為)?(真品|贗品|假品|真|假)/);
+    if (/^(?:宣告|聲明|報)(?:真品|贗品|真|假)$/.test(text)) {
+      return { type: 'invalid', reason: '宣告缺少獸首名稱。請說「宣告狗是真品」或「宣告鼠是贗品」。' };
+    }
+    if (declaration) {
+      const real = /^(?:真品|真)$/.test(declaration[2]);
+      return { type: 'speechDraft', text: `【${declaration[1]}】${real ? '真品' : '贗品'}。`, label: `將「【${declaration[1]}】${real ? '真品' : '贗品'}」加入陳詞草稿` };
+    }
+    if (/^(?:我驗不到|這輪驗不到|我看不到獸首)$/.test(text)) return { type: 'speechDraft', text: '我驗不到。', label: '將「我驗不到」加入陳詞草稿' };
+    if (/^(?:我被偷襲|我遭到偷襲|我被襲擊)$/.test(text)) return { type: 'speechDraft', text: '我被偷襲。', label: '將「我被偷襲」加入陳詞草稿' };
+
+    const inspect = text.match(/^(?:系統指令)?(?:鑑定|鑒定|查驗)(?:獸首)?(?:【)?([鼠牛虎兔龍蛇馬羊猴雞狗豬])(?:】)?$/);
+    if (inspect) return { type: 'inspect', beast: inspect[1], label: `查驗【${inspect[1]}】` };
+
+    if (/^(?:發動|啟動|打出)(?:老朝奉)?擾亂$/.test(text)) return { type: 'skill', kind: 'lao', label: '發動擾亂技能' };
+    const block = text.match(/^(?:封鎖|封印)(?:獸首)?(?:【)?([鼠牛虎兔龍蛇馬羊猴雞狗豬])(?:】)?$/);
+    if (block) return { type: 'skill', kind: 'zheng', beast: block[1], label: `封鎖【${block[1]}】` };
+
+    const yaoPrefix = text.match(/^(?:偷襲|襲擊|攻擊)(.+)$/);
+    if (yaoPrefix) {
+      const found = resolveVoicePlayer(yaoPrefix[1], room);
+      if (!found.player) return { type: 'invalid', reason: found.ambiguous ? '聽到多位可能的目標，請加上玩家顏色或完整姓名。' : '沒有辨識到偷襲目標，請說出顏色或玩家姓名。' };
+      return { type: 'skill', kind: 'yao', targetId: found.player.id, label: `偷襲${found.player.name}` };
+    }
+    const fangPrefix = text.match(/^(?:查驗陣營|陣營查驗|檢查陣營)(.+)$/);
+    if (fangPrefix) {
+      const found = resolveVoicePlayer(fangPrefix[1], room);
+      if (!found.player) return { type: 'invalid', reason: found.ambiguous ? '聽到多位可能的目標，請加上玩家顏色或完整姓名。' : '沒有辨識到陣營查驗目標，請說出顏色或玩家姓名。' };
+      return { type: 'skill', kind: 'fang', targetId: found.player.id, label: `查驗${found.player.name}的陣營` };
+    }
+    const passPrefix = text.match(/^(?:傳牌給|傳遞給|把手機傳給|交給)(.+)$/);
+    if (passPrefix) {
+      const found = resolveVoicePlayer(passPrefix[1], room);
+      if (!found.player) return { type: 'invalid', reason: found.ambiguous ? '聽到多位可能的接牌者，請加上顏色或完整姓名。' : '沒有辨識到接牌者，請說出顏色或玩家姓名。' };
+      return { type: 'pass', targetId: found.player.id, label: `把手機傳給${found.player.name}` };
+    }
+
+    if (/^(?:棄票|不投票|這輪棄票)$/.test(text)) return { type: 'vote', ballot: {}, label: '本輪棄票' };
+    const vote = text.match(/^(?:投票|投)(一|二|兩|三|四|1|2|3|4)?(?:票)?(?:給|到|向)?(?:【)?([鼠牛虎兔龍蛇馬羊猴雞狗豬])(?:】)?$/);
+    if (vote) {
+      const amountMap = { '一': 1, '二': 2, '兩': 2, '三': 3, '四': 4, '1': 1, '2': 2, '3': 3, '4': 4 };
+      const amount = amountMap[vote[1] || '一'];
+      return { type: 'vote', ballot: { [vote[2]]: amount }, label: `投 ${amount} 票給【${vote[2]}】` };
+    }
+    const personVote = text.match(/^(?:鑑人指認|最終指認|指認|鑑人投給)(.+)$/);
+    if (personVote) {
+      const found = resolveVoicePlayer(personVote[1], room);
+      if (!found.player) return { type: 'invalid', reason: found.ambiguous ? '有多位可能的指認對象，請加上顏色或完整姓名。' : '沒有辨識到指認對象，請說出顏色或完整姓名。' };
+      return { type: 'personVote', targetId: found.player.id, label: `終局指認${found.player.name}` };
+    }
+    return { type: 'invalid', reason: '沒有辨識到可執行的遊戲指令。可說「鑑定狗」、「封鎖鼠」、「傳牌給藍色玩家」、「投兩票給狗」或「宣告狗是真品」。' };
+  }
+
   /* ---------------------------------------------------------------- 收音控制（瀏覽器）*/
   const SR = typeof window !== 'undefined' ? (window.SpeechRecognition || window.webkitSpeechRecognition) : null;
   let rec = null, listening = false, finals = '', interim = '', wantStop = false, onDone = null;
@@ -90,17 +191,32 @@
     rec.onend = () => {
       listening = false;
       const text = (finals + interim).trim();
+      const finalText = finals.trim();
       const cb = onDone; onDone = null;
       finals = interim = '';
       emit();
-      if (cb && wantStop) cb(text);          // 只有「使用者放開按鈕」才會送出；意外中斷不送
-      wantStop = false;
+      const requestedStop = wantStop;
+      try {
+        if (cb && requestedStop) cb(text, finalText); // 只有使用者主動停止才提交；意外中斷不送
+      } finally {
+        wantStop = false;
+        GD.bus.emit('voiceend', { requestedStop });
+      }
     };
     return rec;
   }
 
+  function parseCommand(raw, room, me, options = {}) { return withIntentSchema(parseCommandRaw(raw, room, me, options)); }
+  let currentProvider = 'web-speech', publicScope = true;
+  function validateLocalWsUrl(url) { try { const u = new URL(url); return (u.protocol === 'ws:' || u.protocol === 'wss:') && (u.hostname === '127.0.0.1' || u.hostname === 'localhost'); } catch (_) { return false; } }
+  const CommandInterceptor = Object.freeze({ parse: parseCommand });
+
   const Voice = {
-    supported: !!SR, correct, tidy, prepare,
+    supported: !!SR, correct, tidy, prepare, parseCommand, CommandInterceptor,
+    getProvider: () => currentProvider,
+    setProvider(p, opts = {}) { if (!['web-speech', 'transformers-whisper', 'local-ws'].includes(p)) return false; if (p === 'local-ws' && opts.wsUrl && !validateLocalWsUrl(opts.wsUrl)) return false; currentProvider = p; return true; },
+    isPublicScope: () => publicScope,
+    setPublicScope(f) { publicScope = !!f; return publicScope; },
 
     /** 按下：開始收音。done(text) 會在放開後、辨識完全結束時被呼叫一次 */
     start(done) {
@@ -137,4 +253,5 @@
   };
 
   GD.Voice = Voice;
+  GD.VoiceManager = Voice;
 })(window.GD);
