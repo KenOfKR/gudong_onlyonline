@@ -41,4 +41,7 @@ async function testTakeover() {
   console.log('✓ 測試通過：背景接管僅轉移主機權，並未將真人踢為電腦！');
 }
 
-testTakeover();
+testTakeover().then(() => process.exit(0)).catch(error => {
+  console.error(error && error.stack || error);
+  process.exit(1);
+});

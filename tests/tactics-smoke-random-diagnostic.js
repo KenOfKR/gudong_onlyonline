@@ -14,11 +14,23 @@ function makeRoom(code) {
 
 function sum(obj) { return Object.values(obj || {}).reduce((n, v) => n + (Number(v) || 0), 0); }
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function acknowledgesHuman(text, humanName, beastName) {
+  const name = escapeRegExp(humanName);
+  const beast = escapeRegExp(beastName);
+  const attributed = new RegExp(name + '[^。\\n]{0,80}(?:認為|主張|表示|提到|前面說|剛才說|說|希望大家投|建議投|要求投|號召投)[^。\\n]{0,100}' + beast);
+  const explicitResponse = new RegExp('(?:我聽到了|我有聽到|我先接住|收到|我注意到|我會參考)[^。\\n]{0,80}' + beast);
+  return attributed.test(String(text || '')) || explicitResponse.test(String(text || ''));
+}
+
 try {
-  assert.strictEqual(GD.CONFIG.VERSION, '10.8.0', 'application version must be updated consistently to v10.8.0');
+  assert.strictEqual(GD.CONFIG.VERSION, '10.9.1', 'application version must be updated consistently to v10.9.1');
   assert(DialogueBank && DialogueBank.count() >= 100, 'dialogue bank should contain at least 100 lines');
-  assert.strictEqual(DialogueBank.count(), 1068, 'v10.8.0 doubles the dialogue bank to 1,068 lines');
-  assert.strictEqual(DialogueBank.categories().length, 49, 'v10.8.0 adds twelve expansion and human-response categories');
+  assert.strictEqual(DialogueBank.count(), 1118, 'v10.8.0 doubles the dialogue bank to 1,118 lines');
+  assert.strictEqual(DialogueBank.categories().length, 54, 'v10.8.0 adds seventeen strategy and human-response categories');
   [['evidenceExpanded',51],['tempoExpanded',80],['teamResponseExpanded',80],['voteMathExpanded',70],['identityAuditExpanded',50],['publicClaimResponse',29],['publicDefenseResponse',29],['publicCallResponse',29],['publicRoleResponse',29],['publicStanceResponse',29],['publicAccusationResponse',29],['publicCorrectionResponse',29]].forEach(([key,count]) => assert.strictEqual(DialogueBank.categories().find(x => x.key === key)?.count, count, `${key} should have ${count} lines`));
   const roleSignalCategories = [
     ['trueXuSignal', '許願'], ['trueFangSignal', '方震'], ['trueJiSignal', '姬雲浮'], ['trueHuangSignal', '黃煙煙'],
@@ -222,7 +234,11 @@ try {
   const spent = sum(actualBallot);
   assert(spent <= Engine.availableChips(room, bot.id), 'optimizer must not overspend available chips');
   assert(Object.keys(actualBallot).every(name => rd.beasts.some(b => b.name === name)), 'optimizer must vote only on current-round beasts');
-  assert((actualBallot[planned.plan.beast] || 0) >= 1, 'optimizer must preserve at least one chip on the declared target');
+  const declaredTargetVotes = Number(actualBallot[planned.plan.beast] || 0);
+  assert(Number.isInteger(declaredTargetVotes) && declaredTargetVotes >= 0,
+    'declared-target votes must be non-negative; zero and non-anchor ballots are legal');
+  assert.strictEqual(Number(rd.mind[bot.id].ballotModel.spent), spent,
+    'ballot diagnostics must match the actual ballot spend');
   assert(rd.mind[bot.id].ballotModel, 'ballot diagnostics should be retained for review');
 
   // Genuine role holders can occasionally soft-claim a truthful role-specific clue; they must not explicitly announce their job.
@@ -305,7 +321,7 @@ try {
   const teamSpeech = Speech.localSpeech(teamXu, teamRoom, teamPlanned.plan, teamPlanned.A);
   const __hasClaim = teamSpeech.includes(String.fromCharCode(0x3010) + teamClaimBeast + String.fromCharCode(0x3011));
   const __hasTarget = teamSpeech.includes(String.fromCharCode(0x3010) + teamTargetBeast + String.fromCharCode(0x3011));
-  const __hasAck = /剛才說|我記得|先回應|公開判斷|已納入考慮|沒有漏掉|這句話|原始說法|我先把|我有聽到|立場說成|\u6211\u5148\u63a5\u4f4f/.test(teamSpeech);
+  const __hasAck = acknowledgesHuman(teamSpeech, teamHuman.name, teamClaimBeast);
   if (!__hasClaim || !__hasTarget || !__hasAck) {
     const __payload = {
       claimBeast: teamClaimBeast, targetBeast: teamTargetBeast,
@@ -318,7 +334,8 @@ try {
   }
   assert(teamSpeech.includes(`【${teamClaimBeast}】`), 'local speech must acknowledge the prior human claim');
   assert(teamSpeech.includes(`【${teamTargetBeast}】`), 'local speech must explain the different selected vote target');
-  assert(/剛才說|我記得|先回應|公開判斷|已納入考慮|沒有漏掉|這句話|原始說法|我先把|我有聽到|立場說成|\u6211\u5148\u63a5\u4f4f/.test(teamSpeech), 'team-response should explicitly acknowledge that the human information was considered');
+  assert(acknowledgesHuman(teamSpeech, teamHuman.name, teamClaimBeast),
+    'team-response should attribute the human claim/call instead of requiring a fixed acknowledgment phrase; generated=' + JSON.stringify(teamSpeech));
 
   // True Fang may use a subtle person-reading hint only after an actual camp-check record exists.
   const fangSignalRoom = makeRoom('TRUE_FANG_SIGNAL');
@@ -370,7 +387,8 @@ try {
   analysis.prof[roleTarget.id].probs['老朝奉'] = 68;
   const roleHypothesisPlan = { ...planned.plan, suspectId: roleTarget.id, followHuman: null, roleBluff: null, fakeFangClaim: null, tacticalLine: '' };
   const roleHypothesisText = Speech.localSpeech(bot, room, roleHypothesisPlan, analysis);
-  assert(roleHypothesisText.includes('【老朝奉】的優先核查候選'), 'speech should state a relative role hypothesis');
+  assert(roleHypothesisText.includes('可能是【老朝奉】') && roleHypothesisText.includes('這只是推測'),
+    'speech should state a relative role hypothesis in natural, explicitly tentative language');
   assert(!/角色後驗約\s*\d+%/.test(roleHypothesisText), 'speech must not present uncalibrated role-logit softmax as a posterior probability');
 
   // Exact false Fang bluff: permitted only when it matches the explicit target/camp plan.
@@ -461,114 +479,32 @@ try {
   assert(Speech.validate(hypothesisSpeech, hypothesisBot, hypothesisRoom, hypothesisPlan, hypothesisAnalysis).ok,
     'the uncertain role-order hypothesis should pass speech validation');
 
-  // A second-position Yao may occasionally directly ambush the third unacted player, creating a deliberate blind-frame setup.
-  const frameRoom = makeRoom('AMBUSH_FRAME_TEST');
+  // v10.9 retires the fixed Lao-first / Yao-second / third-victim frame.
+  // The normal Yao ambush skill and its risk-based pass evaluator remain covered by
+  // v10-8-13-yao-ambush-pass-regression.js; this test ensures legacy saved flags
+  // do not reactivate the old deterministic role-swap setup.
+  const frameRoom = makeRoom('AMBUSH_FRAME_RETIRED_TEST');
   const frameRd = U.curRound(frameRoom);
-  function assignRole(room, player, role) {
-    const holder = room.players.find(p => p.role === role);
-    if (!holder || holder.id === player.id) { player.role = role; return; }
-    const prior = player.role; player.role = holder.role; holder.role = prior;
-  }
   const frameYao = frameRoom.players.find(p => p.isBot);
   const frameLao = frameRoom.players.find(p => p.isBot && p.id !== frameYao.id);
-  assert(frameYao && frameLao, 'ambush frame test needs two bot players');
-  assignRole(frameRoom, frameYao, '藥不然');
-  assignRole(frameRoom, frameLao, '老朝奉');
-  frameYao.genes = { ...(frameYao.genes || GD.Genes.load(frameYao.botId)), deception: 1, camouflage: 0.5, assertiveness: 0.8, skepticism: 0.5, conformity: 0.5 };
-  // Start with only Lao in the pass order. A complete game must let Lao intentionally lead into Yao's second position.
+  assert(frameYao && frameLao, 'legacy-frame retirement test needs two bot players');
+  const swapRole = (player, role) => {
+    const holder = frameRoom.players.find(p => p.role === role);
+    if (!holder || holder.id === player.id) { player.role = role; return; }
+    const old = player.role; player.role = holder.role; holder.role = old;
+  };
+  swapRole(frameYao, '藥不然');
+  swapRole(frameLao, '老朝奉');
   frameRd.passOrder = [frameLao.id];
   frameRoom.currentTurnPlayerId = frameLao.id;
   frameRoom.status = 'playing';
   frameRd.turnLogs[frameLao.id] = { inspect: [], ability: '無技能操作', skillTag: '', blind: false, step: 'c' };
   frameRd.turnLogs[frameYao.id] = { inspect: [], ability: '無技能操作', skillTag: '', blind: false, step: 'b' };
-  const frameChance = 0.20 + 0.38 * frameYao.genes.deception;
-  let frameSeedFound = false;
-  for (let i = 0; i < 20000; i++) {
-    frameRoom.roomId = `AMBUSH_FRAME_TEST_${i}`;
-    const seedText = `${frameYao.botId || frameYao.id}:${frameRoom.roomId}:${frameRoom.currentRoundIdx}:1:YAO_THIRD_SEAT_FRAME`;
-    if ((DialogueBank.hash(seedText) % 10000) / 10000 < frameChance) { frameSeedFound = true; break; }
-  }
-  assert(frameSeedFound, 'test should find a deterministic seed where Yao activates the framing tactic');
-  const oldRandomFrame = Math.random;
-  let frameA, frameAction, framePass;
-  try {
-    Math.random = () => 0.5;
-    const laoA = Mind.analyze(frameLao, frameRoom);
-    const laoNext = Strategy.nextPlayer(frameLao, frameRoom, laoA);
-    assert.strictEqual(laoNext, frameYao.id, 'real Lao should deliberately pass directly to Yao when the shared frame roll activates');
-    assert(Engine.pass(frameRoom, frameLao.id, laoNext), 'Lao should legally pass to Yao as the second actor');
-    assert.deepStrictEqual(frameRd.passOrder.slice(0, 2), [frameLao.id, frameYao.id], 'Lao-to-Yao setup must be present before the ambush skill');
-    frameA = Mind.analyze(frameYao, frameRoom);
-    frameAction = Strategy.skill(frameYao, frameRoom, frameA);
-    assert.strictEqual(frameAction.kind, 'yao', 'the real Yao must select an ambush skill');
-    assert.strictEqual(frameRd.turnLogs[frameYao.id].ambushFrameTactic, true, 'Yao should mark the deliberate frame tactic');
-    assert(Engine.skill(frameRoom, frameYao.id, frameAction), 'the ambush skill should execute legally');
-    framePass = Strategy.nextPlayer(frameYao, frameRoom, frameA);
-    assert.strictEqual(framePass, frameAction.targetId, 'the deliberate frame must pass directly to the newly ambushed target');
-    assert(Engine.pass(frameRoom, frameYao.id, framePass), 'Yao should pass directly to the target');
-  } finally {
-    Math.random = oldRandomFrame;
-  }
-  const frameVictim = U.byId(frameRoom, frameAction.targetId);
-  assert(frameVictim && frameRd.passOrder.indexOf(frameVictim.id) === 2, 'the targeted victim should become the third pass-order actor');
-  const frameVictimLog = Engine.log(frameRoom, frameVictim.id);
-  assert.strictEqual(frameVictimLog.blind, true, 'the third actor should actually be blind from the ambush');
-  const yaoPlanResult = Strategy.plan(frameYao, frameRoom);
-  assert(yaoPlanResult.plan.roleSwapTrap && yaoPlanResult.plan.roleSwapTrap.origin === 'ambush-role-swap', 'the setup should create a role-swap context');
-  assert.strictEqual(yaoPlanResult.plan.roleBluff.role, '老朝奉', 'real Yao should falsely claim Lao in the swap trap');
-  assert.strictEqual(yaoPlanResult.plan.roleBluff.persist, true, 'the swap claim should be a persistent commitment');
-  const yaoSpeech = Speech.localSpeech(frameYao, frameRoom, yaoPlanResult.plan, yaoPlanResult.A);
-  assert(yaoSpeech.includes('我是老朝奉'), 'local fallback must state the planned exchanged identity');
-  assert(Speech.validate(yaoSpeech, frameYao, frameRoom, yaoPlanResult.plan, yaoPlanResult.A).ok,
-    'the role-swap framing speech must pass validation');
-  const laoPlanResult = Strategy.plan(frameLao, frameRoom);
-  assert.strictEqual(laoPlanResult.plan.roleBluff.role, '藥不然', 'real Lao should falsely claim Yao in the swap trap');
-  assert.strictEqual(laoPlanResult.plan.roleBluff.persist, true, 'Lao should share the persistent swap commitment');
-  const laoSpeech = Speech.localSpeech(frameLao, frameRoom, laoPlanResult.plan, laoPlanResult.A);
-  assert(laoSpeech.includes('我是藥不然'), "local fallback must state Lao's exchanged identity");
-  assert(Speech.validate(laoSpeech, frameLao, frameRoom, laoPlanResult.plan, laoPlanResult.A).ok,
-    'the other half of the role-swap speech must pass validation');
-  const thirdEvil = frameRoom.players.find(p => p.isBot && !GD.isGood(p.role) && p.role !== '藥不然' && p.role !== '老朝奉');
-  if (thirdEvil) {
-    const thirdEvilPlan = Strategy.plan(thirdEvil, frameRoom);
-    assert.strictEqual(thirdEvilPlan.plan.roleSwapTrap, null, 'the third evil role must not be incorrectly assigned the Lao/Yao swap context');
-  }
-
-  // The same false-role commitment must survive into the following round without being overridden by a routine vote-count confession.
-  const yaoParsed = Claims.parse(yaoSpeech, frameRoom, frameRd);
-  frameRd.speeches.push({ playerId: frameYao.id, speakerName: frameYao.name, colorId: frameYao.colorId, text: yaoSpeech, source: 'bot', p: yaoParsed });
-  const nextFrameRound = Engine.drawRound(frameRoom, 2);
-  frameRoom.rounds.push(nextFrameRound);
-  frameRoom.currentRoundIdx = 1;
-  nextFrameRound.passOrder = [frameLao.id, frameYao.id, ...frameRoom.players.filter(p => p.id !== frameLao.id && p.id !== frameYao.id).map(p => p.id)];
-  nextFrameRound.turnLogs[frameYao.id] = { inspect: [], ability: '無技能操作', skillTag: '', blind: false, step: 'c' };
-  frameRoom.currentTurnPlayerId = frameYao.id;
-  frameRoom.status = 'playing';
-  const continuedYaoPlan = Strategy.plan(frameYao, frameRoom);
-  assert.strictEqual(continuedYaoPlan.plan.roleBluff.role, '老朝奉', 'Yao should retain the same false role in round two');
-  assert.strictEqual(continuedYaoPlan.plan.roleBluff.persist, true, 'the persistent commitment should not expire after one round');
-  assert.strictEqual(continuedYaoPlan.plan.roleBluff.continued, true, 'the strategy should mark the denial as continued');
-  const continuedSpeech = Speech.localSpeech(frameYao, frameRoom, continuedYaoPlan.plan, continuedYaoPlan.A);
-  assert(continuedSpeech.includes('我是老朝奉'), 'continued denial should repeat the same planned public role');
-  assert(Speech.validate(continuedSpeech, frameYao, frameRoom, continuedYaoPlan.plan, continuedYaoPlan.A).ok,
-    'continued role denial should pass validation');
-  nextFrameRound.speeches.push({ playerId: frameYao.id, speakerName: frameYao.name, colorId: frameYao.colorId,
-    text: continuedSpeech, source: 'bot', p: Claims.parse(continuedSpeech, frameRoom, nextFrameRound) });
-  const thirdFrameRound = Engine.drawRound(frameRoom, 3);
-  frameRoom.rounds.push(thirdFrameRound);
-  frameRoom.currentRoundIdx = 2;
-  thirdFrameRound.passOrder = [frameLao.id, frameYao.id, ...frameRoom.players.filter(p => p.id !== frameLao.id && p.id !== frameYao.id).map(p => p.id)];
-  thirdFrameRound.turnLogs[frameYao.id] = { inspect: [], ability: '無技能操作', skillTag: '', blind: false, step: 'c' };
-  frameRoom.currentTurnPlayerId = frameYao.id;
-  frameRoom.status = 'playing';
-  const thirdRoundYaoPlan = Strategy.plan(frameYao, frameRoom);
-  assert.strictEqual(thirdRoundYaoPlan.plan.roleBluff.role, '老朝奉', 'the false role should remain unchanged in round three');
-  assert.strictEqual(thirdRoundYaoPlan.plan.roleBluff.persist, true, 'the identity commitment should remain active in the final round');
-  assert.strictEqual(thirdRoundYaoPlan.plan.roleBluff.continued, true, 'round-three denial should be marked as continued');
-  const thirdRoundYaoSpeech = Speech.localSpeech(frameYao, frameRoom, thirdRoundYaoPlan.plan, thirdRoundYaoPlan.A);
-  assert(thirdRoundYaoSpeech.includes('我是老朝奉'), 'round three should preserve the previously claimed identity');
-  assert(Speech.validate(thirdRoundYaoSpeech, frameYao, frameRoom, thirdRoundYaoPlan.plan, thirdRoundYaoPlan.A).ok,
-    'round-three persistent denial should pass validation');
+  const legacyLaoAnalysis = Mind.analyze(frameLao, frameRoom);
+  const legacyPass = Strategy.nextPlayer(frameLao, frameRoom, legacyLaoAnalysis);
+  assert(frameRoom.players.some(p => p.id === legacyPass), 'Lao still selects a legal next player');
+  assert(!String(frameRd.turnLogs[frameLao.id].passWhy || '').includes('長線嫁禍布局'),
+    'legacy third-seat framing setup must no longer be selected automatically');
 
   // v10.5 strategy calibration: first-three pass-order claims are a stronger prior, not a guarantee.
   assert(Mind.passPositionPrior(0) > Mind.passPositionPrior(3), 'first pass positions should get a stronger information prior than position four');

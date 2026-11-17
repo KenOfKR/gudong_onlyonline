@@ -168,4 +168,7 @@ async function testNetConcurrency() {
   console.log('\n✓ 測試通過：Transaction 重試、延遲心跳防禦與真人座位保護皆符合預期！');
 }
 
-testNetConcurrency();
+testNetConcurrency().then(() => process.exit(0)).catch(error => {
+  console.error(error && error.stack || error);
+  process.exit(1);
+});

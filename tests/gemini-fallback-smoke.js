@@ -103,6 +103,8 @@ function response(status, body, retryAfter = null) {
     // Headers may arrive immediately while the response body hangs. The same
     // per-model abort timer must cover response.json(), not just fetch().
     Gemini.state.cooldownUntil = 0;
+    Gemini.state.circuitUntil = 0;
+    Gemini.state.timeoutStreak = 0;
     let bodyTimeoutCalls = 0;
     global.fetch = async (_url, init) => {
       bodyTimeoutCalls++;

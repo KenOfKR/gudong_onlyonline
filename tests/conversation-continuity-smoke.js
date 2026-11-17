@@ -14,7 +14,7 @@ function makeRoom(code) {
 }
 
 try {
-  assert.strictEqual(GD.CONFIG.VERSION, '10.8.10');
+  assert.strictEqual(GD.CONFIG.VERSION, '10.9.1');
   const room = makeRoom('CONTINUITY_ROLE_HISTORY');
   const rd = U.curRound(room);
   const target = room.players.find(p => p.id !== 'human');

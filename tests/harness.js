@@ -5,7 +5,7 @@ const path = require('path');
 
 global.window = global;
 const ROOT = path.join(__dirname, '..');
-const ORDER = ['config', 'utils', 'roster', 'core/rules', 'core/claims', 'core/engine',
+const ORDER = ['config', 'utils', 'roster', 'core/rules', 'core/claims', 'core/conversation', 'core/engine',
   'bot/genes', 'bot/mind', 'bot/dialogueBank', 'bot/tactics', 'bot/strategy', 'bot/speech', 'bot/gemini', 'bot/driver',
   'bot/learning', 'bot/review', 'net', 'voice'];
 

@@ -3,7 +3,7 @@ const assert = require('assert');
 const load = require('./harness');
 const GD = load();
 const { Engine, U, Claims, Mind, Strategy, Speech } = GD;
-assert.strictEqual(GD.CONFIG.VERSION, '10.8.10', 'application version must match the current release');
+assert.strictEqual(GD.CONFIG.VERSION, '10.9.1', 'application version must match the current release');
 
 function makeReplayRoom() {
   const room = Engine.newRoom('V1082_ACTUAL_MATCH_REPLAY', 'human');

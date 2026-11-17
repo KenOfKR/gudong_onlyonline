@@ -40,6 +40,15 @@ function createStats() {
     roleSwapClaims: 0,
     ambushFrameAttempts: 0,
     successfulThirdSeatFrames: 0,
+    roleDiscussionInitiations: 0,
+    roleDiscussionResponses: 0,
+    gamesWithRoleDiscussion: 0,
+    gamesEligibleForRoleDiscussion: 0,
+    publicCallComparisons: 0,
+    publicCallDivergences: 0,
+    publicCallDivergenceReasons: {},
+    roundVoteTotals: [0, 0, 0],
+    roundAbstainers: [0, 0, 0],
     timeMs: 0
   };
 }
@@ -108,6 +117,17 @@ function getRoomDigest(room) {
   });
 }
 
+function firstDigestDifference(left, right, path = '$') {
+  if (left === right) return null;
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return { path, left, right };
+  const keys = [...new Set([...Object.keys(left), ...Object.keys(right)])].sort();
+  for (const key of keys) {
+    const diff = firstDigestDifference(left[key], right[key], `${path}.${key}`);
+    if (diff) return diff;
+  }
+  return null;
+}
+
 /** 還原全體 Bot 為乾淨出廠基因狀態 */
 function resetToFactoryGenes() {
   const cleanStore = {};
@@ -158,8 +178,14 @@ function playOneInner(seedStr, disableLearning, stats) {
       const p = U.byId(room, room.currentSpeakerId);
       const { plan, A } = Strategy.plan(p, room);
       const text = Speech.localSpeech(p, room, plan, A);
+      if (plan.roleDiscussionEvent) {
+        const candidate = U.byId(room, plan.roleDiscussionEvent.candidateId);
+        check(!!candidate && text.includes(U.tag(candidate)) && text.includes(String(plan.roleDiscussionEvent.candidateRole || '')),
+          `[種子 ${seedStr} 第${U.curRound(room).roundNum}輪 ${p.name}] 角色討論計畫必須出現在實際發言並保留指定候選`);
+      }
+      if (plan.confess) check(/(?:我認壞|我承認自己是壞人|我是壞人)/.test(text), `[種子 ${seedStr} 第${U.curRound(room).roundNum}輪 ${p.name}/${p.role}] 認壞策略必須在實際發言中明確承認陣營；原文：${text}`);
       const v = Speech.validate(text, p, room, plan, A);
-      check(v.ok, `發言未通過驗證：${v.why}`);
+      check(v.ok, `[種子 ${seedStr} 第${U.curRound(room).roundNum}輪 ${p.name}/${p.role}] 發言未通過驗證：${v.why}；原文：${text}`);
       Engine.speak(room, p.id, { text, source: 'bot' });
     } else if (room.status === 'voting') {
       if (!rd.voteResults) {
@@ -182,8 +208,34 @@ function playOneInner(seedStr, disableLearning, stats) {
   if (stats) {
     stats.totalGames++;
     const g = room.gameOver;
+    const discussionEvents = room.rounds.flatMap(rd => Object.values(rd.mind || {}).map(m => m && m.roleDiscussionEvent).filter(event => event && event.gameEvent));
+    const discussionEligible = room.rounds.some(rd => Object.values(rd.mind || {}).some(m => m && m.roleDiscussionAudit && m.roleDiscussionAudit.eligible));
+    if (discussionEligible) stats.gamesEligibleForRoleDiscussion++;
+    if (discussionEvents.length > 0) stats.gamesWithRoleDiscussion++;
+    stats.roleDiscussionInitiations += discussionEvents.filter(event => event.phase !== 'response').length;
+    stats.roleDiscussionResponses += discussionEvents.filter(event => event.phase === 'response').length;
+    check(discussionEvents.length <= 2, `[種子 ${seedStr}] 同局角色討論不得超過一組發起/回應`);
+    room.rounds.forEach(rd => Object.values(rd.mind || {}).forEach(m => {
+      const tactic = m && m.ballotTactic;
+      if (!tactic || !Array.isArray(tactic.publicCallTargets) || !tactic.publicCallTargets.length) return;
+      if (!tactic.alignsWithPublicCall) check(!!tactic.divergenceReason, `[種子 ${seedStr}] 公開號召與實際落票不同時必須留有戰術理由`);
+      stats.publicCallComparisons++;
+      if (!tactic.alignsWithPublicCall) {
+        stats.publicCallDivergences++;
+        const reason = tactic.divergenceReason || 'missing_reason';
+        stats.publicCallDivergenceReasons[reason] = (stats.publicCallDivergenceReasons[reason] || 0) + 1;
+      }
+    }));
     // Track true-role hints, false identity claims, the v10.3 third-seat framing move and persistent denials; counters do not affect decisions or RNG.
     room.rounds.forEach(rd => {
+      const roundIndex = Number(rd.roundNum) - 1;
+      if (roundIndex >= 0 && roundIndex < 3) {
+        const nonVotingPlayers = room.players.filter(player =>
+          !Object.values((rd.votes && rd.votes[player.id]) || {}).some(value => Number(value) > 0)).length;
+        stats.roundVoteTotals[roundIndex] += Object.values(rd.votes || {}).reduce((sum, ballot) =>
+          sum + Object.values(ballot || {}).reduce((subtotal, value) => subtotal + (Number(value) || 0), 0), 0);
+        stats.roundAbstainers[roundIndex] += nonVotingPlayers;
+      }
       Object.entries(rd.turnLogs || {}).forEach(([pid, log]) => {
         if (!log || !log.ambushFrameTactic) return;
         stats.ambushFrameAttempts++;
@@ -286,7 +338,11 @@ function runAASuite(count) {
     const room2 = playOne(seedStr, true, null);
     const d2 = getRoomDigest(room2);
 
-    check(d1 === d2, `[A/A 不一致] 種子 ${seedStr} 兩次執行結果不同！`);
+    if (d1 !== d2) {
+      let diff = null;
+      try { diff = firstDigestDifference(JSON.parse(d1), JSON.parse(d2)); } catch (_) {}
+      check(false, `[A/A 不一致] 種子 ${seedStr} 兩次執行結果不同！首個差異：${JSON.stringify(diff)}`);
+    }
     if (d1 !== d2) break;
   }
 
@@ -368,9 +424,13 @@ function printStats(name, s) {
   console.log(`勝率 ─ 好人: ${goodWin}% ｜ 壞人: ${badWin}%`);
   console.log(`各角勝率 ─ 許願:${(s.wins['許願']/s.totalGames*100).toFixed(1)}% 方震:${(s.wins['方震']/s.totalGames*100).toFixed(1)}% 老朝奉:${(s.wins['老朝奉']/s.totalGames*100).toFixed(1)}% 藥不然:${(s.wins['藥不然']/s.totalGames*100).toFixed(1)}%`);
   console.log(`好人投票 ─ 被騙票率: ${dupedRate}% (${s.dupedVotes}/${s.goodVotes}) ｜ 成功跟隨好人率: ${trustedRate}% (${s.trustedGoodVotes}/${s.goodVotes})`);
+  console.log(`分輪投票 ─ 平均投入 R1/R2/R3: ${s.roundVoteTotals.map(value => (value / Math.max(1, s.totalGames)).toFixed(1)).join('/')} ｜ 平均零投玩家: ${s.roundAbstainers.map(value => (value / Math.max(1, s.totalGames)).toFixed(1)).join('/')}`);
   console.log(`鑑人命中 ─ 好人抓出老朝奉率: ${hitLaoRate}% (${s.personVotes.hitLao}/${s.personVotes.total})`);
   console.log(`壞人謊言 ─ 謊言高轉換率: ${lieEffectRate}% (${s.badLiesEffective}/${s.badLies})`);
   console.log(`角色對抗 ─ 真身微跳: ${s.trueRoleSignals} 次（${(s.trueRoleSignals / Math.max(1, s.totalGames)).toFixed(2)} 次/局）｜假跳職計畫: ${s.roleBluffs} 次`);
+  console.log(`角色討論 ─ 有公開線索 ${s.gamesEligibleForRoleDiscussion}/${s.totalGames} 局；發起 ${s.roleDiscussionInitiations} 次、回應 ${s.roleDiscussionResponses} 次、實際討論 ${s.gamesWithRoleDiscussion} 局`);
+  const divergenceRate = s.publicCallComparisons ? (s.publicCallDivergences / s.publicCallComparisons * 100).toFixed(1) : '0.0';
+  console.log(`喊票/落票對照 ─ ${s.publicCallDivergences}/${s.publicCallComparisons} 次（${divergenceRate}%）偏離公開號召，均附內部戰術原因記錄`);
   console.log(`v10.3 栽贓與長線身份 ─ 藥不然栽贓啟動: ${s.ambushFrameAttempts} 次｜第三位實際失明成局: ${s.successfulThirdSeatFrames} 次｜角色互換宣稱: ${s.roleSwapClaims} 次｜持續身份承諾: ${s.persistentRoleBluffs} 次｜跨輪延續否認: ${s.continuedRoleDenials} 次`);
   const signalBreakdown = Object.entries(s.trueRoleSignalsByRole).sort((a, b) => b[1] - a[1]).map(([role, n]) => `${role}:${n}`).join('、');
   if (signalBreakdown) console.log(`微跳角色分布 ─ ${signalBreakdown}`);

@@ -80,7 +80,14 @@ while (room.status !== 'gameover' && guard++ < 300) {
     }
     if (plan.askId) {
       const target = U.byId(room, plan.askId);
-      console.log(`   📌 [鐵證質詢觸發] 點名質問 ${U.tag(target)}：累計 ${plan.askVotes} 票投在贗品【${plan.askBeast}】`);
+      const e = plan.askEvidence || {};
+      const kindLabel = ({
+        inspection_conflict: '查驗與公開說法不一致', speech_contradiction: '同段發言矛盾',
+        claim_shift: '跨輪真偽改口', role_shift: '跨輪角色改口',
+        vote_dissonance: '公開喊票與實際票單落差', fake_vote: '事後假品票型',
+        role_hypothesis: '公開角色猜測待核對'
+      })[plan.askKind] || '公開紀錄待核對';
+      console.log(`   📌 [多來源質詢：${kindLabel}] 點名 ${target ? U.tag(target) : plan.askId}：${JSON.stringify(e)}`);
     }
 
     Engine.speak(room, p.id, { text, source: 'bot' });
@@ -137,3 +144,5 @@ console.log(`  • 抓出老朝奉：${g.laoCaught ? '成功 (+1分)' : '失敗 
 console.log(`  • 方震存活：${g.fangCaught ? '被抓 (+0分)' : '未被抓 (+1分)'}`);
 console.log(`  • 許願存活：${g.xuCaught ? '被抓 (+0分)' : '未被抓 (+2分)'}`);
 console.log(`============================================================\n`);
+// 測試結束後明確退出，避免瀏覽器相容計時器讓 Node 行程懸掛。
+process.exit(0);
