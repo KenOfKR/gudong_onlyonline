@@ -1,0 +1,26 @@
+===== v10-8-public-roleplay-smoke.js =====
+v10.8.3 公開表演與贗品目標一致性測試通過：認壞選贗品、跳壞票向契約、好人偽裝池與內心台詞分層；1,118 條台詞／49 類保持不變
+
+PASS v10-8-public-roleplay-smoke.js attempt=1
+
+===== v10-8-strategic-info-smoke.js =====
+v10.8.6 回歸測試通過：尾家左側發言、來源中立、資訊能力與陣營分離、左上角台詞數徽章移除、1,118 條台詞資料仍保留
+
+PASS v10-8-strategic-info-smoke.js attempt=1
+
+===== vote-policy-smoke.js =====
+投票策略測試通過：人格化上限、零票候選、非 anchor 分配、籌碼帳目及末輪投入皆正確。
+
+PASS vote-policy-smoke.js attempt=1
+
+===== v10-8-14-dialogue-claims-regression.js =====
+PASS v10.8.14 dialogue/claims regression: repeated soft vote intent, tentative vs explicit promise, dialogue simplification, and independent source classification.
+
+PASS v10-8-14-dialogue-claims-regression.js attempt=1
+
+===== v10-8-14-role-inference-regression.js =====
+PASS v10.8.14 role inference regression: separate pZheng/pEvil/pLao, public handshake, partner mark, and private-mind firewall.
+
+PASS v10-8-14-role-inference-regression.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0

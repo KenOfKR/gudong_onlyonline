@@ -1,0 +1,26 @@
+===== v10-8-3-reasoning-smoke.js =====
+v10.8.3 推理回歸通過：查驗反轉、引用歸屬、弱候選、口頭承諾投票、合法棄票、歷史 totals 缺漏與方震陣營查驗／老朝奉身分分離。
+
+PASS v10-8-3-reasoning-smoke.js attempt=1
+
+===== v10-8-5-speed-speech-smoke.js =====
+v10.8.6 內容導向發言測試通過：0–3 名證據式候選、未收斂時保留待觀察、長發言不因字數被拒、左上角數量徽章移除且 1,118 條策略資料保留。
+
+PASS v10-8-5-speed-speech-smoke.js attempt=1
+
+===== v10-8-6-content-driven-speech-smoke.js =====
+v10.8.6 內容導向發言測試通過：0–3 名證據式候選、未收斂時保留待觀察、長發言不因字數被拒、左上角數量徽章移除且 1,118 條策略資料保留。
+
+PASS v10-8-6-content-driven-speech-smoke.js attempt=1
+
+===== v10-8-8-voting-coalition-regression.js =====
+v10.8.9 voting/coalition regression passed: pass-tail order, observation firewall, deferred ambush window, motivated good-role bluff, filler guard.
+
+PASS v10-8-8-voting-coalition-regression.js attempt=1
+
+===== v10-8-9-observation-firewall-regression.js =====
+v10.8.9 observation firewall / Bayesian joint-world / camp certainty / coalition forecast regression passed.
+
+PASS v10-8-9-observation-firewall-regression.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0

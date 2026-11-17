@@ -1,0 +1,26 @@
+===== v10-8-16-role-posterior-regression.js =====
+PASS v10.8.16 role posterior regression: self-claims are weak evidence, separate from camp certainty, and known-role counter-bluff is not a hard guilty verdict.
+
+PASS v10-8-16-role-posterior-regression.js attempt=1
+
+===== v10-8-16-evil-coalition-regression.js =====
+PASS v10.8.16 evil coalition regression: public forecast redirects weak fake targets; causal learning records call, forecast, ballot and Top-2 miss without reading other bots private mind.
+
+PASS v10-8-16-evil-coalition-regression.js attempt=1
+
+===== v10-8-17-inspection-report-regression.js =====
+PASS v10.8.17 inspection report regression: separate report and verdict, preserve both rounds, use current reports probabilistically, and deduplicate repeated sources.
+
+PASS v10-8-17-inspection-report-regression.js attempt=1
+
+===== v10-8-17-vote-intents-regression.js =====
+PASS v10.8.17 vote intent regression: tentative language stays soft; only explicit current first-person promises bind; negated, quoted, and historical statements do not.
+
+PASS v10-8-17-vote-intents-regression.js attempt=1
+
+===== v10-8-18-semantic-negation-regression.js =====
+PASS v10.8.18 semantic negation regression
+
+PASS v10-8-18-semantic-negation-regression.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0

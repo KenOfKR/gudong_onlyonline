@@ -1,0 +1,38 @@
+v10.8.21 Focus-Driven Dialogue 補丁測試報告
+============================================================
+
+測試環境：Node.js（本機容器）
+測試來源：完整 v10.8.21 專案 ZIP + 本補丁
+
+完整回歸 runner：
+  命令：node tests/run-v10-8-21-regressions.js
+  結果：66 PASS / 0 FAIL
+  retried_pass：0
+
+JavaScript 語法掃描：
+  命令：find js tests -name '*.js' -print0 | xargs -0 -n1 node --check
+  結果：126 個 JavaScript 檔案全部通過
+
+原規則檔完整性：
+  檔案：js/core/rules.js
+  原始 ZIP SHA-256：0c1e6b8e8605098a3b848c7958ebbac6c69ad110ece10f84c39efadee1e94b16
+  補丁專案 SHA-256：0c1e6b8e8605098a3b848c7958ebbac6c69ad110ece10f84c39efadee1e94b16
+  結果：完全相同，未修改
+
+新增專項測試：
+  tests/v10-8-21-focus-driven-dialogue-regression.js
+  - 角色互換質詢成為單一主要焦點
+  - Gemini prompt 確實收到戰術焦點、目標及基因語氣指引
+  - assertiveness 會影響對外表達姿態
+  - 保留具體角色追問、核准查驗主張及票向
+  - 排除空泛分析句
+  - 不附加與焦點無關的獸首報告與票數預測
+  - 尚未回應的角色聲稱可形成角色核查焦點
+
+未執行／不能由此測試報告推定通過：
+  - Gemini 線上端點的實際生成品質與延遲
+  - 瀏覽器中的完整真人對局體驗
+  - 多玩家房間端到端測試
+  - 勝率及壞人勝率的統計提升
+
+結論：程式回歸與語法檢查通過；需要部署後人工對局評估自然度及策略表現。

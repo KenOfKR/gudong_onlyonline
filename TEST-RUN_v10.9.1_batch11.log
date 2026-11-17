@@ -1,0 +1,26 @@
+===== v10-8-18-language-understanding-regression.js =====
+PASS v10.8.18 language understanding regression: 26 vote-language cases + inspection/source attribution cases
+
+PASS v10-8-18-language-understanding-regression.js attempt=1
+
+===== v10-8-18-role-discussion-regression.js =====
+PASS v10.8.18 role discussion regression: parsed public role hypotheses, source attribution, local response and question contract
+
+PASS v10-8-18-role-discussion-regression.js attempt=1
+
+===== v10-8-18-dialogue-diversity-regression.js =====
+v10.8.18 dialogue diversity regression: PASS
+
+PASS v10-8-18-dialogue-diversity-regression.js attempt=1
+
+===== v10-8-18-tactical-language-regression.js =====
+PASS v10.8.18 tactical/language regression: five triggered strategies, 50 additional lines, and unsupported sensory-evidence guard
+
+PASS v10-8-18-tactical-language-regression.js attempt=1
+
+===== v10-8-19-seat-fixed-slots-regression.js =====
+v10.8.19 fixed eight-seat regression: PASS
+
+PASS v10-8-19-seat-fixed-slots-regression.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0

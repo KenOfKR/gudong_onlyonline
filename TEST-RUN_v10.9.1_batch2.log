@@ -1,0 +1,29 @@
+===== human-attention-regression.js =====
+真人發言注意力回歸通過：R2 雙人指控＋歷史票型、Mind 弱證據整合、BOT 不得遮蔽未回應真人、R3 角色比較／陣營技能事實／票向禁投與最終備援台詞。
+
+PASS human-attention-regression.js attempt=1
+
+===== human-claim-role-flip-regression.js =====
+真人指控／角色歸屬／許願反轉時序回歸通過。
+
+PASS human-claim-role-flip-regression.js attempt=1
+
+===== mind_gene_patch_smoke.js =====
+✓ mind.js 公式級 smoke tests 全部通過
+  1. 真人／Bot source 標籤不再造成硬編碼指控權重差異
+  2. 具體矛盾證據在高多疑度下獲得更高嫌疑權重
+  3. 沒有證據變化時，後驗基礎信任不因 skepticism 單獨改變
+
+PASS mind_gene_patch_smoke.js attempt=1
+
+===== player-reasoning-regression-smoke.js =====
+v10.8.3 玩家推理回歸通過：以實際對局姓名與傳牌順序驗證雙人候選、歷史查驗反轉、公開提示延續及終局排名／指認一致。
+
+PASS player-reasoning-regression-smoke.js attempt=1
+
+===== public-speech-attribution-smoke.js =====
+公開發言解析測試通過：原有歸屬／引用回歸，加上複數嫌疑集合、歷史查驗回報與否定歸屬保護。
+
+PASS public-speech-attribution-smoke.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0

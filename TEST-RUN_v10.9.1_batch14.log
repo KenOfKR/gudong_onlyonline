@@ -1,0 +1,16 @@
+===== v10-8-21-voice-command-regression.js =====
+PASS v10.8.21 voice command regression: zh-TW intents, target resolution, ambiguity rejection, and no side effects
+
+PASS v10-8-21-voice-command-regression.js attempt=1
+
+===== v10-9-focus-tactics-architecture-regression.js =====
+PASS v10.9 focus-tactics architecture: social intent/provenance, named accusation, vote follow attribution, coalition decoy, single-focus expression, forecast calibration, attribution cleanup, action validation and low-sample learning.
+
+PASS v10-9-focus-tactics-architecture-regression.js attempt=1
+
+===== v10-9.1-full-strategy-regression.js =====
+PASS v10.9.1 full strategy regression: ability camouflage, public provenance, probe/main commitments, negation, 24 marks, storage fallback, strict speech gate, and endgame vote convergence
+
+PASS v10-9.1-full-strategy-regression.js attempt=1
+
+SUMMARY pass=3 fail=0 total=3 retried_pass=0

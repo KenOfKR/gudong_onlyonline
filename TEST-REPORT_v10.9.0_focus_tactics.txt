@@ -1,0 +1,40 @@
+古董局中局 v10.9.0 Focus-Tactics Architecture
+測試報告
+
+一、完整自動回歸
+命令：node tests/run-v10-9-regressions.js
+結果：SUMMARY pass=67 fail=0 total=67 retried_pass=0
+
+二、v10.9 新增專項
+檔案：tests/v10-9-focus-tactics-architecture-regression.js
+涵蓋：
+- 自然語句「說 A 真、卻投 B」只指向明確點名玩家，不擴散至共同投票者。
+- 「我跟著她投」解析為自己的跟票承諾。
+- 引述他人票向與自己票向分離，保留原始發言者 ID。
+- hostility、baiting、echo-momentum 意圖標籤。
+- 公開社會訊號來源可追溯，無證據敵意只作有限弱嫌疑，不會硬確認壞人。
+- 隊友遭公開攻擊時可建立 Decoy 攻擊焦點，不將隊友身分洩漏到公開指令。
+- 攻擊焦點過濾無關獸首查驗，缺少目標名稱的台詞會被 action validator 擋下。
+- 方震不能捏造獸首查驗，失明公開策略必須與台詞一致。
+- 舊版固定第三位栽贓旗標不再強制直傳受害者。
+- 重複人物歸因前綴會被清理。
+- 歷史預測誤差與前二重疊率可校準票數預測變異，至少兩筆樣本才生效，膨脹上限 28%。
+- 首局低樣本基因學習幅度受到抑制。
+
+三、戰術冒煙測試
+- tactics-smoke.js：通過，1118 條台詞、54 類戰術／語句類別。
+- tactics-smoke-random-diagnostic.js：通過。
+- v10.9 專項回歸：通過。
+- 普通藥不然偷襲專項回歸：通過。
+
+四、語法檢查
+命令：find js tests -name '*.js' -print0 | xargs -0 -n1 node --check
+結果：128 個 JavaScript 檔案全部通過。
+
+五、規則完整性
+js/core/rules.js SHA-256：
+0c1e6b8e8605098a3b848c7958ebbac6c69ad110ece10f84c39efadee1e94b16
+與基線相同。未修改角色能力、查驗、擾亂、偷襲、傳牌、投票、得分或勝負規則。
+
+六、測試範圍限制
+尚未完成 Gemini 即時 API 對局、瀏覽器真人整局與大樣本配對種子勝率比較。67/67 是自動回歸通過，不等同勝率提升證明。

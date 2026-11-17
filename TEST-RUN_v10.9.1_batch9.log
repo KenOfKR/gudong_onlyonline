@@ -1,0 +1,26 @@
+===== v10-8-14-role-persistence-regression.js =====
+PASS v10.8.14 role persistence regression: preceding-round continuation, same-round boundary, explicit switch, and unexplained-switch protection.
+
+PASS v10-8-14-role-persistence-regression.js attempt=1
+
+===== v10-8-14-score-desperation-regression.js =====
+PASS v10.8.14 score/desperation regression: Lao last-round trigger, pZheng shield, and explicitly heuristic win-probability calibration.
+
+PASS v10-8-14-score-desperation-regression.js attempt=1
+
+===== v10-8-16-public-attribution-regression.js =====
+PASS v10.8.16 public attribution regression: quoted claims/calls, speaker calls, vote commitments, contrastive response and comparative-verdict references are separated.
+
+PASS v10-8-16-public-attribution-regression.js attempt=1
+
+===== v10-8-16-dialogue-coherence-regression.js =====
+PASS v10.8.16 dialogue coherence regression: quoted contradiction, own truth stance, separate call, live contradiction guard and internal-language ban.
+
+PASS v10-8-16-dialogue-coherence-regression.js attempt=1
+
+===== v10-8-16-role-bluff-regression.js =====
+PASS v10.8.16 role bluff regression: good-side counter-bluff gate, progressive role cover, ability-compatible Fang signal, and quoted role attribution.
+
+PASS v10-8-16-role-bluff-regression.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0

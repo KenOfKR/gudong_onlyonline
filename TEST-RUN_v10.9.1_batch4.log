@@ -1,0 +1,45 @@
+===== test_net_race.js =====
+=== 模擬真實 Firebase 並行接管與延遲快照防禦 ===
+
+[初始狀態] 遠端 DB 主機: human_A (rev: 1)
+
+[並行競爭] B 發起 Transaction，但在寫入瞬間，C 搶先完成了接管 (注入衝突)...
+  -> ⚡ [中斷] C 搶在 B 寫入前完成了交易，DB rev 變為 2！
+  -> B 發現房間已不處於超時狀態 (當前主機: human_C)，放棄接管。
+  -> B 的 Net.act 結果: false
+  -> 遠端 DB 目前主機: human_C (rev: 2)
+
+[延遲心跳] 舊主機 A 送出過期的 update (繞過 Transaction)...
+  -> A 傳送更新後，本地認知的主機: human_C (rev: 2)
+  -> ✓ 系統成功攔截無 rev 遞增的主機篡改。
+
+[最終驗證] 真人數: 8 ｜ 旁觀者: 0
+
+✓ 測試通過：Transaction 重試、延遲心跳防禦與真人座位保護皆符合預期！
+[net] 遠端交易重試 (1/8)： [MockDB] Transaction conflict: Document modified (Expected rev 1, got 2)
+
+PASS test_net_race.js attempt=1
+
+===== ui-smoke.js =====
+古董局中局 v10.9.1 已啟動
+UI 冒煙測試：渲染 66 次｜失敗 0｜終局面板 116351 字元｜覆盤 8 份
+發言區含摘要： true ｜票型頁籤含 R1/R2/R3： true ｜大廳清單： 1 間
+
+PASS ui-smoke.js attempt=1
+
+===== v10-8-10-timeline-consensus-regression.js =====
+PASS v10.8.10 timeline/consensus regression
+
+PASS v10-8-10-timeline-consensus-regression.js attempt=1
+
+===== v10-8-11-ambush-privacy-regression.js =====
+PASS v10.8.11 ambush privacy/timing regression (3 scenarios)
+
+PASS v10-8-11-ambush-privacy-regression.js attempt=1
+
+===== v10-8-11-fang-strategy-regression.js =====
+PASS v10.8.11 Fang/role-performance regression (4 scenarios)
+
+PASS v10-8-11-fang-strategy-regression.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0

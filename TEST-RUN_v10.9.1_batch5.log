@@ -1,0 +1,26 @@
+===== v10-8-11-source-provenance-regression.js =====
+PASS v10.8.11 speech source provenance regression
+
+PASS v10-8-11-source-provenance-regression.js attempt=1
+
+===== v10-8-12-causal-learning-regression.js =====
+Causal learning regression PASS: speech/claim attribution, promise-vs-ballot gap, forecast, evidence, ranking outcome, and final target provenance.
+
+PASS v10-8-12-causal-learning-regression.js attempt=1
+
+===== v10-8-12-forecast-tie-regression.js =====
+Forecast/tie regression PASS: exact zodiac tie-break, 0947 8/7/7 case, observed ballot refresh, and speech/ballot independence.
+
+PASS v10-8-12-forecast-tie-regression.js attempt=1
+
+===== v10-8-12-position-validation-regression.js =====
+Position validation regression PASS: passOrder and speechOrder are independently validated and incorrect AI claims are rejected.
+
+PASS v10-8-12-position-validation-regression.js attempt=1
+
+===== v10-8-12-public-evidence-regression.js =====
+Public evidence regression PASS: early 2-speaker source audit, independent checks retained, same-speech contradiction downweighted, count hypothesis carried into Mind, and P(Evil)/P(Lao) kept distinct.
+
+PASS v10-8-12-public-evidence-regression.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0

@@ -1,0 +1,26 @@
+===== v10-8-12-role-capability-regression.js =====
+Role capability regression PASS: all eight role profiles, inspect quotas, Fang/Xu incompatibility, and remaining disguise pool.
+
+PASS v10-8-12-role-capability-regression.js attempt=1
+
+===== v10-8-12-xu-roleplay-regression.js =====
+Fake Xu roleplay regression PASS: every non-Xu fake Xu has two distinct source beasts while one result may remain withheld.
+
+PASS v10-8-12-xu-roleplay-regression.js attempt=1
+
+===== v10-8-13-claim-context-regression.js =====
+Public claim context regression PASS: quoted and aggregate mentions do not become self-inspection claims.
+
+PASS v10-8-13-claim-context-regression.js attempt=1
+
+===== v10-8-13-team-role-bluff-regression.js =====
+Team role bluff regression PASS: public-only coordination, nonzero remaining bluff opportunity, no suppression without a teammate claim.
+
+PASS v10-8-13-team-role-bluff-regression.js attempt=1
+
+===== v10-8-13-yao-ambush-pass-regression.js =====
+Yao ambush pass regression PASS: candidate comparison, Lao skill/adjacency tradeoff, direct-pass legality, estimate caveat, public/private information boundary and deterministic output.
+
+PASS v10-8-13-yao-ambush-pass-regression.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0

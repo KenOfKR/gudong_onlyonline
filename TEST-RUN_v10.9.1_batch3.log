@@ -1,0 +1,44 @@
+===== room-0947-natural-language-regression.js =====
+Room 0947 language regression PASS: role/color shorthand, paired beast claims, unresolved 3-computer count group, self-contradiction, vote promise, and two-person candidate set.
+
+PASS room-0947-natural-language-regression.js attempt=1
+
+===== tactics-smoke-random-diagnostic.js =====
+戰術引擎冒煙測試通過：1118 條台詞｜54 類｜歷史歸因/原話摘要/多票與角色偽裝全數通過
+
+PASS tactics-smoke-random-diagnostic.js attempt=1
+
+===== tactics-smoke.js =====
+[MULTI-ORDER] A: one interjecting bot: PASS order=丞峻
+[MULTI-ORDER] B: two interjecting bots: PASS order=源阿 -> 水豚
+[MULTI-ORDER] C: three interjecting bots: PASS order=漢崧 -> 偉翔 -> Molly
+[MULTI-ORDER] All 3 multiplayer order scenarios passed.
+戰術引擎冒煙測試通過：1118 條台詞｜54 類｜歷史歸因/原話摘要/多票與角色偽裝全數通過
+
+PASS tactics-smoke.js attempt=1
+
+===== test_bg_takeover.js =====
+=== 模擬 8 真人連線與 Net 大廳背景接管測試 ===
+[開局] 玩家總數：8 ｜ 真人：8
+[動作] 模擬其他無關玩家開啟大廳，觸發 Net.lobby() 背景清理與接管...
+[接管後] 新主機：p_mwkb4z3k_nqpd ｜ 玩家總數：8 ｜ 真人：8 ｜ 旁觀者：0
+✓ 測試通過：背景接管僅轉移主機權，並未將真人踢為電腦！
+
+PASS test_bg_takeover.js attempt=1
+
+===== test_net_failover.js =====
+=== 模擬主機異常斷線與長時間背景接管測試 ===
+[0 秒] 開局完成。主機: human_1 ｜ 真人數: 8
+
+[30 秒] 主機異常斷線，完全沒有發送 hostBeat...
+[30 秒] 其他玩家刷新大廳，觸發 Net.lobby()...
+[接管成功] 新主機: p_mwkb4z55_ddvx ｜ 玩家總數: 8 ｜ 真人數: 8 ｜ 旁觀者: 0
+
+[60 秒] 新主機接管後繼續運行 30 秒，期間多次觸發大廳刷新...
+[60 秒狀態] 當前主機: p_mwkb4z55_ddvx ｜ 真人數: 8 ｜ 旁觀者: 0
+
+✓ 測試通過：主機斷線移交與長時間心跳判定皆穩定，無真人被誤踢！
+
+PASS test_net_failover.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0

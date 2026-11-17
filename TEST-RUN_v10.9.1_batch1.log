@@ -1,0 +1,26 @@
+===== abstain-policy-smoke.js =====
+棄票策略測試通過：零票候選、非 anchor 票型、好人棄票與壞人公開表演棄票皆正確。
+
+PASS abstain-policy-smoke.js attempt=1
+
+===== claims-natural-language-regression.js =====
+Claims natural-language regression PASS: abbreviated roles, color-only stances, paired beasts, skill self-report, count constraints, contradictions, vote promises, and separate pass/speech positions.
+
+PASS claims-natural-language-regression.js attempt=1
+
+===== conversation-continuity-smoke.js =====
+v10.8.3 延續性測試通過：歷史角色轉述、明確指控、否定句與過期 metadata
+
+PASS conversation-continuity-smoke.js attempt=1
+
+===== gemini-fallback-smoke.js =====
+Gemini fallback 測試通過：429 逐模型切換、完整上下文、冷卻、單次總等待上限與實際延遲紀錄均正確。
+
+PASS gemini-fallback-smoke.js attempt=1
+
+===== human-afk-rescue-regression.js =====
+Human AFK rescue regression PASS: shared timeout, human-only helper, single extension, self-return, stale-token safety, per-player phase clocks, rescue preservation, and legal abstention audit.
+
+PASS human-afk-rescue-regression.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0

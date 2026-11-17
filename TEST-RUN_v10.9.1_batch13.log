@@ -1,0 +1,26 @@
+===== v10-8-20-tactical-vote-reply-regression.js =====
+PASS v10.8.20 tactical vote reply: meaningful evidence-based follow vote, own-inspection citation, and no invented checks
+
+PASS v10-8-20-tactical-vote-reply-regression.js attempt=1
+
+===== v10-8-21-focus-driven-dialogue-regression.js =====
+PASS v10.8.21 focus-driven dialogue: one tactical focus, gene-shaped voice, concise evidence-backed speech and vote contract
+
+PASS v10-8-21-focus-driven-dialogue-regression.js attempt=1
+
+===== v10-8-21-role-swap-audit-regression.js =====
+PASS v10.8.21 role-swap audit regression: paired claims trigger a grounded question and are never treated as verified identity
+
+PASS v10-8-21-role-swap-audit-regression.js attempt=1
+
+===== v10-8-21-spec-gap-regression.js =====
+PASS v10-8-21-spec-gap-regression
+
+PASS v10-8-21-spec-gap-regression.js attempt=1
+
+===== v10-8-21-voice-caption-regression.js =====
+PASS v10.8.21 voice caption regression: Firestore-room data, limits, privacy boundary, temporary AI projection, restore, and gameover cleanup
+
+PASS v10-8-21-voice-caption-regression.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0

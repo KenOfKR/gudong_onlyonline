@@ -1,0 +1,26 @@
+===== v10-8-19-interaction-challenge-regression.js =====
+v10.8.19 multi-source interaction challenge regression: PASS
+
+PASS v10-8-19-interaction-challenge-regression.js attempt=1
+
+===== v10-8-19-question-contract-regression.js =====
+v10.8.19 question contract regression: PASS (17 variants across 7 categories)
+
+PASS v10-8-19-question-contract-regression.js attempt=1
+
+===== v10-8-19-personal-marker-storage-regression.js =====
+v10.8.19 personal marker storage regression: PASS (13 original symbols, 24 simultaneous placements, local-only, round/player scoped, mouse + touch flow)
+
+PASS v10-8-19-personal-marker-storage-regression.js attempt=1
+
+===== v10-8-20-personal-marker-render-regression.js =====
+PASS v10.8.20 personal marker rendering: 13 symbols + 24 placement capacity mounted to stable dedicated toolbar
+
+PASS v10-8-20-personal-marker-render-regression.js attempt=1
+
+===== v10-8-20-final-role-elimination-regression.js =====
+PASS v10.8.20 final role elimination: hard/soft separation, no Ji threshold deletion, Xu ability evidence, shared rank/top3, and post-game audit narrative
+
+PASS v10-8-20-final-role-elimination-regression.js attempt=1
+
+SUMMARY pass=5 fail=0 total=5 retried_pass=0
