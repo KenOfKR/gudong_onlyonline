@@ -160,7 +160,8 @@ try {
     roleBluff: { role: publicBluffRole },
     claims: [{ beast: currentTarget, real: false }]
   }, promptAnalysis);
-  assert(rolePerformancePrompt.includes(`本輪對外身分說法：我是【${publicBluffRole}】`), 'prompt should include only the selected public role persona');
+  assert(rolePerformancePrompt.includes(`本輪核准對外身分主張為【${publicBluffRole}】`), 'prompt should describe the selected public role as a conditional, natural claim');
+  assert(rolePerformancePrompt.includes('只有在被質疑、需要對跳或策略確有收益時'), 'role performance should avoid repetitive canned self-introduction');
   assert(!rolePerformancePrompt.includes(evilBot.role), 'role-performance prompt must not expose the actual role');
   assert(Speech.auditPrivateThoughtLeakage('我需要建立可信度，再用內部策略轉移焦點。').ok === false,
     'private strategy language should be rejected as public dialogue');
@@ -172,7 +173,7 @@ try {
     ...seeded.plan,
     mode: 'confess', confess: true, evilRolePerformance: false,
     beast: currentTarget, claims: [{ beast: currentTarget, real: false }],
-    roleBluff: null, fakeFangClaim: null, explain: null,
+    roleBluff: null, fakeFangClaim: null, roleAbilityCover: null, explain: null,
     withholdInfo: false, withheldClaims: [], avoid: [],
     askId: null, suspectId: null, trueRoleSignal: null, xuYuanLine: null,
     tacticalLine: '私密戰術句_SENTINEL：若預估票差只有 0，則要重新衡量追加成本。'
@@ -241,9 +242,9 @@ try {
   try { assert.deepStrictEqual(Strategy.ballot(evilBot, promptRoom), {}, 'zero authoritative balance must remain a valid abstention'); }
   finally { Engine.availableChips = originalAvailableChips; }
 
-  assert.strictEqual(DialogueBank.count(), 1068, 'dialogue bank must remain at exactly 1,068 lines');
-  assert.strictEqual(DialogueBank.categories().length, 49, 'dialogue bank must retain 49 categories');
-  console.log('v10.8.3 公開表演與贗品目標一致性測試通過：認壞選贗品、跳壞票向契約、好人偽裝池與內心台詞分層；1,068 條台詞／49 類保持不變');
+  assert.strictEqual(DialogueBank.count(), 1118, 'dialogue bank must remain at exactly 1,118 lines');
+  assert.strictEqual(DialogueBank.categories().length, 54, 'dialogue bank must retain 54 categories');
+  console.log('v10.8.3 公開表演與贗品目標一致性測試通過：認壞選贗品、跳壞票向契約、好人偽裝池與內心台詞分層；1,118 條台詞／49 類保持不變');
   process.exit(0);
 } catch (err) {
   console.error('v10.8.3 公開表演回歸測試失敗：', err.stack || err.message || err);

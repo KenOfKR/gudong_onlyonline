@@ -33,8 +33,8 @@ function makeRoom() {
 }
 
 try {
-  assert.strictEqual(CONFIG.VERSION, '10.8.10');
-  assert.strictEqual(DialogueBank.count(), 1068, 'the dialogue bank data remains available to BOT strategy');
+  assert.strictEqual(CONFIG.VERSION, '10.9.1');
+  assert.strictEqual(DialogueBank.count(), 1118, 'the dialogue bank data remains available to BOT strategy');
   const mindSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'bot', 'mind.js'), 'utf8');
   assert(!/highSus\.slice\(0\s*,\s*3\)/.test(mindSource),
     'mind must not mechanically keep only three high-suspicion players and downrank the rest');
@@ -112,6 +112,7 @@ try {
     ...planResult.plan,
     roleBluff: null,
     fakeFangClaim: null,
+    trueRoleSignal: null,
     confess: false,
     evilRolePerformance: false,
     publicSuspectBrief: null,
@@ -132,11 +133,11 @@ try {
   const indexSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const mainSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'main.js'), 'utf8');
   const header = (indexSource.match(/<header class="top">[\s\S]*?<\/header>/i) || [''])[0];
-  assert(!/(?:台詞庫|1,068\s*條|1068\s*條)/i.test(header), 'the top-left header must not show the dialogue count');
+  assert(!/(?:台詞庫|1,118\s*條|1118\s*條)/i.test(header), 'the top-left header must not show the dialogue count');
   assert(mainSource.includes('#dialogueCountBadge') && mainSource.includes('node.remove()'), 'legacy badge is explicitly removed if present');
-  assert.strictEqual(DialogueBank.count(), 1068, 'removing the display must not delete the dialogue bank');
+  assert.strictEqual(DialogueBank.count(), 1118, 'removing the display must not delete the dialogue bank');
 
-  console.log('v10.8.6 內容導向發言測試通過：0–3 名證據式候選、未收斂時保留待觀察、長發言不因字數被拒、左上角數量徽章移除且 1,068 條策略資料保留。');
+  console.log('v10.8.6 內容導向發言測試通過：0–3 名證據式候選、未收斂時保留待觀察、長發言不因字數被拒、左上角數量徽章移除且 1,118 條策略資料保留。');
   process.exit(0);
 } catch (error) {
   console.error('v10.8.6 內容導向發言測試失敗：', error && error.stack || error);

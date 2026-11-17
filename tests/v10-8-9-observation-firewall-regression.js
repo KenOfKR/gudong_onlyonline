@@ -130,7 +130,7 @@ try {
     'the old hard-coded four role points must be replaced by posterior-based expected role bonuses');
 
   // Official rules remain untouched: role, score threshold and pass-tail speaking order still govern the game.
-  assert.strictEqual(GD.CONFIG.VERSION, '10.8.10', 'version bump is performed only after this source-level regression is proven');
+  assert.strictEqual(GD.CONFIG.VERSION, '10.9.1', 'application version must match the v10.9.1 release');
   console.log('v10.8.9 observation firewall / Bayesian joint-world / camp certainty / coalition forecast regression passed.');
   process.exit(0);
 } catch (error) {

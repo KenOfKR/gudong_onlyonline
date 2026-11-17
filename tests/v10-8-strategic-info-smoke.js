@@ -24,16 +24,16 @@ function forceDiscussion(room, round, orderedPassIds, tailId) {
 }
 
 try {
-  assert.strictEqual(GD.CONFIG.VERSION, '10.8.10');
+  assert.strictEqual(GD.CONFIG.VERSION, '10.9.1');
   assert(DialogueBank.count() >= 650, `dialogue bank must have at least 650 lines (actual ${DialogueBank.count()})`);
-  assert.strictEqual(DialogueBank.count(), 1068, 'dialogue bank count should be exactly 1,068');
+  assert.strictEqual(DialogueBank.count(), 1118, 'dialogue bank count should be exactly 1,118');
   const mainSource = fs.readFileSync(path.join(__dirname, '..', 'js', 'main.js'), 'utf8');
   const indexSource = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const topHeader = (indexSource.match(/<header class=\"top\">[\s\S]*?<\/header>/i) || [''])[0];
-  assert(!/(?:台詞庫|1,068\s*條|1068\s*條)/i.test(topHeader), 'top-left header must not display the dialogue-bank count');
+  assert(!/(?:台詞庫|1,118\s*條|1118\s*條)/i.test(topHeader), 'top-left header must not display the dialogue-bank count');
   assert(mainSource.includes('#dialogueCountBadge') && mainSource.includes('node.remove()'), 'startup should remove a stale legacy dialogue-count badge');
   assert(mainSource.includes('DialogueBank.count()'), 'dialogue bank integrity check should remain internal');
-  assert.strictEqual(DialogueBank.categories().length, 49, 'new categories should be registered');
+  assert.strictEqual(DialogueBank.categories().length, 54, 'new categories should be registered');
   const expectedPools = {
     evidenceExpanded: 51, tempoExpanded: 80, teamResponseExpanded: 80,
     voteMathExpanded: 70, identityAuditExpanded: 50,
@@ -161,7 +161,7 @@ try {
   const oldLine = DialogueBank.pick('evidence', 12345, {});
   const freshLine = DialogueBank.pickFresh('evidence', 12345, {}, [oldLine]);
   assert.notStrictEqual(freshLine, oldLine, 'pickFresh must avoid exact/templated repetition if another line is available');
-  console.log('v10.8.6 回歸測試通過：尾家左側發言、來源中立、資訊能力與陣營分離、左上角台詞數徽章移除、1,068 條台詞資料仍保留');
+  console.log('v10.8.6 回歸測試通過：尾家左側發言、來源中立、資訊能力與陣營分離、左上角台詞數徽章移除、1,118 條台詞資料仍保留');
   process.exit(0);
 } catch (err) {
   console.error('v10.8.3 策略回歸測試失敗：', err.stack || err.message || err);

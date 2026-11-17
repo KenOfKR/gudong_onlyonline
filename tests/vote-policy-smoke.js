@@ -37,8 +37,9 @@ try {
   assert.strictEqual(assertiveLimit, 2, 'high-assertiveness profile should be allowed to use both first-round chips in this fixture');
   for (const [label, model, limit] of [['cautious', cautiousModel, cautiousLimit], ['assertive', assertiveModel, assertiveLimit]]) {
     assert(model && model.ballot && model.diagnostic, label + ' optimizer must return a ballot and diagnostics');
-    assert.strictEqual(model.diagnostic.firstVoteBonus, 0, label + ' must not receive a duplicated first-vote bonus');
-    assert.strictEqual(model.diagnostic.firstVotePreference, 0, label + ' must not receive a duplicated first-vote preference');
+    assert.strictEqual(model.diagnostic.participationBonus, 0.11, label + ' should receive the calibrated first-round participation value');
+    assert(model.diagnostic.firstVoteBonus === 0 || model.diagnostic.firstVoteBonus === model.diagnostic.participationBonus,
+      label + ' first-vote reward must be applied once, only when the allocation spends chips');
     const actualSpent = Object.values(model.ballot).reduce((n, value) => n + Number(value || 0), 0);
     assert(actualSpent >= 0 && actualSpent <= limit, label + ' ballot must be between zero and its cap');
     assert.strictEqual(model.diagnostic.spent, actualSpent, label + ' spent diagnostic must match ballot');
@@ -66,6 +67,11 @@ try {
     post: round2.beasts.map(b => ({ name: b.name, pReal: b.name === round2.beasts[0].name ? 0.97 : 0.35 }))
   });
   assert(round2Limit >= 0 && round2Limit <= 4, 'round-two spend cap must stay within the bank');
+  const round2Model = Tactics.optimizeBallot(room, bot, {
+    beast: round2.beasts[0].name,
+    post: round2.beasts.map(b => ({ name: b.name, pReal: b.name === round2.beasts[0].name ? 0.97 : 0.35 }))
+  }, round2Limit);
+  assert.strictEqual(round2Model.diagnostic.participationBonus, 0.07, 'round-two participation value should be lower than round one after diagnostic rounding');
 
   const round3 = Engine.drawRound(room, 3);
   room.rounds.push(round3);
@@ -79,6 +85,11 @@ try {
   });
   assert.strictEqual(Tactics.chipsAvailable(room, bot), 5, 'historical vote ledger must override stale voteBank cache');
   assert.strictEqual(round3Limit, 5, 'last round should not reserve chips for a future round');
+  const round3Model = Tactics.optimizeBallot(room, bot, {
+    beast: round3.beasts[0].name,
+    post: round3.beasts.map(b => ({ name: b.name, pReal: 0.5 }))
+  }, round3Limit);
+  assert.strictEqual(round3Model.diagnostic.participationBonus, 0.02, 'last-round participation reward should remain modest and chips remain optional');
 
   console.log('投票策略測試通過：人格化上限、零票候選、非 anchor 分配、籌碼帳目及末輪投入皆正確。');
   process.exit(0);

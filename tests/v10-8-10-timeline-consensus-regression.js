@@ -48,7 +48,7 @@ try {
   const bot = byName('Alli');
   const analysis = Mind.analyze(bot, room);
 
-  assert.strictEqual(GD.CONFIG.VERSION, '10.8.10');
+  assert.strictEqual(GD.CONFIG.VERSION, '10.9.1');
   assert.strictEqual(analysis.claimEvidence.current.length, 4,
     'every parsed public beast claim should have one provenance record');
   const monkey = analysis.consensusDecomposition.find(group => group.beast === '猴' && group.real === true);
@@ -90,8 +90,11 @@ try {
   assert.strictEqual(plan.laoTimingAudit.rule, 'skill timing uses passOrder; speechOrder is discussion order only');
   assert(Array.isArray(plan.consensusAudit) && plan.consensusAudit.some(group => group.beast === '猴'),
     'strategy must pass consensus decomposition to speech generation');
-  const line = Speech.localSpeech(bot, room, plan, A);
-  assert(/自稱查驗|獨立驗證/.test(line), 'public speech should explain why a chorus is not equal to independent verification');
+  const consensusPrompt = Speech.buildPrompt(bot, room, plan, A);
+  assert(consensusPrompt.includes('自稱親查仍是公開自述，不等於系統驗證'),
+    'speech instructions must preserve that a self-reported check is not system-verified truth');
+  assert(consensusPrompt.includes('重複主張不可當成同數量的獨立證據'),
+    'speech instructions must explain why a chorus is not equal to independent verification');
 
   // Existing abstention / public-call-vs-ballot regression tests remain in the suite unchanged.
   console.log('PASS v10.8.10 timeline/consensus regression');
