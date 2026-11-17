@@ -35,6 +35,12 @@
       });
       const sIdx = (rd.speechOrder || []).indexOf(oldId);
       if (sIdx >= 0) rd.speechOrder[sIdx] = newId;
+      (rd.voiceTranscripts || []).forEach(message => {
+        if (String(message.playerId) === String(oldId)) {
+          message.playerId = newId;
+          if (newName) message.speakerName = newName;
+        }
+      });
       (rd.speeches || []).forEach(sp => {
         if (sp.playerId === oldId) {
           sp.playerId = newId;
@@ -162,10 +168,31 @@
     const used = new Set(room.players.map(p => p.colorId));
     return (GD.SEAL_COLORS.find(c => !used.has(c.id)) || GD.SEAL_COLORS[0]).id;
   };
+  // Keep the eight physical seats stable. Repair only missing/invalid/duplicate indexes;
+  // never compact valid seats merely because some positions are empty.
+  function repairSeatIndexes(room) {
+    if (!room || !Array.isArray(room.players)) return;
+    const used = new Set(), pending = [];
+    room.players.forEach(p => {
+      const index = Number(p && p.seatIndex);
+      if (Number.isInteger(index) && index >= 0 && index < 8 && !used.has(index)) {
+        p.seatIndex = index;
+        used.add(index);
+      } else pending.push(p);
+    });
+    pending.forEach(p => {
+      let free = -1;
+      for (let i = 0; i < 8; i++) if (!used.has(i)) { free = i; break; }
+      p.seatIndex = free;
+      if (free >= 0) used.add(free);
+    });
+  }
+
   const freeSeat = room => {
+    repairSeatIndexes(room);
     const used = new Set(room.players.map(p => p.seatIndex));
     for (let i = 0; i < 8; i++) if (!used.has(i)) return i;
-    return room.players.length;
+    return -1;
   };
 
   function migratePlayerNameInRoom(room, id, newName) {
@@ -217,13 +244,16 @@
       return old;
     }
     if (room.status !== 'waiting' && room.status !== 'gameover') return null;
+    repairSeatIndexes(room);
     if (room.players.length >= 8) {
       const bot = room.players.find(p => p.isBot);
       if (isBot || !bot) return null;
       room.players.splice(room.players.indexOf(bot), 1);
     }
+    const nextSeat = freeSeat(room);
+    if (nextSeat < 0) return null;
     const p = {
-      id, name: cleanName, isBot, botId, colorId: freeColor(room), seatIndex: freeSeat(room),
+      id, name: cleanName, isBot, botId, colorId: freeColor(room), seatIndex: nextSeat,
       role: '', voteBank: 0, isAmbushed: false, isPermanentlyAmbushed: false, pendingAmbush: false, pendingAmbushTiming: null, pendingAmbushSourceRound: null, pendingImmediateAmbush: false, pendingImmediateAmbushTiming: null, pendingImmediateAmbushSourceRound: null, pendingPermanentAmbush: false, activeAmbushTiming: null, activeAmbushSourceRound: null, confusedRound: -1
     };
     room.players.push(p);
@@ -252,13 +282,15 @@
 
   Engine.shiftSeat = function (room, pid, delta) {
     const me = U.byId(room, pid);
-    if (!me || room.status !== 'waiting' || room.players.length < 2) return false;
-    const n = room.players.length;
-    const sorted = U.seated(room);
-    sorted.forEach((p, i) => { p.seatIndex = i; });
-    const target = (me.seatIndex + delta + n) % n;
-    const other = sorted.find(p => p.seatIndex === target);
-    if (other) other.seatIndex = me.seatIndex;
+    const step = Number(delta) > 0 ? 1 : Number(delta) < 0 ? -1 : 0;
+    if (!me || room.status !== 'waiting' || !step) return false;
+    repairSeatIndexes(room);
+    const from = Number(me.seatIndex);
+    if (!Number.isInteger(from) || from < 0 || from > 7) return false;
+    const target = (from + step + 8) % 8;
+    const other = room.players.find(p => p.id !== pid && p.seatIndex === target);
+    // Occupied seat: swap. Empty seat: move there and preserve the new gap.
+    if (other) other.seatIndex = from;
     me.seatIndex = target;
     return true;
   };
@@ -270,7 +302,7 @@
       const idx = room.players.findIndex(p => p.id === targetId);
       if (idx < 0) return false;
       room.players.splice(idx, 1);
-      U.seated(room).forEach((p, i) => { p.seatIndex = i; });
+      // The vacated physical seat remains empty; do not shift the remaining players.
       if (room.hostId === targetId) {
         const nextHost = room.players.find(p => !p.isBot) || room.players[0];
         room.hostId = nextHost ? nextHost.id : null;
@@ -317,19 +349,19 @@
         room.deck = deck.slice(4);
         const flags = U.shuffle([true, true, false, false]);
         const beasts = names.map((name, i) => ({ name, isReal: flags[i] })).sort((a, b) => GD.ZODIAC.indexOf(a.name) - GD.ZODIAC.indexOf(b.name));
-        return { roundNum, beasts, passOrder: [], turnLogs: {}, laoActive: false, blockedBeast: null, speechOrder: [], speechIndex: 0, speeches: [], votes: {}, voteResults: null, mind: {} };
+        return { roundNum, beasts, passOrder: [], turnLogs: {}, laoActive: false, blockedBeast: null, speechOrder: [], speechIndex: 0, speeches: [], voiceTranscripts: [], votes: {}, voteResults: null, mind: {} };
     }
     const plannedRound = room.plan.rounds[roundNum - 1];
     return {
       roundNum, beasts: JSON.parse(JSON.stringify(plannedRound.beasts)), passOrder: [], turnLogs: {}, laoActive: false, blockedBeast: null,
-      speechOrder: [], speechIndex: 0, speeches: [], votes: {}, voteResults: null, mind: {}
+      speechOrder: [], speechIndex: 0, speeches: [], voiceTranscripts: [], votes: {}, voteResults: null, mind: {}
     };
   };
 
   Engine.start = function (room) {
     if (room.players.length !== 8 || (room.status !== 'waiting' && room.status !== 'gameover')) return false;
-    U.seated(room).forEach((p, i) => { p.seatIndex = i; });
-    
+    repairSeatIndexes(room);
+
     const deck = U.shuffle([...GD.ZODIAC]);
     const roundPlans = [];
     let currentDeck = deck;
@@ -533,6 +565,39 @@
     room.status = 'discussion';
   }
 
+  // Public voice captions are separate from formal turn speeches. They can be read by
+  // other players and AI, but never increment speechIndex or alter the speaking order.
+  Engine.recordVoiceTranscript = function (room, pid, rawText, messageId = null) {
+    if (!room || ['waiting', 'gameover'].includes(room.status)) return false;
+    const player = U.byId(room, pid);
+    const rd = U.curRound(room);
+    const text = String(rawText || '').trim();
+    if (!player || player.isBot || !rd || text.length < 2 || text.length > 260) return false;
+    if (!Array.isArray(rd.voiceTranscripts)) rd.voiceTranscripts = [];
+    const now = Date.now();
+    const previous = [...rd.voiceTranscripts].reverse().find(item => item && String(item.playerId) === String(pid));
+    if (previous && now - (Number(previous.createdAt) || 0) < 1500) return false;
+    if (rd.voiceTranscripts.some(item => item && messageId && String(item.id) === String(messageId))) return false;
+    rd.voiceTranscripts.push({
+      id: String(messageId || U.uid('vt')),
+      playerId: player.id,
+      speakerName: player.name,
+      colorId: player.colorId,
+      text,
+      language: 'zh-TW',
+      source: 'voice',
+      scope: 'public',
+      isFinal: true,
+      createdAt: now
+    });
+    // Keep room document size bounded; AI can reason over the current round's latest captions.
+    if (rd.voiceTranscripts.length > 32) rd.voiceTranscripts.splice(0, rd.voiceTranscripts.length - 32);
+    // A public caption is activity, but must not reset the active player's turn deadline.
+    if (!room.humanActivityAt) room.humanActivityAt = {};
+    room.humanActivityAt[pid] = now;
+    return true;
+  };
+
   Engine.speak = function (room, pid, { text, source = 'human', summary = null, pass = false }) {
     if (room.status !== 'discussion' || room.currentSpeakerId !== pid) return false;
     const rd = U.curRound(room), p = U.byId(room, pid);
@@ -545,7 +610,7 @@
     rd.speeches.push({
       playerId: pid, speakerName: p.name, colorId: p.colorId, text: body, source: normalizedSource,
       summary: pass ? `${label} 選擇先過` : (summary || Claims.summarize(parsed, label, room, body)),
-      p: parsed, 
+      p: parsed, createdAt: Date.now(),
       time: ''
     });
     room.afkRescue = null;
@@ -696,6 +761,9 @@
     if (room.players.length === 8 && room.players.every(x => room.personVotes[x.id])) {
       room.gameOver = Rules.score(room);
       room.status = 'gameover';
+      // Public captions are short-lived room data. Retain them through all Bot decisions,
+      // then remove them once the game is over; raw audio is never stored.
+      (room.rounds || []).forEach(round => { if (round && Array.isArray(round.voiceTranscripts)) round.voiceTranscripts = []; });
       room.turnStartTime = Date.now();
     }
     return true;
