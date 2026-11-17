@@ -1,0 +1,4 @@
+v10.8.18 JavaScript Syntax Report
+Scan: all JavaScript source and test files below project root (excluding .git and node_modules).
+Command: node --check <file>
+Result: 114 files passed; 0 failures.

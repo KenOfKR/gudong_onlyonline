@@ -1,0 +1,9 @@
+古董局中局 v10.8.19 — JavaScript 語法掃描報告
+日期：2026-11-09
+執行環境：Node.js v22.16.0
+
+範圍：專案 js/ 與 tests/ 內所有 JavaScript 檔案
+命令：逐檔執行 node --check
+結果：115 個檔案全部通過，0 個語法錯誤。
+
+此報告只代表 JavaScript 可被 Node.js 解析，不代表瀏覽器 UI、Firebase 或外部 API 已完成端到端驗證。

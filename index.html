@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>古董局中局 v10.8.16｜口語理解・證據推理・真人救援</title>
+  <title>古董局中局 v10.9.1｜角色討論與投票戰術</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700;900&display=swap" rel="stylesheet">
@@ -51,7 +51,7 @@
     <div class="row">
       <div class="logo" data-act="home" title="返回大廳">古</div>
       <div>
-        <h1>古董局中局 <span class="pill">v10.8.16</span></h1>
+        <h1>古董局中局 <span class="pill">v10.9.1</span></h1>
         <div class="sub">全智能語音博弈・自我進化版</div>
       </div>
     </div>
@@ -133,7 +133,7 @@
     <div class="cols">
       <div class="col" id="colL">
         <section class="panel" id="intel"></section>
-        <section class="panel"><div class="panel-h"><span>📿 傳遞時序</span><span class="xs mute">技能標記</span></div><div class="col" id="chains"></div></section>
+        <section class="panel"><div class="panel-h"><span>📿 傳遞時序</span><span class="xs mute">個人標記・拖曳或點選</span></div><div class="col" id="chainMarkerPanel"><div id="chainMarkerTools" aria-label="個人標記工具，最多同時保留 24 個"><div class="chain-marker-tools"><span class="xs b">個人標記</span><button type="button" class="chain-marker-tool" data-chain-marker-pick="⭕" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">⭕</button><button type="button" class="chain-marker-tool" data-chain-marker-pick="❌" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">❌</button><button type="button" class="chain-marker-tool" data-chain-marker-pick="❓" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">❓</button><button type="button" class="chain-marker-tool" data-chain-marker-pick="老" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">老</button><button type="button" class="chain-marker-tool" data-chain-marker-pick="藥" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">藥</button><button type="button" class="chain-marker-tool" data-chain-marker-pick="鄭" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">鄭</button><button type="button" class="chain-marker-tool" data-chain-marker-pick="許" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">許</button><button type="button" class="chain-marker-tool" data-chain-marker-pick="方" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">方</button><button type="button" class="chain-marker-tool" data-chain-marker-pick="姬" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">姬</button><button type="button" class="chain-marker-tool" data-chain-marker-pick="木" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">木</button><button type="button" class="chain-marker-tool" data-chain-marker-pick="黃" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">黃</button><button type="button" class="chain-marker-tool" data-chain-marker-pick="壞" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">壞</button><button type="button" class="chain-marker-tool" data-chain-marker-pick="好" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">好</button><button type="button" class="chain-marker-cancel" data-chain-marker-pick="" title="取消選取">取消</button><span class="xs b chain-marker-count" data-chain-marker-count>0/24</span><span class="xs mute chain-marker-hint">最多 24 個；點擊已放置標記可刪除，只存在這台裝置</span></div></div><div class="col" id="chains"></div></div></section>
         <section class="panel"><div class="panel-h"><span>🏺 獸首票型</span><span id="votePager"></span></div><div id="voteBody"></div></section>
       </div>
 
@@ -155,8 +155,14 @@
         <section class="panel col" id="speechPanel">
           <div class="panel-h"><span>🎙️ 掌眼陳詞（語音）</span><span class="xs red" id="thinking"></span></div>
           <div class="note" id="turnHint"></div>
-          <button class="mic" id="mic" disabled>🎙️ 按住說話</button>
+          <button class="mic" id="mic" disabled>🎙️ 語音輸入陳詞</button>
+          <div class="grid g2 mt">
+            <button class="btn" id="voiceSubtitleBtn" type="button">🎧 公開語音字幕</button>
+            <button class="btn gold" id="voiceCommandBtn" type="button">🎮 語音操作</button>
+          </div>
           <div class="live-text" id="liveText" hidden></div>
+          <div class="voice-command-panel" id="voiceCommandPanel" hidden></div>
+          <div class="voice-transcript-log" id="voiceTranscriptLog" aria-live="polite"></div>
           <div class="sendbar" id="sendBar" hidden>
             <span class="xs b">即將送出 (2.5秒)</span><div style="flex:1;margin:0 8px;background:rgba(0,0,0,.1);border-radius:3px;overflow:hidden"><i></i></div>
             <button class="btn" data-act="sendNow">立即送出</button><button class="btn red" data-act="sendCancel">取消</button>
@@ -196,6 +202,7 @@
   <script src="js/roster.js"></script>
   <script src="js/core/rules.js"></script>
   <script src="js/core/claims.js"></script>
+  <script src="js/core/conversation.js"></script>
   <script src="js/core/engine.js"></script>
   <script src="js/bot/genes.js"></script>
   <script src="js/bot/mind.js"></script>

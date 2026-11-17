@@ -1,0 +1,9 @@
+v10.8.20 JavaScript 語法掃描
+============================
+掃描範圍：js/ 與 tests/ 下全部 *.js
+檔案數：119
+結果：119 / 119 通過
+失敗：0
+
+命令：
+find js tests -type f -name '*.js' -print0 | xargs -0 -n1 node --check

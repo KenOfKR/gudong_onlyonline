@@ -1,0 +1,11 @@
+古董局中局 v10.8.17 安裝說明
+
+1. 解壓完整 ZIP 至獨立資料夾。
+2. 使用本機 HTTP 伺服器開啟 index.html（例如執行 node local-server.cjs）。
+3. 檢查畫面標示 v10.8.17。
+4. 測試與版本紀錄：
+   - TEST-REPORT_v10.8.17.txt
+   - TEST-RUN_v10.8.17.log
+   - SYNTAX-REPORT_v10.8.17.txt
+
+本 ZIP 是完整版本封裝，不是差異補丁。所有測試狀態以隨附測試報告為準。
