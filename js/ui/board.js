@@ -15,6 +15,98 @@
     gameover: '🏆 終局揭曉與對局覆盤'
   };
 
+  const CHAIN_PERSONAL_MARKERS = ['⭕', '❌', '❓', '老', '藥', '鄭', '許', '方', '姬', '木', '黃', '壞', '好'];
+  // 以同一局的全部三輪為範圍；24 個是原先使用者體感約 8 個的三倍。
+  const MAX_CHAIN_PERSONAL_MARKS = 24;
+  const chainMarkKey = (room, ownerId) => `gudong:chain-personal-marks:v1:${String(room.gameId || room.roomId || 'local')}:${String(ownerId || 'local')}`;
+  const chainMarkSlot = (roundIndex, playerId) => `${roundIndex}|${playerId}`;
+
+  function countChainMarks(marks) {
+    return Object.values(marks || {}).reduce((total, values) => total +
+      (Array.isArray(values) ? values.filter(x => CHAIN_PERSONAL_MARKERS.includes(x)).length : 0), 0);
+  }
+
+  function saveChainMark(key, roundIndex, playerId, marker, remove = false) {
+    if (!CHAIN_PERSONAL_MARKERS.includes(marker) || !playerId || !Number.isInteger(Number(roundIndex)))
+      return { ok: false, reason: 'invalid', count: 0 };
+    // Personal-only UI storage: never attach this object to room, Net.act, or Firestore data.
+    const marks = GD.store.get(key, {}) || {};
+    const slot = chainMarkSlot(Number(roundIndex), playerId);
+    const values = Array.isArray(marks[slot]) ? [...new Set(marks[slot].filter(x => CHAIN_PERSONAL_MARKERS.includes(x)))] : [];
+    const exists = values.includes(marker);
+    if (remove) marks[slot] = values.filter(x => x !== marker);
+    else if (!exists && countChainMarks(marks) >= MAX_CHAIN_PERSONAL_MARKS) {
+      return { ok: false, reason: 'limit', count: countChainMarks(marks) };
+    } else if (!exists) marks[slot] = [...values, marker];
+    if (!marks[slot].length) delete marks[slot];
+    const count = countChainMarks(marks);
+    const persisted = GD.store.set(key, marks);
+    return { ok: true, count, persisted };
+  }
+
+  function bindChainMarkerEvents(container) {
+    if (!container || container.dataset.chainMarkerEventsBound === '1') return;
+    container.dataset.chainMarkerEventsBound = '1';
+
+    container.addEventListener('click', e => {
+      const remove = e.target.closest && e.target.closest('[data-chain-marker-remove]');
+      if (remove) {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        const room = Net.room(), me = UI.me();
+        if (!room) return;
+        const ownerId = me ? me.id : (Net.myId || 'local');
+        saveChainMark(chainMarkKey(room, ownerId), remove.dataset.roundIndex, remove.dataset.playerId, remove.dataset.chainMarkerRemove, true);
+        S.chainMarkerNotice = '';
+        UI.render();
+        return;
+      }
+      const picker = e.target.closest && e.target.closest('[data-chain-marker-pick]');
+      if (picker) {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        const marker = picker.dataset.chainMarkerPick;
+        S.chainMarkerSelected = !marker || S.chainMarkerSelected === marker ? null : marker;
+        UI.render();
+        return;
+      }
+      const target = e.target.closest && e.target.closest('[data-chain-marker-target]');
+      if (target && S.chainMarkerSelected) {
+        e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+        const room = Net.room(), me = UI.me();
+        if (!room) return;
+        const ownerId = me ? me.id : (Net.myId || 'local');
+        const saved = saveChainMark(chainMarkKey(room, ownerId), target.dataset.roundIndex, target.dataset.playerId, S.chainMarkerSelected, false);
+        S.chainMarkerNotice = saved.reason === 'limit' ? `已達 ${MAX_CHAIN_PERSONAL_MARKS} 個上限，點擊已放置的標記刪除後即可繼續。` : '';
+        UI.render();
+      }
+    }, true);
+
+    container.addEventListener('dragstart', e => {
+      const picker = e.target.closest && e.target.closest('[data-chain-marker-pick]');
+      if (!picker || !e.dataTransfer) return;
+      const marker = picker.dataset.chainMarkerPick;
+      if (!CHAIN_PERSONAL_MARKERS.includes(marker)) return;
+      e.dataTransfer.setData('text/plain', marker);
+      e.dataTransfer.effectAllowed = 'copy';
+    });
+    container.addEventListener('dragover', e => {
+      const target = e.target.closest && e.target.closest('[data-chain-marker-target]');
+      if (target && e.dataTransfer) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }
+    });
+    container.addEventListener('drop', e => {
+      const target = e.target.closest && e.target.closest('[data-chain-marker-target]');
+      if (!target || !e.dataTransfer) return;
+      const marker = e.dataTransfer.getData('text/plain');
+      if (!CHAIN_PERSONAL_MARKERS.includes(marker)) return;
+      e.preventDefault(); e.stopPropagation();
+      const room = Net.room(), me = UI.me();
+      if (!room) return;
+      const ownerId = me ? me.id : (Net.myId || 'local');
+      const saved = saveChainMark(chainMarkKey(room, ownerId), target.dataset.roundIndex, target.dataset.playerId, marker, false);
+      S.chainMarkerNotice = saved.reason === 'limit' ? `已達 ${MAX_CHAIN_PERSONAL_MARKS} 個上限，點擊已放置的標記刪除後即可繼續。` : '';
+      UI.render();
+    });
+  }
+
   /* 真人 AFK 救援提示：狀態來自 Firebase 共用房間文件，不在各瀏覽器各自接管。 */
   function ensureAFKModal() {
     let ov = document.getElementById('afkOverlay');
@@ -273,7 +365,17 @@
   }
 
   function renderOval(room, me, rd) {
-    const players = U.seated(room);
+    // A table always has eight physical positions. U.seated() is a sorted player list,
+    // not a compressed seat layout: preserve empty slots at their actual seatIndex.
+    const players = Array(8).fill(null);
+    U.seated(room).forEach(p => {
+      const index = Number(p.seatIndex);
+      if (Number.isInteger(index) && index >= 0 && index < 8 && !players[index]) players[index] = p;
+      else {
+        const free = players.findIndex(slot => !slot);
+        if (free >= 0) players[free] = p; // visual fallback only for malformed legacy room data
+      }
+    });
     const isPlayer = me && typeof me.seatIndex === 'number';
     const mySeat = isPlayer ? me.seatIndex : 0; // ★ 防止觀戰者抽出 NaN 導致圓形崩潰
     
@@ -421,6 +523,44 @@
   function renderChains(room, me) {
     const over = room.status === 'gameover';
     const isPlayer = me && typeof me.seatIndex === 'number';
+    const ownerId = me ? me.id : (Net.myId || 'local');
+    const markerScope = `${room.gameId || room.roomId || 'local'}|${ownerId}`;
+    if (S.chainMarkerScope !== markerScope) {
+      S.chainMarkerScope = markerScope;
+      S.chainMarkerSelected = null;
+    }
+    const markerKey = chainMarkKey(room, ownerId);
+    const personalMarks = GD.store.get(markerKey, {}) || {};
+    const markerTools = UI.byId('chainMarkerTools');
+    // index.html 內先放靜態符號，確保工具列不依賴遊戲資料或 renderChains 才能看見；
+    // 舊版 HTML 若沒有按鈕，才由此處補上。
+    if (markerTools && !markerTools.querySelector('[data-chain-marker-pick="⭕"]')) {
+      UI.html('chainMarkerTools', `<div class="chain-marker-tools"><span class="xs b">個人標記</span>${CHAIN_PERSONAL_MARKERS.map(marker =>
+        `<button type="button" class="chain-marker-tool" data-chain-marker-pick="${marker}" draggable="true" title="拖曳到玩家；手機先點符號再點玩家">${marker}</button>`
+      ).join('')}<button type="button" class="chain-marker-cancel" data-chain-marker-pick="" title="取消選取">取消</button><span class="xs b chain-marker-count" data-chain-marker-count>0/${MAX_CHAIN_PERSONAL_MARKS}</span><span class="xs mute chain-marker-hint">只存在這台裝置</span></div>`);
+    }
+    if (markerTools) markerTools.querySelectorAll('[data-chain-marker-pick]').forEach(button => {
+      button.classList.toggle('selected', !!button.dataset.chainMarkerPick && button.dataset.chainMarkerPick === S.chainMarkerSelected);
+    });
+    if (markerTools && !markerTools.querySelector('[data-chain-marker-count]')) {
+      const count = document.createElement('span');
+      count.className = 'xs b chain-marker-count';
+      count.dataset.chainMarkerCount = '1';
+      markerTools.querySelector('.chain-marker-tools')?.appendChild(count);
+    }
+    const markerCount = countChainMarks(personalMarks);
+    const markerCountNode = markerTools && markerTools.querySelector('[data-chain-marker-count]');
+    if (markerCountNode) markerCountNode.textContent = `${markerCount}/${MAX_CHAIN_PERSONAL_MARKS}`;
+    if (markerTools) {
+      let notice = markerTools.querySelector('[data-chain-marker-notice]');
+      if (!notice) {
+        notice = document.createElement('span');
+        notice.className = 'xs chain-marker-notice';
+        notice.dataset.chainMarkerNotice = '1';
+        markerTools.querySelector('.chain-marker-tools')?.appendChild(notice);
+      }
+      notice.textContent = S.chainMarkerNotice || '';
+    }
     const charMap = buildPlayerCharMap(room);
     const colsHtml = [0, 1, 2].map(i => {
       const rd = room.rounds[i];
@@ -441,6 +581,10 @@
           : 'border:1.5px solid rgba(30,22,16,0.65);';
 
         const sTag = formatSkillTag(l, room);
+        const markSlot = chainMarkSlot(i, pid);
+        const personalMarksHtml = (Array.isArray(personalMarks[markSlot]) ? personalMarks[markSlot] : [])
+          .filter(marker => CHAIN_PERSONAL_MARKERS.includes(marker))
+          .map(marker => `<button type="button" class="chain-personal-mark" data-chain-marker-remove="${marker}" data-round-index="${i}" data-player-id="${U.esc(pid)}" title="點擊移除此個人標記">${marker}</button>`).join('');
         const isFangSkill = !!(l && (l.fangTargetId || String(sTag).startsWith('🔍')));
         const badgeBg = isFangSkill ? '#14532d' : '#7f1d1d';
         const skillBadge = (see && sTag)
@@ -468,8 +612,9 @@
         const arrowDown = k < rd.passOrder.length - 1 ? `<div class="mute" style="font-size:10px;line-height:1;margin:1px 0">↓</div>` : '';
         return `<div style="display:flex;flex-direction:column;align-items:center">
           <div style="display:flex;align-items:center;justify-content:center;gap:3px;flex-wrap:wrap">
-            <span data-act="seat" data-arg="${p.id}" title="${U.esc(c.name + '・' + p.name)}（第 ${k + 1} 棒）"
+            <span data-act="seat" data-arg="${p.id}" data-chain-marker-target="1" data-round-index="${i}" data-player-id="${U.esc(pid)}" title="${U.esc(c.name + '・' + p.name)}（第 ${k + 1} 棒；可在此放置個人標記）"
               style="width:28px;height:28px;border-radius:50%;background:${c.hex};color:${c.text};display:inline-flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;cursor:pointer;flex-shrink:0;${ringStyle}">${U.esc(ch)}</span>
+            ${personalMarksHtml}
             ${affectedIcons}
             ${skillBadge}
           </div>
@@ -482,6 +627,9 @@
       </div>`;
     }).join('');
 
+    const markerPanel = UI.byId('chainMarkerPanel') || UI.byId('chains');
+    bindChainMarkerEvents(markerPanel);
+    // 工具列與時序內容使用不同且穩定的 DOM 容器，避免 renderChains 覆寫工具列或事件根節點。
     UI.html('chains', `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;align-items:start">${colsHtml}</div>`);
   }
 
@@ -523,6 +671,8 @@
         <div class="sum">📌 ${U.esc(fixedSummary)}</div><div class="sm">${U.esc(sp.text)}</div></div>`;
     }).join('') : `<div class="xs mute center" style="padding:20px 0">第 ${rd.roundNum} 回合尚無發言</div>`);
   }
+
+  GD.ChainMarkers = { count: countChainMarks, save: saveChainMark, max: MAX_CHAIN_PERSONAL_MARKS };
 
   clearInterval(afkInterval);
   afkInterval = setInterval(checkAFK, 1000);

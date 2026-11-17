@@ -148,7 +148,9 @@
       <div class="col" style="padding:10px;background:var(--paper-hi)">
         ${rounds}
         <div class="panel sm"><b class="red">💡 本局檢討</b><div class="sm">${U.esc(rv.reflection)}</div></div>
-        <div class="panel sm dark"><b>🎯 終局鑑人決策</b><div class="sm">${U.esc(rv.final.text)}</div>${sus}</div>
+        <div class="panel sm dark"><b>🎯 終局鑑人決策・刪除法覆盤</b><div class="sm">${U.esc(rv.final.text)}</div>${sus}
+          ${rv.final.deductionRows && rv.final.deductionRows.length ? `<div class="col mt" style="gap:5px">${rv.final.deductionRows.map(row => `<div class="step"><b>${U.esc(row.k)}</b><span>${U.esc(row.v)}</span></div>`).join('')}</div>` : ''}
+        </div>
         ${learn}</div></details>`;
   }
 
