@@ -50,7 +50,7 @@
     player: p, evil: 0, ally: 0, logits: {}, reasons: [], said: [], conflicts: [],
     // 資訊能力與陣營推斷分開：infoSkill 只衡量過往可驗證公開主張的準確度。
     infoSkill: 50, infoSamples: 0, infoScore: 0, infoCorrect: 0, infoWrong: 0, infoHistory: [],
-    commitments: [], voteDissonance: [], claimEvidence: [], uncertaintyReports: [], laoTimingSupport: 0, laoTimingRounds: 0,
+    commitments: [], voteDissonance: [], claimEvidence: [], uncertaintyReports: [], socialSignals: [], socialPressure: 0, echoSignals: 0, laoTimingSupport: 0, laoTimingRounds: 0,
     confessed: false, knownEvil: false, knownGood: false, knownCamp: null, campEvidence: [], pEvil: null, pGood: null, pLao: null, pZheng: null, isPartner: false, partnerEvidence: [], flipWindowSupport: 0, flipWindowReports: [], pubFake: 0, inLaoPoolCount: 0
   });
 
@@ -100,7 +100,7 @@
   function classifyPublicClaim(sp, parsed, repeatedSameVerdict) {
     const text = String(sp && sp.text || '');
     if (parsed && (parsed.blind || parsed.unsure)) return { type: 'limited-view', weight: 0.18, selfReportedDirect: false };
-    if (/(?:我|本人|自己).{0,12}(?:查驗|查過|查了|檢查|驗過|親眼|看到|看見)|(?:我的|本人)查驗(?:結果)?|我看到|我親眼看到/.test(text)) {
+    if (/(?:我|本人|自己).{0,12}(?:查驗|查過|查了|查到|驗到|驗出|檢查|驗過|親眼|親自|看到|看見)|(?:我的|本人)查驗(?:結果)?|我看到|我親眼看到/.test(text)) {
       return { type: 'self-reported-direct', weight: 0.66, selfReportedDirect: true };
     }
     if (/(?:我的畫面|我在第[一二三四五六七八12345678]位|票型顯示|傳牌時序|我自己的紀錄|我親自看到|我這邊的紀錄)/.test(text)) {
@@ -361,6 +361,186 @@
       if (say !== null && say !== undefined && String(say).trim()) {
         rec.said.unshift(String(say).trim());
       }
+  }
+
+  // 公開社會訊號：把玩家的攻擊、試探、跟風、拉票等行為保留成有來源的關係圖。
+  // 只給弱且有上限的後驗修正；任何單一語氣訊號都不得直接定罪。
+  function collectSocialIntentGraph(ctx, prof) {
+    const signals = [], relationshipEdges = [], abilityReports = [];
+    const pressure = new Map(), echoByPlayer = new Map(), coalitionByBeast = new Map();
+    const behaviorByPlayer = new Map(), pairHistory = new Map(), seen = new Set();
+    const behavioralTypes = new Set([
+      'baiting', 'deflection', 'self-defense', 'information-withholding',
+      'commitment', 'contradiction', 'sacrifice', 'coalition-building',
+      'hostility', 'echo-momentum'
+    ]);
+    const boundedSignal = value => U.clamp(Number(value) || 0, 0, 1);
+    for (let r = 0; r <= ctx.t; r++) {
+      const rd = ctx.room.rounds[r];
+      if (!rd) continue;
+      orderedSpeechRows(rd).forEach(({ sp, speechIndex, passIndex }) => {
+        if (!sp || !sp.playerId) return;
+        const parsed = speechData(sp, ctx.room, rd);
+        const tags = Array.isArray(parsed.intentTags) ? parsed.intentTags : [];
+        // 前輪已開票後，將「本人明確承諾」與公開實際票單比對；只作弱社會訊號。
+        // 不讀其他 Bot 的私有 mind，也不把有戰術理由的分票直接定罪。
+        if (rd.voteResults && rd.votes && rd.votes[sp.playerId] && (parsed.voteCommitments || []).length) {
+          const openedBallot = rd.votes[sp.playerId] || {};
+          const missed = (parsed.voteCommitments || []).filter(commitment => commitment && commitment.binding !== false &&
+            (Number(openedBallot[commitment.beast]) || 0) < (Number(commitment.chips) > 0 ? Number(commitment.chips) : 1));
+          if (missed.length) {
+            const entry = { type: 'commitment-mismatch', round: r + 1, speakerId: String(sp.playerId), targetIds: [],
+              confidence: U.clamp(0.28 + missed.length * 0.08, 0.28, 0.50), evidenceCount: missed.length,
+              beastTargets: missed.map(item => item.beast), speechIndex, passIndex,
+              source: 'public-promise-vs-opened-ballot', supported: true, independentSupport: false,
+              text: `公開承諾與已開出的票單不一致：${missed.map(item => item.beast).join('、')}` };
+            signals.push(entry);
+            const actorState = behaviorByPlayer.get(String(sp.playerId)) || { rounds: new Set(), counts: {}, targetIds: new Set(), supportedCount: 0 };
+            actorState.rounds.add(r + 1);
+            actorState.counts['commitment-mismatch'] = (actorState.counts['commitment-mismatch'] || 0) + missed.length;
+            behaviorByPlayer.set(String(sp.playerId), actorState);
+            if (prof[String(sp.playerId)]) prof[String(sp.playerId)].socialSignals.push({ type: 'commitment-mismatch', round: r + 1,
+              beastTargets: missed.map(item => item.beast), confidence: entry.confidence, source: entry.source });
+          }
+        }
+        (Array.isArray(parsed.abilityReports) ? parsed.abilityReports : []).forEach(report => {
+          if (!report || !['藥不然', '鄭國渠'].includes(report.role)) return;
+          abilityReports.push({
+            role: report.role, kind: report.kind || (report.role === '藥不然' ? 'ambush' : 'seal'),
+            stance: report.stance || 'assertion', targetIds: [...new Set((report.targetIds || []).map(String).filter(Boolean))],
+            beastTargets: [...new Set((report.beastTargets || []).filter(Boolean))].slice(0, 3),
+            speakerId: String(sp.playerId), round: r + 1, speechIndex, passIndex,
+            confidence: boundedSignal(report.confidence), provenance: 'public-speech',
+            verification: 'unverified', selfAttribution: report.selfAttribution === true,
+            text: String(report.text || sp.text || '').slice(0, 220)
+          });
+        });
+        tags.forEach(tag => {
+          if (!tag || !tag.type || !behavioralTypes.has(tag.type)) return;
+          const targets = [...new Set((tag.targetIds || []).map(String).filter(Boolean))];
+          if (tag.type === 'hostility' && !targets.length) return;
+          const entry = {
+            type: tag.type, round: r + 1, speakerId: String(sp.playerId), targetIds: targets,
+            confidence: boundedSignal(tag.confidence == null ? 0.5 : tag.confidence),
+            evidenceCount: Math.max(0, Number(tag.evidenceCount) || 0),
+            evidenceTypes: [...new Set((tag.evidenceTypes || []).filter(Boolean))].slice(0, 8),
+            targetEvidence: tag.targetEvidence && typeof tag.targetEvidence === 'object' ? { ...tag.targetEvidence } : {},
+            supported: tag.supported === true, independentSupport: tag.independentSupport === true,
+            beastTargets: Array.isArray(tag.beastTargets) ? tag.beastTargets.slice(0, 4) : [],
+            speechIndex, passIndex, source: 'public-speech', text: String(sp.text || '').slice(0, 240)
+          };
+          const key = `${entry.round}|${entry.speakerId}|${entry.type}|${targets.slice().sort().join(',')}|${entry.beastTargets.join(',')}`;
+          if (seen.has(key)) return;
+          seen.add(key); signals.push(entry);
+
+          const actor = prof[entry.speakerId];
+          if (actor) actor.socialSignals.push({ type: entry.type, round: entry.round, targetIds: targets,
+            confidence: entry.confidence, supported: entry.supported, independentSupport: entry.independentSupport,
+            evidenceTypes: entry.evidenceTypes });
+          const actorState = behaviorByPlayer.get(entry.speakerId) || { rounds: new Set(), counts: {}, targetIds: new Set(), supportedCount: 0 };
+          actorState.rounds.add(entry.round);
+          actorState.counts[entry.type] = (actorState.counts[entry.type] || 0) + 1;
+          targets.forEach(id => actorState.targetIds.add(id));
+          if (entry.supported || entry.independentSupport) actorState.supportedCount++;
+          behaviorByPlayer.set(entry.speakerId, actorState);
+
+          targets.forEach(targetId => {
+            const edge = {
+              from: entry.speakerId, to: targetId, type: entry.type, round: entry.round,
+              confidence: entry.confidence, evidenceCount: entry.evidenceCount,
+              evidenceTypes: entry.evidenceTypes.slice(), supported: entry.supported,
+              independentSupport: entry.independentSupport, beastTargets: entry.beastTargets.slice()
+            };
+            relationshipEdges.push(edge);
+            const pairKey = `${entry.speakerId}|${targetId}`;
+            const pair = pairHistory.get(pairKey) || { from: entry.speakerId, to: targetId, counts: {}, rounds: new Set(), lastRound: 0 };
+            pair.counts[entry.type] = (pair.counts[entry.type] || 0) + 1;
+            pair.rounds.add(entry.round); pair.lastRound = Math.max(pair.lastRound, entry.round);
+            pairHistory.set(pairKey, pair);
+          });
+
+          if (entry.type === 'hostility') {
+            targets.forEach(targetId => {
+              const target = prof[targetId];
+              if (!target) return;
+              const targetGoodHint = target.knownCamp === 'good' || target.knownGood ? 1 :
+                target.knownCamp === 'evil' || target.knownEvil ? 0 :
+                U.clamp(0.50 + (Number(target.ally || 0) - Number(target.evil || 0)) / 180, 0.25, 0.78);
+              const unsupported = !entry.supported && entry.evidenceCount === 0;
+              if (actor && actor !== target && unsupported && targetGoodHint >= 0.64 && !actor.knownCamp) {
+                const bumpValue = U.clamp(0.65 + (targetGoodHint - 0.64) * 2.2 + entry.confidence * 0.75, 0.65, 1.45);
+                actor.socialPressure += bumpValue;
+                pressure.set(entry.speakerId, (pressure.get(entry.speakerId) || 0) + bumpValue);
+              }
+            });
+          } else if (entry.type === 'echo-momentum' && !entry.independentSupport && actor && !actor.knownCamp) {
+            const amount = U.clamp(0.45 + entry.confidence * 0.75, 0.45, 1.05);
+            actor.echoSignals += amount;
+            echoByPlayer.set(entry.speakerId, (echoByPlayer.get(entry.speakerId) || 0) + amount);
+          } else if (entry.type === 'coalition-building') {
+            entry.beastTargets.forEach(beast => {
+              if (!coalitionByBeast.has(beast)) coalitionByBeast.set(beast, new Set());
+              coalitionByBeast.get(beast).add(entry.speakerId);
+            });
+          }
+        });
+      });
+    }
+
+    // 反覆自相矛盾／轉移焦點／拒絕提供依據只增加極小疑慮；不能單一訊號定罪。
+    behaviorByPlayer.forEach((state, playerId) => {
+      const rec = prof[playerId];
+      if (!rec || rec.knownCamp) return;
+      const contradictions = Number(state.counts.contradiction) || 0;
+      const deflections = Number(state.counts.deflection) || 0;
+      const withholding = Number(state.counts['information-withholding']) || 0;
+      const baiting = Number(state.counts.baiting) || 0;
+      const commitmentMismatch = Number(state.counts['commitment-mismatch']) || 0;
+      const sacrifice = Number(state.counts.sacrifice) || 0;
+      const independent = state.supportedCount > 0;
+      const pattern = Math.min(1.6, Math.max(0, contradictions - 1) * 0.40 +
+        Math.max(0, deflections - 1) * 0.18 + Math.max(0, withholding - 1) * 0.14 +
+        Math.max(0, baiting - 2) * 0.08 + Math.max(0, commitmentMismatch - 1) * 0.16 +
+        Math.max(0, sacrifice - 1) * 0.06);
+      if (pattern > 0 && !independent) bump(rec, {
+        evil: pattern,
+        why: `公開互動的重複矛盾／轉移／資訊保留形成弱模式（${pattern.toFixed(2)}）；單一拒答或試探不作定罪`, say: null
+      });
+    });
+
+    pressure.forEach((amount, playerId) => {
+      const rec = prof[playerId];
+      if (!rec || rec.knownCamp) return;
+      const bounded = U.clamp(amount, 0, 3.2);
+      if (bounded > 0) bump(rec, { evil: bounded,
+        why: `公開互動訊號：對有較強好人線索的玩家作缺乏佐證的強烈攻擊（累積弱訊號 ${bounded.toFixed(1)}）；只調整嫌疑，不作定罪`, say: null });
+    });
+    echoByPlayer.forEach((amount, playerId) => {
+      const rec = prof[playerId];
+      if (!rec || rec.knownCamp) return;
+      const bounded = U.clamp(amount * 0.55, 0, 2.0);
+      if (bounded > 0) bump(rec, { evil: bounded,
+        why: `公開互動訊號：多次跟風但未提出獨立支持（弱訊號 ${bounded.toFixed(1)}）；跟票本身不等於壞人`, say: null });
+    });
+
+    const coalitions = [...coalitionByBeast.entries()].map(([beast, ids]) => ({
+      beast, speakerIds: [...ids], speakerCount: ids.size
+    })).filter(item => item.speakerCount >= 2);
+    const relationshipSummary = [...pairHistory.values()].map(item => ({
+      from: item.from, to: item.to, counts: { ...item.counts }, rounds: [...item.rounds].sort((a, b) => a - b),
+      roundCount: item.rounds.size, lastRound: item.lastRound
+    }));
+    return {
+      signals, relationshipEdges, relationshipSummary,
+      behaviorByPlayer: Object.fromEntries([...behaviorByPlayer.entries()].map(([id, item]) => [id, {
+        rounds: [...item.rounds].sort((a, b) => a - b), counts: { ...item.counts },
+        targetIds: [...item.targetIds], supportedCount: item.supportedCount
+      }])),
+      abilityReports, coalitions,
+      pressureByPlayer: Object.fromEntries([...pressure.entries()].map(([id, value]) => [id, U.round3(value)])),
+      echoByPlayer: Object.fromEntries([...echoByPlayer.entries()].map(([id, value]) => [id, U.round3(value)])),
+      provenance: 'public-speech-only-no-private-opponent-mind'
+    };
   }
 
   // 僅用已公開的第二名開票結果回看此前的公開判斷；不讀私密 mind／真實角色。
@@ -992,7 +1172,7 @@
           seenRoleClaim.add(onceKey);
           bump(rec, {
             // 自稱只是一項可被策略性偽造的公開訊號；不應壓過能力與行動證據。
-            roles: { [role]: 0.22 },
+            roles: { [role]: 0.08 },
             why: `第${rr + 1}輪公開自稱【${role}】；先保留說法，仍須比對技能與行動是否相容`,
             say: null
           });
@@ -1172,6 +1352,8 @@
     ctx.laoIntersectIds = laoIntersectIds;
     ctx.eliminatedFromLaoIds = eliminatedFromLaoIds;
     ctx.reEvalNote = reEvalNote;
+
+    ctx.socialGraph = collectSocialIntentGraph(ctx, prof);
 
     Object.values(prof).forEach(rec => {
       const roles = GD.ROLE_ORDER.filter(x => x !== bot.role);
@@ -1374,11 +1556,90 @@
     return out;
   }
 
+  // Public role declarations are claims, never verified identity. Track paired Lao/Yao
+  // declarations as a possible coordinated role-swap frame, not as proof of guilt.
+  function collectPublicRoleClaimAudit(room, throughRound) {
+    const rows = [];
+    for (let r = 0; r <= throughRound; r++) {
+      const rd = room.rounds && room.rounds[r];
+      if (!rd) continue;
+      (rd.speeches || []).forEach((sp, speechIndex) => {
+        if (!sp || !sp.playerId) return;
+        const parsed = speechData(sp, room, rd);
+        const role = parsed.selfRole;
+        if (!role || role === '平民') return;
+        const player = playerById(room, sp.playerId);
+        if (!player) return;
+        rows.push({ playerId: String(sp.playerId), playerName: player.name,
+          colorId: player.colorId, role, round: r + 1, speechIndex,
+          source: sp.voiceTranscript ? 'voice' : (sp.source || 'speech'),
+          text: String(sp.text || '').slice(0, 320) });
+      });
+    }
+    const claims = new Map();
+    rows.forEach(row => {
+      const key = `${row.playerId}|${row.role}`;
+      if (!claims.has(key)) claims.set(key, row);
+    });
+    const unique = [...claims.values()];
+    const roleSwapPairs = [];
+    const seen = new Set();
+    unique.forEach(a => {
+      if (!['老朝奉', '藥不然'].includes(a.role)) return;
+      unique.forEach(b => {
+        if (a.playerId === b.playerId || !['老朝奉', '藥不然'].includes(b.role) || a.role === b.role) return;
+        if (Math.abs(a.round - b.round) > 1) return;
+        const ids = [a.playerId, b.playerId].sort();
+        const key = `${ids.join('|')}|${Math.min(a.round,b.round)}|${Math.max(a.round,b.round)}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        roleSwapPairs.push({ first: a, second: b, round: Math.max(a.round, b.round),
+          pattern: 'complementary-evil-role-claims',
+          note: '兩名玩家分別自稱老朝奉與藥不然；可能是真實角色，也可能是互換身分掩護，單靠自稱不能判定誰真誰假。' });
+      });
+    });
+    return { rows, roleSwapPairs };
+  }
+
+  function evaluateRoleSwapHypotheses(ctx, prof, roleClaimAudit) {
+    const pairs = (roleClaimAudit && roleClaimAudit.roleSwapPairs) || [];
+    if (!pairs.length) return [];
+    const allOtherIds = (ctx.room.players || []).map(p => p && p.id).filter(id => id && id !== ctx.bot.id);
+    return pairs.map(pair => {
+      const aId = pair.first.playerId, bId = pair.second.playerId;
+      const aRole = pair.first.role, bRole = pair.second.role;
+      const recA = prof[aId] || {}, recB = prof[bId] || {};
+      const aLaoTiming = Number(recA.laoTimingSupport || 0) + ((ctx.laoIntersectIds || []).includes(aId) ? 0.45 : 0);
+      const bLaoTiming = Number(recB.laoTimingSupport || 0) + ((ctx.laoIntersectIds || []).includes(bId) ? 0.45 : 0);
+      const aYaoScore = Number((recA.probs && recA.probs['藥不然']) || 0) / 100;
+      const bYaoScore = Number((recB.probs && recB.probs['藥不然']) || 0) / 100;
+      const aLaoScore = Number((recA.probs && recA.probs['老朝奉']) || 0) / 100 + aLaoTiming * 0.35;
+      const bLaoScore = Number((recB.probs && recB.probs['老朝奉']) || 0) / 100 + bLaoTiming * 0.35;
+      const literalMatch = (aRole === '老朝奉' ? aLaoScore + bYaoScore : aYaoScore + bLaoScore) / 2;
+      const swappedMatch = (aRole === '老朝奉' ? bLaoScore + aYaoScore : bYaoScore + aLaoScore) / 2;
+      const unclaimedIds = allOtherIds.filter(id => id !== aId && id !== bId);
+      const maxUnclaimedLao = Math.max(0, ...unclaimedIds.map(id => Number(prof[id] && prof[id].probs && prof[id].probs['老朝奉'] || 0) / 100));
+      const rawHypotheses = {
+        A_true_B_false: U.clamp(0.18 + (aRole === '老朝奉' ? aLaoScore * 0.45 : aYaoScore * 0.45) - (bRole === '老朝奉' ? bLaoScore * 0.2 : bYaoScore * 0.2), 0.05, 0.85),
+        A_false_B_true: U.clamp(0.18 + (bRole === '老朝奉' ? bLaoScore * 0.45 : bYaoScore * 0.45) - (aRole === '老朝奉' ? aLaoScore * 0.2 : aYaoScore * 0.2), 0.05, 0.85),
+        both_false: U.clamp(0.22 + maxUnclaimedLao * 0.40 - (literalMatch + swappedMatch) * 0.15, 0.05, 0.85),
+        coordinated_tactical_swap: U.clamp(0.20 + swappedMatch * 0.50 + (literalMatch * 0.20), 0.08, 0.88),
+        unclaimed_player_is_true: U.clamp(0.22 + maxUnclaimedLao * 0.50, 0.05, 0.85)
+      };
+      const dominant = Object.entries(rawHypotheses).sort((a, b) => b[1] - a[1])[0][0];
+      return {
+        ...pair,
+        hypotheses: Object.fromEntries(Object.entries(rawHypotheses).map(([k, v]) => [k, U.round3(v)])),
+        dominantHypothesis: dominant
+      };
+    });
+  }
   function analyze(bot, room) {
     const ctx = context(bot, room);
     const prof = buildProfiles(ctx);
     const claimEvidence = collectPublicClaimEvidence(ctx, prof);
     const uncertaintyReports = collectPublicUncertaintyReports(room, ctx.t);
+    const roleClaimAudit = collectPublicRoleClaimAudit(room, ctx.t);
     ctx.claimEvidence = claimEvidence;
     ctx.uncertaintyReports = uncertaintyReports;
     ctx.publicCountConstraints = collectPublicCountConstraints(ctx);
@@ -1403,8 +1664,11 @@
       .sort((a, b) => (b.evil + (b.probs['老朝奉'] || 0)) - (a.evil + (a.probs['老朝奉'] || 0)));
     const A = {
       ctx, prof, post: pst.post, laoAt: pst.laoAt, confident: pst.confident,
+      socialGraph: ctx.socialGraph || { signals: [], relationshipEdges: [], relationshipSummary: [], abilityReports: [], coalitions: [], pressureByPlayer: {}, echoByPlayer: {}, provenance: 'public-speech-only-no-private-opponent-mind' },
       laoTiming, claimEvidence, consensusDecomposition: claimEvidence.groups, consensusAlerts: claimEvidence.alerts,
       uncertaintyReports: ctx.uncertaintyReports || [],
+      roleClaimAudit: roleClaimAudit.rows,
+      roleSwapPairs: evaluateRoleSwapHypotheses(ctx, prof, roleClaimAudit),
       publicCountConstraints: ctx.publicCountConstraints || [],
       topSuspect: byEvil[0] || null,
       byEvil,
@@ -1446,6 +1710,6 @@
     return call;
   }
 
-  GD.Mind = { analyze, context, posterior, buildProfiles, buildInformationSkill, pubFakeVotes, passPositionPrior, voteViewAdjustment, inspectionTruth, observedTruth, auditTruth, blindCandidateWindows, orderedSpeechRows, classifyPublicClaim, collectPublicClaimEvidence, buildLaoTimeline, EVIL };
+  GD.Mind = { analyze, context, posterior, buildProfiles, buildInformationSkill, pubFakeVotes, passPositionPrior, voteViewAdjustment, inspectionTruth, observedTruth, auditTruth, blindCandidateWindows, orderedSpeechRows, classifyPublicClaim, collectPublicClaimEvidence, collectPublicRoleClaimAudit, collectSocialIntentGraph, buildLaoTimeline, EVIL };
   if (typeof module !== 'undefined' && module.exports) module.exports = GD.Mind;
 })(typeof window !== 'undefined' ? window : global);

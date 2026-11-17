@@ -23,6 +23,12 @@
     if (sp && sp.p && Array.isArray(sp.p.claims) && sp.p.claims.length) return sp.p;
     return Claims.parse(String(sp && sp.text || ''), room, rd);
   }
+  function speakerCalls(parsed, names = null) {
+    const source = Array.isArray(parsed && parsed.speakerCalls) ? parsed.speakerCalls
+      : Array.isArray(parsed && parsed.callBeasts) ? parsed.callBeasts : [];
+    const values = [...new Set([...source, parsed && parsed.callBeast].filter(Boolean))];
+    return names ? values.filter(name => names.includes(name)) : values;
+  }
   function addWeight(weights, name, value) {
     if (Object.prototype.hasOwnProperty.call(weights, name)) weights[name] += value;
   }
@@ -39,7 +45,7 @@
     const weights = Object.fromEntries(names.map(name => [name, 0]));
     if (!sp) return normalized(weights, names);
     const p = parseSpeech(sp, room, rd);
-    const calls = [...new Set([...(p.callBeasts || []), p.callBeast].filter(name => names.includes(name)))];
+    const calls = speakerCalls(p, names);
     const claims = (p.claims || []).filter(c => c && names.includes(c.beast));
     if (calls.length) {
       // A call is informative, not a guaranteed ballot. Past public misalignment lowers its forecast weight.
@@ -90,7 +96,7 @@
       const available = Math.max(1, (r + 1) * chipsPerRound - priorSpent);
       const sp = (rd.speeches || []).find(s => s && String(s.playerId) === String(playerId));
       const parsed = sp ? parseSpeech(sp, room, rd) : null;
-      const calls = parsed ? [...new Set([...(parsed.callBeasts || []), parsed.callBeast].filter(Boolean))] : [];
+      const calls = parsed ? speakerCalls(parsed) : [];
       const primary = allocations[0] || null;
       const callVotes = calls.reduce((n, name) => n + Math.max(0, Number(ballot[name]) || 0), 0);
       const callShare = total > 0 ? callVotes / total : 0;
@@ -123,6 +129,40 @@
       lastPrimaryBeast: records.length ? records[records.length - 1].primaryBeast : null,
       records
     };
+  }
+
+  // 以本 Bot 過去的公開預測與最終開票結果校準不確定性；不讀取其他 Bot 的私人 mind。
+  function forecastCalibration(room, botOrId) {
+    const botId = typeof botOrId === 'string' ? botOrId : (botOrId && botOrId.id);
+    const rounds = Array.isArray(room && room.rounds) ? room.rounds : [];
+    const samples = [];
+    rounds.forEach((rd, index) => {
+      if (!rd || !rd.voteResults || !rd.votes || !rd.mind || !rd.mind[botId]) return;
+      const forecast = rd.mind[botId].voteForecast;
+      const ranking = forecast && Array.isArray(forecast.ranking) ? forecast.ranking : [];
+      if (!ranking.length) return;
+      const names = beastNames(rd);
+      const actual = Object.fromEntries(names.map(name => [name, 0]));
+      Object.values(rd.votes || {}).forEach(ballot => {
+        Object.entries(ballot || {}).forEach(([name, count]) => {
+          if (Object.prototype.hasOwnProperty.call(actual, name)) actual[name] += Math.max(0, Number(count) || 0);
+        });
+      });
+      const expected = Object.fromEntries(ranking.map(row => [row.name, Math.max(0, Number(row.expectedVotes) || 0)]));
+      const compared = names.filter(name => Number.isFinite(expected[name]));
+      if (!compared.length) return;
+      const mae = compared.reduce((sum, name) => sum + Math.abs(expected[name] - actual[name]), 0) / compared.length;
+      const predictedTop = ranking.slice().sort((a, b) => Number(b.expectedVotes) - Number(a.expectedVotes)).slice(0, 2).map(row => row.name);
+      const actualTop = [rd.voteResults.rank1 && rd.voteResults.rank1.name, rd.voteResults.rank2 && rd.voteResults.rank2.name].filter(Boolean);
+      const overlap = actualTop.length ? predictedTop.filter(name => actualTop.includes(name)).length / Math.min(2, actualTop.length) : 0;
+      samples.push({ round: index + 1, meanAbsoluteError: mae, topTwoOverlap: overlap });
+    });
+    const count = samples.length;
+    const meanAbsoluteError = count ? samples.reduce((sum, row) => sum + row.meanAbsoluteError, 0) / count : 0;
+    const topTwoOverlap = count ? samples.reduce((sum, row) => sum + row.topTwoOverlap, 0) / count : 1;
+    const varianceInflation = count < 2 ? 1 : 1 + U.clamp((meanAbsoluteError / 2) * 0.18 + (1 - topTwoOverlap) * 0.10, 0, 0.28);
+    return { samples: count, meanAbsoluteError: round2(meanAbsoluteError), topTwoOverlap: round2(topTwoOverlap),
+      varianceInflation: round2(varianceInflation), history: samples, source: 'own-prior-forecasts-and-public-final-ballots' };
   }
 
   /** 估算各獸首最後票數與不確定性；不使用其他玩家的 role / rd.mind / 內部計畫。 */
@@ -161,7 +201,7 @@
 
     (rd && rd.speeches || []).forEach(sp => {
       const p = parseSpeech(sp, room, rd);
-      [...new Set([...(p.callBeasts || []), p.callBeast].filter(name => names.includes(name)))].forEach(name => callSupport[name]++);
+      speakerCalls(p, names).forEach(name => callSupport[name]++);
       (p.claims || []).filter(c => c && c.real === true && names.includes(c.beast)).forEach(c => claimSupport[c.beast]++);
     });
 
@@ -173,7 +213,7 @@
       if (!(chips > 0)) return;
       const sp = speechById.get(player.id) || null;
       const parsed = sp ? parseSpeech(sp, room, rd) : null;
-      const calls = parsed ? [...new Set([...(parsed.callBeasts || []), parsed.callBeast].filter(name => names.includes(name)))] : [];
+      const calls = parsed ? speakerCalls(parsed, names) : [];
       const claims = parsed ? (parsed.claims || []).filter(c => c && names.includes(c.beast)) : [];
       const history = historicalBallotProfile(room, player.id);
       let callWeightOverride = null;
@@ -242,6 +282,10 @@
       }
     }
     names.forEach(name => { variance[name] += coordinationVariance[name]; });
+    const calibration = forecastCalibration(room, botId);
+    if (calibration.samples >= 2 && calibration.varianceInflation > 1) {
+      names.forEach(name => { variance[name] *= calibration.varianceInflation; });
+    }
 
     const topTwo = probabilitiesTopTwo(names, expected, variance);
     const ranking = names.map(name => ({
@@ -270,6 +314,7 @@
       consensusCallers: consensus ? callSupport[consensus] : 0,
       projectedTotalVotes: round2(projectedTotal + observedTotal),
       observedTotalVotes: observedTotal,
+      calibration,
       projectedVoters,
       historicalHeavyVoters: projectedVoters.filter(v => v.history && v.history.roundsObserved > 0 && v.history.multiChipRate >= 0.5).map(v => ({
         id: v.id, multiChipRate: v.history.multiChipRate, averagePrimaryShare: v.history.averagePrimaryShare,
@@ -369,6 +414,192 @@
         pReal: round2(row.pReal), callSupport: row.callSupport
       }))
     };
+  }
+
+  // 社會化戰術選擇：只讀當前玩家自己的後驗與公開互動訊號；不讀其他 Bot 的私密 mind。
+  function chooseSocialTactic(room, bot, A, plan = {}) {
+    const rd = currentRound(room);
+    if (!rd || !bot || !A || !A.ctx) return null;
+    const genes = bot.genes || (GD.Genes && GD.Genes.load ? GD.Genes.load(bot.botId) : {});
+    const graph = A.socialGraph || { signals: [], coalitions: [] };
+    const signals = Array.isArray(graph.signals) ? graph.signals : [];
+    const names = beastNames(rd);
+    const post = posteriorMap(A.post, room);
+    const forecast = forecastVotes(room, bot.id, A.prof || null);
+    const pTop = forecast.pTopTwo || {};
+    const rows = names.map(name => ({ name, pReal: post[name] ?? 0.5,
+      pTopTwo: Number(pTop[name]) || 0,
+      expectedVotes: Number(forecast.expectedVotes && forecast.expectedVotes[name]) || 0,
+      callSupport: Number(forecast.callSupport && forecast.callSupport[name]) || 0 }));
+    const fakeRows = rows.filter(row => row.pReal <= 0.44)
+      .sort((a, b) => (b.pTopTwo - a.pTopTwo) || (b.expectedVotes - a.expectedVotes));
+    const bestFake = fakeRows[0] || null;
+    const realCover = rows.filter(row => row.pReal >= 0.66 && row.callSupport >= 1)
+      .sort((a, b) => (b.callSupport - a.callSupport) || (b.pReal - a.pReal))[0] || null;
+    const isGood = GD.isGood(bot.role);
+    const partnerIds = new Set();
+    if (A.ctx.partner && A.ctx.partner.id) partnerIds.add(String(A.ctx.partner.id));
+    (A.inferredPartners || []).forEach(item => {
+      if (item && item.playerId && Number(item.pEvil) >= 0.64 && (item.kinds || []).length >= 2) partnerIds.add(String(item.playerId));
+    });
+    const pressureByPartner = new Map();
+    signals.filter(item => item.type === 'hostility').forEach(item => {
+      (item.targetIds || []).forEach(targetId => {
+        if (!partnerIds.has(String(targetId))) return;
+        const key = String(item.speakerId);
+        const prev = pressureByPartner.get(key) || { speakerId: key, score: 0, rounds: new Set(), targetIds: new Set() };
+        prev.score += Number(item.confidence) || 0.45;
+        prev.rounds.add(Number(item.round) || 0);
+        prev.targetIds.add(String(targetId));
+        pressureByPartner.set(key, prev);
+      });
+    });
+    const partnerAttacker = [...pressureByPartner.values()]
+      .sort((a, b) => b.score - a.score || a.speakerId.localeCompare(b.speakerId))[0];
+    const ownPressure = signals.filter(item => item.type === 'hostility' && (item.targetIds || []).includes(String(bot.id)))
+      .reduce((sum, item) => sum + (Number(item.confidence) || 0.45), 0);
+    const ownEcho = signals.filter(item => item.type === 'echo-momentum' && String(item.speakerId) === String(bot.id)).length;
+    const ownBaiting = signals.filter(item => item.type === 'baiting' && String(item.speakerId) === String(bot.id)).length;
+    const ownDeflection = signals.filter(item => item.type === 'deflection' && String(item.speakerId) === String(bot.id)).length;
+    const ownWithholding = signals.filter(item => item.type === 'information-withholding' && String(item.speakerId) === String(bot.id)).length;
+    const ownContradictions = signals.filter(item => item.type === 'contradiction' && String(item.speakerId) === String(bot.id)).length;
+    const assertiveness = U.clamp(Number(genes.assertiveness) || 0.5, 0, 1);
+    const conformity = U.clamp(Number(genes.conformity) || 0.5, 0, 1);
+    const deception = U.clamp(Number(genes.deception) || 0.5, 0, 1);
+    const camouflage = U.clamp(Number(genes.camouflage) || 0.5, 0, 1);
+    const skepticism = U.clamp(Number(genes.skepticism) || 0.5, 0, 1);
+    const riskTolerance = U.clamp(0.34 * assertiveness + 0.34 * deception + 0.20 * (1 - skepticism) + 0.12 * camouflage, 0, 1);
+    const coalitions = Array.isArray(graph.coalitions) ? graph.coalitions : [];
+    const strongestCoalition = [...coalitions].sort((a, b) => (Number(b.speakerCount) || 0) - (Number(a.speakerCount) || 0))[0] || null;
+    const consensusRow = strongestCoalition && rows.find(row => row.name === strongestCoalition.beast);
+    const alternatives = rows.filter(row => row.name !== (consensusRow && consensusRow.name));
+    const bestRealAlternative = alternatives.filter(row => row.pReal >= 0.56)
+      .sort((a, b) => (b.pTopTwo * b.pReal) - (a.pTopTwo * a.pReal))[0] || null;
+
+    if (!isGood && partnerAttacker && partnerAttacker.score >= (0.72 + (1 - riskTolerance) * 0.18)) {
+      const attacker = U.byId(room, partnerAttacker.speakerId);
+      const fakeTarget = bestFake && bestFake.name || plan.beast || null;
+      return {
+        name: 'decoy', mode: 'decoy', focus: 'attack', targetId: attacker ? attacker.id : partnerAttacker.speakerId,
+        targetTag: attacker ? U.tag(attacker) : '', targetBeast: fakeTarget,
+        ballotMode: bestFake && bestFake.pTopTwo >= 0.24 ? 'all-in' : 'optimize',
+        ballotBeast: fakeTarget, reason: 'known-or-strongly-inferred-ally-under-public-pressure',
+        pressureScore: round2(partnerAttacker.score), pressureRounds: partnerAttacker.rounds.size,
+        confidence: U.clamp(0.52 + partnerAttacker.score * 0.08, 0.52, 0.78),
+        teamAssignment: { actorRole: bot.role, duty: bot.role === '藥不然' ? 'fake-vote-push' : bot.role === '老朝奉' ? 'partner-cover' : 'public-misdirection', basis: 'known-own-role-and-public-pressure-only' },
+        publicDirective: '追問對方證據，提出替代焦點，不公開同伴關係或內部計畫'
+      };
+    }
+
+    if (!isGood && ownPressure >= (0.82 + (1 - riskTolerance) * 0.20) && bestFake && realCover && bestFake.name !== realCover.name) {
+      return {
+        name: 'camouflage-betrayal', mode: 'camouflage-betrayal', focus: 'vote', targetId: null,
+        targetBeast: bestFake.name, coverBeast: realCover.name, ballotMode: 'camouflage-betrayal',
+        ballotBeast: bestFake.name, reason: 'self-under-pressure-create-public-distance',
+        pressureScore: round2(ownPressure), confidence: U.clamp(0.50 + ownPressure * 0.07, 0.50, 0.76),
+        publicDirective: '可以與主流或隊友表面分歧，但不要揭露隊友或宣稱自己掌握未查驗的事實'
+      };
+    }
+
+    if (!isGood && bestFake) {
+      const rankedVotes = rows.slice().sort((a, b) => b.expectedVotes - a.expectedVotes);
+      const secondExpected = rankedVotes[1] ? rankedVotes[1].expectedVotes : 0;
+      const gap = Math.max(0, secondExpected - bestFake.expectedVotes);
+      const bank = chipsAvailable(room, bot);
+      const tacticalThreshold = 0.24 + (0.10 * (1 - riskTolerance));
+      const maxGap = 1.85 + riskTolerance * 1.25;
+      if (bank >= 2 && bestFake.pTopTwo >= tacticalThreshold && bestFake.pTopTwo <= 0.76 && gap <= maxGap) {
+        return {
+          name: 'all-in', mode: 'all-in', focus: 'vote', targetId: null,
+          targetBeast: bestFake.name, ballotMode: 'all-in', ballotBeast: bestFake.name,
+          reason: 'counterfeit-within-reach-of-top-two', expectedVoteGap: round2(gap),
+          targetPTopTwo: round2(bestFake.pTopTwo), confidence: U.clamp(0.52 + (maxGap - gap) * 0.08 + riskTolerance * 0.08, 0.52, 0.82),
+          riskTolerance: round2(riskTolerance),
+          publicDirective: `可以明確推動【${bestFake.name}】進入前二，但不要宣稱票數已經確定`
+        };
+      }
+    }
+
+    // 好人遇到多人重複推同一尊、但自身後驗不支持時，優先拆解共識並要求來源；
+    // 壞人則可選擇假附和／拆聯盟，不必每輪都硬衝票。
+    if (isGood && consensusRow && consensusRow.pReal < 0.46 && bestRealAlternative &&
+        bestRealAlternative.pTopTwo >= 0.18 && (strongestCoalition.speakerCount || 0) >= 2) {
+      const coalitionSpeaker = strongestCoalition.speakerIds && strongestCoalition.speakerIds.find(id => String(id) !== String(bot.id));
+      return {
+        name: 'counter-consensus', mode: 'counter-consensus', focus: coalitionSpeaker ? 'attack' : 'vote',
+        targetId: coalitionSpeaker || null, targetBeast: consensusRow.name,
+        ballotMode: 'optimize', ballotBeast: bestRealAlternative.name,
+        reason: 'public-consensus-conflicts-with-own-posterior',
+        consensusSupport: strongestCoalition.speakerCount, alternativePTopTwo: round2(bestRealAlternative.pTopTwo),
+        confidence: U.clamp(0.54 + (0.46 - consensusRow.pReal) * 0.35, 0.54, 0.72),
+        publicDirective: `多人都在推【${consensusRow.name}】，但我自己的線索不支持跟票；請提出各自獨立查驗來源。我會重新比較【${bestRealAlternative.name}】的證據。`
+      };
+    }
+
+    if (!isGood && strongestCoalition && consensusRow && consensusRow.pReal <= 0.50 &&
+        strongestCoalition.speakerCount >= 2 && bestFake && riskTolerance >= 0.62) {
+      return {
+        name: 'coalition-break', mode: 'coalition-break', focus: 'vote', targetId: null,
+        targetBeast: consensusRow.name, coverBeast: bestFake.name, ballotMode: 'optimize', ballotBeast: bestFake.name,
+        reason: 'split-an-opposing-public-coalition-with-a-counterfeit-target',
+        consensusSupport: strongestCoalition.speakerCount, riskTolerance: round2(riskTolerance),
+        confidence: U.clamp(0.54 + riskTolerance * 0.16, 0.54, 0.76),
+        publicDirective: `先承認【${consensusRow.name}】值得核對，但不要跟著同一票型走；請各自交代來源，我會把票型分開比較【${bestFake.name}】。`
+      };
+    }
+
+    if (!isGood && strongestCoalition && consensusRow && consensusRow.pReal <= 0.50 &&
+        strongestCoalition.speakerCount >= 2 && bestFake && riskTolerance >= 0.42) {
+      return {
+        name: 'false-agreement', mode: 'false-agreement', focus: 'vote', targetId: null,
+        targetBeast: consensusRow.name, ballotMode: 'optimize', ballotBeast: bestFake.name,
+        reason: 'publicly-mirror-consensus-while-maintaining-counterfeit-vote-objective',
+        consensusSupport: strongestCoalition.speakerCount, riskTolerance: round2(riskTolerance),
+        confidence: U.clamp(0.50 + riskTolerance * 0.18, 0.50, 0.72),
+        publicDirective: `可以先承認【${consensusRow.name}】值得檢查，表面不和全場硬碰；票型仍依【${bestFake.name}】的前二機率調整，不要洩漏隊友。`
+      };
+    }
+
+    if (!isGood && ownPressure >= 0.72 && partnerAttacker && bestFake && realCover &&
+        riskTolerance >= 0.58 && partnerAttacker.score < 1.25) {
+      return {
+        name: 'sacrifice-cover', mode: 'sacrifice-cover', focus: 'bait', targetId: partnerAttacker.speakerId,
+        targetBeast: bestFake.name, coverBeast: realCover.name, ballotMode: 'camouflage-betrayal', ballotBeast: bestFake.name,
+        reason: 'take-limited-pressure-to-preserve-ally-and-create-distance',
+        confidence: U.clamp(0.48 + riskTolerance * 0.20, 0.48, 0.70),
+        publicDirective: '用一段可反駁的自我質疑吸收部分壓力，再把討論拉回公開票型；不要直接認壞或暴露同伴'
+      };
+    }
+
+    if (isGood && (ownEcho || ownDeflection || ownWithholding || ownContradictions) && Number(A.ctx.myPos) <= 4) {
+      return {
+        name: 'planned-pivot', mode: 'planned-pivot', focus: 'vote', targetId: null,
+        targetBeast: plan.beast || null, ballotMode: 'optimize', ballotBeast: plan.beast || null,
+        reason: 'own-public-speech-needs-evidence-reset',
+        signalCounts: { echo: ownEcho, deflection: ownDeflection, withholding: ownWithholding, contradictions: ownContradictions },
+        confidence: U.clamp(0.50 + (ownContradictions ? 0.12 : 0) + (ownEcho ? 0.06 : 0), 0.50, 0.72),
+        publicDirective: '重新交代哪一筆是親自查驗、哪一筆是推論，並說明票向依據；不要沿用未核實的說法'
+      };
+    }
+
+    if (isGood && Number(A.ctx.myPos) >= 0 && Number(A.ctx.myPos) <= 1 &&
+        !(plan && plan.askId) && !(plan && plan.explain) && !((rd.speeches || []).some(sp =>
+          String(sp && sp.playerId) === String(bot.id) && (parseSpeech(sp, room, rd).voteCommitmentBinding)))) {
+      const bait = rows.filter(row => row.pReal >= 0.36 && row.pReal <= 0.70 && row.pTopTwo >= 0.18 && row.pTopTwo <= 0.72)
+        .sort((a, b) => Math.abs(a.pTopTwo - 0.45) - Math.abs(b.pTopTwo - 0.45) || (b.pReal - a.pReal))[0];
+      const echoSpeaker = signals.filter(item => item.type === 'echo-momentum' && !item.independentSupport)
+        .sort((a, b) => (Number(b.confidence) || 0) - (Number(a.confidence) || 0))[0];
+      if (bait) {
+        return {
+          name: 'bait-vote', mode: 'bait-vote', focus: 'bait', targetId: echoSpeaker && echoSpeaker.speakerId || null,
+          targetBeast: bait.name, ballotMode: 'bait-one-chip', ballotBeast: bait.name,
+          reason: 'early-turn-test-reaction-with-limited-exposure', confidence: U.clamp(0.46 + (Number(genes.skepticism) || 0.5) * 0.18, 0.46, 0.64),
+          publicDirective: `以有限籌碼表態【${bait.name}】，觀察後續玩家是否有獨立理由跟進，不把跟票人數當成真偽證明`
+        };
+      }
+    }
+
+    return null;
   }
 
   function forecastExpectedRealTopTwo(forecast, post) {
@@ -485,6 +716,11 @@
     const commitment = 0.55 * stylePush + 0.20 * targetConfidence +
       0.15 * racePressure + 0.10 * scorePressure;
     const threshold = idx === 0 ? 0.56 : 0.49;
+    if (!isGood && mindRecord.socialTactic && mindRecord.socialTactic.ballotMode === 'all-in' &&
+        names.includes(mindRecord.socialTactic.ballotBeast)) {
+      const fakeConfidence = 1 - U.clamp(post[mindRecord.socialTactic.ballotBeast] ?? 0.5, 0, 1);
+      if (fakeConfidence >= 0.52) return bank;
+    }
     return commitment >= threshold ? bank : Math.max(1, bank - 1);
   }
 
@@ -568,6 +804,28 @@
         utility += counterfeitTopTwoGain * (idx === 2 ? 0.42 : 0.34);
         // 原先 padBeast 仍是弱偏好，不可蓋過更有機會進前二的替代目標。
         if (mindRecord.padBeast && names.includes(mindRecord.padBeast)) utility += (pTop[mindRecord.padBeast] || 0) * 0.02;
+        const social = mindRecord.socialTactic || null;
+        if (social && ['all-in', 'decoy'].includes(social.ballotMode) && names.includes(social.ballotBeast)) {
+          const targetSpend = Number(ballot[social.ballotBeast]) || 0;
+          const heldForUrgency = Math.max(0, cap - sum(ballot));
+          const risk = U.clamp(Number(social.riskTolerance) || Number(genes.deception) || 0.5, 0, 1);
+          // All-In 是候選方案，不是命令；分數隨假貨前二增益、人格風險承受與留票成本變動。
+          utility += Math.min(3, targetSpend) * (0.10 + 0.12 * risk) - heldForUrgency * (0.035 + 0.055 * risk);
+          if (targetSpend >= cap && cap >= 2) utility += 0.025 + 0.05 * risk;
+        } else if (social && ['camouflage-betrayal', 'sacrifice-cover'].includes(social.ballotMode) &&
+            names.includes(social.ballotBeast) && names.includes(social.coverBeast || '')) {
+          const fakeSpend = Number(ballot[social.ballotBeast]) || 0;
+          const coverSpend = Number(ballot[social.coverBeast]) || 0;
+          if (fakeSpend >= 1 && coverSpend >= 1) utility += 0.055 + Math.min(2, coverSpend) * 0.018;
+        } else if (social && ['false-agreement', 'coalition-break'].includes(social.mode) && names.includes(social.ballotBeast)) {
+          const fakeSpend = Number(ballot[social.ballotBeast]) || 0;
+          if (fakeSpend > 0) utility += Math.min(3, fakeSpend) * 0.06;
+        } else if (social && social.mode === 'counter-consensus' && names.includes(social.ballotBeast)) {
+          const alternativeSpend = Number(ballot[social.ballotBeast]) || 0;
+          if (alternativeSpend > 0) utility += Math.min(2, alternativeSpend) * 0.035;
+        } else if (social && social.mode === 'planned-pivot' && names.includes(social.ballotBeast)) {
+          utility += (Number(ballot[social.ballotBeast]) || 0) * 0.018;
+        }
       }
       const spent = sum(ballot);
       const held = Math.max(0, cap - spent);
@@ -576,6 +834,9 @@
       utility += firstVoteBonus;
       let coordinationBonus = 0;
       if (isGood && spent > 0) {
+        const social = mindRecord.socialTactic || null;
+        if (social && social.ballotMode === 'bait-one-chip' && names.includes(social.ballotBeast) &&
+            spent === 1 && (Number(ballot[social.ballotBeast]) || 0) === 1) utility += 0.045;
         const speechCount = Math.max(1, (rd.speeches || []).filter(sp => sp && String(sp.playerId) !== String(bot.id)).length);
         const allocatedShare = names.reduce((n, name) => n + (Number(ballot[name]) || 0), 0) || 1;
         names.forEach(name => {
@@ -583,7 +844,7 @@
           const posteriorAgreement = U.clamp(((post[name] ?? 0.5) - 0.50) / 0.40, 0, 1);
           // Own speech is also in base.callSupport; discount one potential self-call to keep this a public-peer signal.
           const ownCall = (rd.speeches || []).some(sp => String(sp.playerId) === String(bot.id) &&
-            ((parseSpeech(sp, room, rd).callBeasts || []).includes(name) || parseSpeech(sp, room, rd).callBeast === name)) ? 1 : 0;
+            speakerCalls(parseSpeech(sp, room, rd), names).includes(name)) ? 1 : 0;
           const independentSupport = Math.max(0, support - ownCall);
           const consensusStrength = U.clamp(independentSupport / speechCount, 0, 0.75);
           coordinationBonus += (Number(ballot[name]) || 0) / allocatedShare * consensusStrength * posteriorAgreement * (idx === 2 ? 0.12 : 0.075);
@@ -782,6 +1043,8 @@
 
   T.forecastVotes = forecastVotes;
   T.chooseEvilCoalitionTarget = chooseEvilCoalitionTarget;
+  T.chooseSocialTactic = chooseSocialTactic;
+  T.forecastCalibration = forecastCalibration;
   T.historicalBallotProfile = historicalBallotProfile;
   T.probabilitiesTopTwo = probabilitiesTopTwo;
   T.scoreProjection = scoreProjection;

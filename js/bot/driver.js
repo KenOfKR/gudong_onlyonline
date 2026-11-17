@@ -95,14 +95,21 @@
 
   /* ----------------------------------------------------------------- 各類動作 */
 
+  function withPublicVoiceContext(room, callback) {
+    const restore = GD.Conversation && GD.Conversation.injectTemporary ? GD.Conversation.injectTemporary(room) : () => {};
+    try { return callback(); } finally { restore(); }
+  }
+
   function doTurn(room, botId) {
-    const bot = U.byId(room, botId);
-    if (!bot || room.currentTurnPlayerId !== botId) return false;
-    const log = Engine.log(room, botId);
-    if (log.step === 'a') Strategy.inspectPicks(bot, room).forEach(n => Engine.inspect(room, botId, n));
-    const A = Mind.analyze(bot, room);
-    Engine.skill(room, botId, Strategy.skill(bot, room, A));
-    return Engine.pass(room, botId, Strategy.nextPlayer(bot, room, A));
+    return withPublicVoiceContext(room, () => {
+      const bot = U.byId(room, botId);
+      if (!bot || room.currentTurnPlayerId !== botId) return false;
+      const log = Engine.log(room, botId);
+      if (log.step === 'a') Strategy.inspectPicks(bot, room).forEach(n => Engine.inspect(room, botId, n));
+      const A = Mind.analyze(bot, room);
+      Engine.skill(room, botId, Strategy.skill(bot, room, A));
+      return Engine.pass(room, botId, Strategy.nextPlayer(bot, room, A));
+    });
   }
 
   async function doSpeech(botId) {
@@ -111,6 +118,7 @@
     const snap = JSON.parse(JSON.stringify(cur));        // 在副本上推理，避免污染即時房間
     const bot = U.byId(snap, botId);
     if (!bot || snap.currentSpeakerId !== botId) return false;
+    const restoreConversation = GD.Conversation && GD.Conversation.injectTemporary ? GD.Conversation.injectTemporary(snap) : () => {};
 
     let plan = null, A = null, mind = null;
     let text = null, source = 'bot', gemFail = '';
@@ -136,11 +144,25 @@
         };
         const rawCleaned = raw && Gemini.clean(raw);
         const cleaned = rawCleaned && Speech.simplifyDialogue ? Speech.simplifyDialogue(rawCleaned) : rawCleaned;
-        const v = cleaned ? Speech.validate(cleaned, bot, snap, plan, A) : { ok: false, why: Gemini.state.lastError || '無回應' };
-        if (v.ok) { text = cleaned; source = 'gemini'; } else gemFail = v.why;
+        let candidateText = cleaned;
+        // 若前手明確喊票，而 Gemini 沒有用具體查驗／票單理由回應，
+        // 由程式在生成後補上可核實的第一人稱戰術句；私密查驗不會提前送進 Gemini prompt。
+        if (candidateText && Speech.concreteVoteReplyForLatestSpeaker) {
+          const tactical = Speech.concreteVoteReplyForLatestSpeaker(bot, snap, plan, A);
+          const hasConcreteReply = tactical && candidateText.includes(tactical.speakerTag) &&
+            candidateText.includes(`【${tactical.beast}】`) && /(?:查驗|親自查過|回報|票單|實際投|自述|公開說)/.test(candidateText);
+          if (tactical && tactical.line && !hasConcreteReply) candidateText = `${candidateText.trim()}\n${tactical.line}`;
+        }
+        const v = candidateText ? Speech.validate(candidateText, bot, snap, plan, A) : { ok: false, why: Gemini.state.lastError || '無回應' };
+        if (v.ok) { text = candidateText; source = 'gemini'; } else gemFail = v.why;
       }
       if (!text && Speech && Speech.localSpeech) {
         text = Speech.localSpeech(bot, snap, plan, A);
+        const localValidation = Speech.validate ? Speech.validate(text, bot, snap, plan, A) : { ok: true };
+        if (!localValidation.ok) {
+          gemFail = `本地備援發言未通過一致性檢查：${localValidation.why}`;
+          text = null;
+        }
       }
     } catch (err) {
       console.error('[driver doSpeech error]', bot.name, err);
@@ -149,6 +171,7 @@
       Driver.thinking = null;
       GD.bus.emit('thinking', null);
     }
+    restoreConversation();
 
     // 緊急備援：萬一 Speech 模組未載入或報錯，直接根據查驗紀錄生成基礎發言，絕不假裝成真人過麥
     if (!text) {
@@ -165,10 +188,75 @@
       }
     }
 
+    let auditPlan = plan || {};
+    let actionAudit = Speech && Speech.auditActionConsistency
+      ? Speech.auditActionConsistency(text, bot, snap, auditPlan, A || { ctx: { genes: bot.genes || {} } })
+      : { ok: true };
+    if (!actionAudit.ok && Speech && Speech.localSpeech && plan && A) {
+      const fallback = Speech.localSpeech(bot, snap, plan, A);
+      const fallbackAudit = Speech.auditActionConsistency(fallback, bot, snap, plan, A);
+      if (fallbackAudit.ok) {
+        text = fallback;
+        source = 'bot';
+        actionAudit = fallbackAudit;
+      }
+    }
+    // 嚴格閘門：原始話術與戰術不一致時，不能仍執行那個戰術；撤銷社會戰術後重新生成。
+    if (!actionAudit.ok && Speech && Speech.localSpeech && plan && A) {
+      const initialAuditFailure = actionAudit.why || 'speech-action-mismatch';
+      const downgradedPlan = {
+        ...plan, socialTactic: null, skillCoverStory: null, dialogueFocus: null,
+        revealBlind: false,
+        tacticalPlan: { ...(plan.tacticalPlan || {}), status: 'downgraded', downgradeReason: actionAudit.why || 'speech-action-mismatch' }
+      };
+      const downgradedSpeech = Speech.localSpeech(bot, snap, downgradedPlan, A);
+      const downgradedAudit = Speech.auditActionConsistency(downgradedSpeech, bot, snap, downgradedPlan, A);
+      if (downgradedAudit.ok) {
+        text = downgradedSpeech;
+        source = 'bot';
+        auditPlan = downgradedPlan;
+        actionAudit = { ...downgradedAudit, downgraded: true, originalFailure: actionAudit.why || null };
+      } else {
+        // 最後一道不含攻擊焦點／技能斷言的中性備援，確保不會帶著失敗的計畫照常執行。
+        text = '我先保留尚未核實的部分；這輪只依目前能公開核對的資料判斷，不把傳聞當成已查證結果。';
+        source = 'bot';
+        auditPlan = downgradedPlan;
+        actionAudit = Speech.auditActionConsistency(text, bot, snap, downgradedPlan, A);
+        actionAudit = { ...actionAudit, downgraded: true, neutralFallback: true, originalFailure: initialAuditFailure };
+      }
+      if (mind && mind.tacticalPlan) {
+        mind.tacticalPlan = { ...mind.tacticalPlan, status: 'downgraded', downgradeReason: initialAuditFailure };
+      }
+    }
+
+    // 最終硬閘：任何稽核仍未通過的句子都不能帶著原戰術進入 Engine.speak。
+    // 中性句不宣稱查驗、技能或投票承諾，並同步撤銷所有需對應的公開戰術。
+    if (!actionAudit.ok) {
+      const lastFailure = actionAudit.why || 'speech-action-mismatch';
+      text = '我先保留尚未核實的部分；這輪只依目前能公開核對的資料判斷，不把傳聞當成已查證結果。';
+      source = 'bot';
+      auditPlan = { ...auditPlan, socialTactic: null, skillCoverStory: null, dialogueFocus: null, revealBlind: false,
+        tacticalPlan: { ...(auditPlan.tacticalPlan || {}), status: 'forced-neutral-fallback', downgradeReason: lastFailure } };
+      actionAudit = { ok: true, downgraded: true, forcedSafeFallback: true, originalFailure: lastFailure,
+        why: 'forced-neutral-fallback-no-action-claim' };
+      if (mind && mind.tacticalPlan) mind.tacticalPlan = { ...mind.tacticalPlan, status: 'forced-neutral-fallback', downgradeReason: lastFailure };
+    }
+
     if (mind) {
       mind.source = source;
       mind.gemini = geminiMetrics;
       if (gemFail) mind.geminiNote = gemFail;
+      const parsedFinal = GD.Claims && GD.Claims.parse ? GD.Claims.parse(text, snap, U.curRound(snap), botId) : {};
+      mind.speechActionAudit = {
+        ok: !!actionAudit.ok,
+        why: actionAudit.why || null,
+        focus: auditPlan && auditPlan.dialogueFocus ? auditPlan.dialogueFocus.type : null,
+        focusTargetId: auditPlan && auditPlan.dialogueFocus ? auditPlan.dialogueFocus.targetId || null : null,
+        downgraded: actionAudit.downgraded === true, originalFailure: actionAudit.originalFailure || null,
+        publicClaims: (parsedFinal.claims || []).map(item => ({ beast: item.beast, real: item.real })),
+        publicCalls: [...new Set([...(parsedFinal.speakerCalls || parsedFinal.callBeasts || []), parsedFinal.callBeast].filter(Boolean))],
+        roleClaim: parsedFinal.selfRole || null
+      };
     }
 
     return GD.Net.act(room => {
@@ -179,22 +267,22 @@
     });
   }
 
-  const doVotes = room => {
+  const doVotes = room => withPublicVoiceContext(room, () => {
     const rd = U.curRound(room);
     if (!rd || rd.voteResults) return false;
     room.players.filter(p => p.isBot && rd.votes[p.id] === undefined)
       .forEach(b => Engine.vote(room, b.id, Strategy.ballot(b, room)));
     return true;
-  };
+  });
 
-  const doPersonVotes = room => {
+  const doPersonVotes = room => withPublicVoiceContext(room, () => {
     room.players.filter(p => p.isBot && !room.personVotes[p.id]).forEach(b => {
       const d = Strategy.personVote(b, room);
-      b.final = { why: d.why, followId: d.followId, top: d.top };   // 覆盤與學習引擎使用
+      b.final = { why: d.why, followId: d.followId, top: d.top, deduction: d.deduction };
       Engine.personVote(room, b.id, d.targetId);
     });
     return true;
-  };
+  });
 
   /* ----------------------------------------------------------------- 排程 */
 

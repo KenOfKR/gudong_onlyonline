@@ -187,9 +187,11 @@
     return out;
   }
 
-  /** 終局鑑人決策說明 */
+  /** 終局鑑人決策說明：決策期證據與事後全員技能稽核分開呈現。 */
   function reviewFinal(room, bot) {
     const tid = room.personVotes[bot.id], tgt = U.byId(room, tid), f = bot.final || {};
+    const d = f.deduction || null;
+    const targetRole = d && d.targetRole || (bot.role === '老朝奉' ? '許願' : bot.role === '藥不然' ? '方震' : GD.isGood(bot.role) ? '老朝奉' : '好人誘餌');
     const hit = (() => {
       if (!tgt) return '';
       if (bot.role === '老朝奉') return tgt.role === '許願' ? '——命中許願！' : `——抓錯了，${tgt.name} 不是許願。`;
@@ -201,7 +203,93 @@
       const p = U.byId(room, t.id); if (!p) return null;
       return { tag: U.tag(p), role: p.role, evil: t.evil, score: t.score, evidence: t.evidence, probs: t.probs, reasons: t.reasons };
     }).filter(Boolean);
-    return { text: tgt ? `我把鑑人票投給 ${U.tag(tgt)}（真身【${tgt.role}】）。理由：${f.why || '綜合三輪證據'}${hit}` : '未留下鑑人紀錄', suspects: sus };
+
+    const deductionRows = [];
+    if (d) {
+      if (d.eliminationNarrative) deductionRows.push({ k: '當時的鑑人思路', v: d.eliminationNarrative });
+      deductionRows.push({ k: '刪除法・第一步：硬證據先排除', v: d.hardExcluded && d.hardExcluded.length
+        ? d.hardExcluded.map(item => `${item.tag}（真身【${item.role || '未揭曉'}】）：${item.reason}`).join('；')
+        : '目前沒有足以直接刪人的硬證據；不因單一機率門檻、一次驗不到或模型猜測就把人刪掉。' });
+      deductionRows.push({ k: '刪除法・第二步：逐人核對剩餘候選', v: `硬排除後還有 ${(d.ranked || []).length} 人。以下依決策當時同一份分數與證據排序；弱線索只降順位，不等於已證明該玩家不是【${targetRole}】。` });
+      (d.ranked || []).forEach((entry, index) => {
+        const player = U.byId(room, entry.id);
+        const evidence = (entry.evidence || []).map(item => `${item.strength === 'medium' ? '中度' : '弱'}線索：${item.text}`).join('；') || '沒有足夠具體線索';
+        const position = entry.id === d.selectedId ? '最後選中' : '保留在候選池，順位較後';
+        deductionRows.push({ k: `第 ${index + 1} 位・${entry.tag}（${position}）`, v: `賽後真身【${player && player.role || '未知'}】；當時${targetRole}後驗 ${Math.round(Number(entry.roleProbability) || 0)}%；同一排序分 ${Number(entry.score).toFixed(2)}。${evidence}` });
+        // 黃煙煙／木戶加奈的一次困惑回合，賽後可從實際查驗 log 證明；不能在局中偷看，亦不能把它誤講成藥不然偷襲。
+        if (targetRole === '許願' && player && ['黃煙煙', '木戶加奈'].includes(player.role)) {
+          (room.rounds || []).forEach((rd, roundIndex) => {
+            const log = rd && rd.turnLogs && rd.turnLogs[player.id];
+            const confused = (log && log.inspect || []).filter(item => item && item.kind === 'confused');
+            if (confused.length) {
+              deductionRows.push({ k: `事後校正・${entry.tag}第 ${roundIndex + 1} 輪`, v: `真身【${player.role}】的查驗紀錄明確標記為「困惑回合」：${confused.map(item => item.resultText || `【${item.beastName}】無法查驗`).join('、')}。這是黃煙煙／木戶加奈的一次無法查驗技能，不是藥不然偷襲，也不是許願的雙查驗能力。這項私密 log 只能在賽後核對；局中只能把玩家公開說法列為待驗線索。` });
+            }
+          });
+        }
+      });
+    } else {
+      deductionRows.push({ k: '刪除法', v: f.why || '舊版紀錄沒有保存候選排序，無法還原當時的逐人刪除依據。' });
+    }
+
+    // 事後才能使用全員 turnLogs 與真實角色：這一段只用於驗證決策，不回灌 AI 當時推理。
+    const auditIds = new Set((d && d.ranked || []).map(entry => entry.id));
+    (d && d.hardExcluded || []).forEach(entry => auditIds.add(entry.id));
+    room.players.forEach(player => auditIds.add(player.id));
+    const audit = [...auditIds].map(id => U.byId(room, id)).filter(Boolean).map(player => {
+      const lines = [];
+      (room.rounds || []).forEach((rd, roundIndex) => {
+        const log = rd && rd.turnLogs && rd.turnLogs[player.id] || {};
+        const inspect = (log.inspect || []).map(item => {
+          if (!item || !item.beastName) return '';
+          const shown = typeof item.displayedReal === 'boolean' ? (item.displayedReal ? '看見真品' : '看見贗品') : '無法取得真偽';
+          const cause = item.kind === 'blocked' ? '鄭國渠封鎖' : item.kind === 'blind' ? '藥不然偷襲致盲' : item.kind === 'confused' ? '本角色一次困惑回合' : '';
+          const flipped = item.flipped === true ? '；賽後確認受到老朝奉擾亂反轉' : '';
+          return `【${item.beastName}】${shown}${cause ? `（${cause}）` : ''}${flipped}${item.resultText ? `；畫面紀錄：${item.resultText}` : ''}`;
+        }).filter(Boolean);
+        const skills = [];
+        if (log.skillTag) skills.push(`技能標籤 ${String(log.skillTag)}`);
+        if (log.ability && log.ability !== '無技能操作') skills.push(`技能紀錄 ${String(log.ability)}`);
+        if (log.fangTargetId) {
+          const checked = U.byId(room, log.fangTargetId);
+          skills.push(`方震查驗${checked ? U.tag(checked) : '未知玩家'}（${log.fangCamp === 'good' ? '好人' : log.fangCamp === 'evil' ? '壞人' : '結果不明'}）`);
+        }
+        if (log.ambushTargetId) {
+          const checked = U.byId(room, log.ambushTargetId);
+          skills.push(`偷襲目標 ${checked ? U.tag(checked) : '未知玩家'}${Array.isArray(log.ambushIds) && log.ambushIds.length > 1 ? `；連帶影響 ${log.ambushIds.map(id => U.tag(U.byId(room, id))).filter(Boolean).join('、')}` : ''}`);
+        }
+        if (rd && rd.blockedBeast) skills.push(`本輪封鎖獸首【${rd.blockedBeast}】`);
+        if (rd && rd.laoActive) skills.push('本輪老朝奉擾亂已啟動');
+        if (log.blind && !skills.some(value => /偷襲|致盲/.test(value))) skills.push(`遭偷襲致盲（${log.blindTiming || '時點未記錄'}）`);
+        if (log.blocked) skills.push('技能遭封鎖');
+        const ballotRecord = rd && rd.votes && rd.votes[player.id];
+        const ballot = Object.entries(ballotRecord || {}).filter(([, count]) => Number(count) > 0)
+          .map(([beast, count]) => `【${beast}】${count}票`).join('、');
+        const passPos = rd && Array.isArray(rd.passOrder) ? rd.passOrder.indexOf(player.id) : -1;
+        const speechPos = rd && Array.isArray(rd.speechOrder) ? rd.speechOrder.indexOf(player.id) : -1;
+        const facts = [];
+        if (passPos >= 0) facts.push(`傳遞順位第${passPos + 1}位`);
+        if (speechPos >= 0) facts.push(`公開發言順位第${speechPos + 1}位`);
+        if (inspect.length) facts.push(`獸首查驗 ${inspect.join('、')}`);
+        if (skills.length) facts.push(`技能 ${skills.join('、')}`);
+        if (ballot) facts.push(`實際投票 ${ballot}`);
+        else if (ballotRecord) facts.push('實際投票：棄票／零票');
+        if (!facts.length) facts.push('沒有留下可核對的查驗／技能／投票紀錄');
+        lines.push(`第${roundIndex + 1}輪：${facts.join('；')}`);
+      });
+      return { tag: U.tag(player), role: player.role || '未知', text: lines.join('。') };
+    });
+    if (audit.length) {
+      deductionRows.push({ k: '賽後全員查驗・技能・投票稽核', v: '以下是對局結束後才可查看的完整紀錄；它用來驗證推理，不代表 AI 當時能讀取其他人的私密查驗。' });
+      audit.forEach(item => deductionRows.push({ k: `${item.tag}（真身【${item.role}】）`, v: item.text }));
+    }
+
+    const chosenExplanation = tgt
+      ? `我把鑑人票投給${U.tag(tgt)}（真身【${tgt.role}】）。當時目標是【${targetRole}】；${f.why || '依當時候選排序做出指認'}${hit}`
+      : '未留下鑑人紀錄';
+    const afterCheck = tgt
+      ? `【事後核對】${tgt.role === targetRole || (targetRole === '好人誘餌' && GD.isGood(tgt.role)) ? '本次指認符合目標陣營／角色。' : `抓錯了：${tgt.name}真身是${tgt.role}，不是【${targetRole}】。這是真相揭曉後的核對，不是當時可用的推理證據。`}`
+      : '';
+    return { text: [chosenExplanation, afterCheck].filter(Boolean).join(' '), suspects: sus, deductionRows, deduction: d };
   }
 
   /** 總結：本局這位電腦的表現（給學習引擎的前言）*/
@@ -231,6 +319,6 @@
     };
   }
 
-  GD.Review = { build, buildAll: room => room.players.filter(p => p.isBot).map(b => build(room, b)) };
+  GD.Review = { build, reviewFinal, buildAll: room => room.players.filter(p => p.isBot).map(b => build(room, b)) };
   if (typeof module !== 'undefined' && module.exports) module.exports = GD.Review;
 })(typeof window !== 'undefined' ? window : global);

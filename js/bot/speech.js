@@ -493,7 +493,7 @@
 
     const directive = addressed
       ? `【公開發言回應狀態】${tag}本輪已被後續發言實質回應；不要再複述同一組內容，接續尚未處理的新線索或提出新增證據。`
-      : `【必須回應前手發言】請直接回應${tag}本輪的原話，不可改談別的事來迴避。${topics.join('')} 依內容複雜度完整說明，不限定字數；優先講清楚具體對象、證據、矛盾與自己的判斷，不要重複空泛套句。`;
+      : `【必須回應前手發言】請直接回應${tag}本輪的原話，不可改談別的事來迴避。${topics.join('')} 依內容複雜度完整說明，不限定字數，也不限制證據項目數；優先講清楚具體對象、證據、矛盾與自己的判斷，不要重複空泛套句。`;
     return { speech, parsed, tag, index, addressed: !!addressed, correction, defense, claims, stances, roleComparisons, voteAvoids, call, targetId, targetTag, role, unanswered, directive };
   }
 
@@ -514,11 +514,12 @@
     if (u.correction) clauses.push('收到更正，以你最新說法為準');
     if (claims.length) {
       const claimText = claims.map(c => `${B(c.beast)}${c.real ? '真品' : '贗品'}`).join('、');
+      const speaker = String(thread.tag || '前面那位');
       const responses = [
-        `你主張${claimText}，我還要對一下其他人的紀錄。`,
-        `你說${claimText}，我先看有沒有別的線索對得上。`,
-        `你認為${claimText}，我會拿票型和查驗紀錄再對。`,
-        `你指出${claimText}；我先不急著跟票，還要看其他人的說法。`
+        `${speaker}認為${claimText}，我還要對一下其他人的紀錄。`,
+        `${speaker}剛才主張${claimText}，我先看有沒有別的線索對得上。`,
+        `${speaker}提到${claimText}，我會拿票型和查驗紀錄再對。`,
+        `${speaker}前面說${claimText}；我先不急著跟票，還要看其他人的說法。`
       ];
       const replySeed = GD.DialogueBank ? GD.DialogueBank.hash(`${bot && (bot.botId || bot.name || bot.id)}:${thread.round || thread.speechRound || 0}:${claims.map(c => c.beast).join(',')}`) : 0;
       clauses.push(chooseDistinctLine(responses, replySeed, bot, room));
@@ -749,6 +750,25 @@
     });
     const crossRoundPublicPrompt = crossRoundPublicTopics.length ? crossRoundPublicTopics.join('\n') : '沒有尚未被回應的跨輪公開推理。';
     const hasPriorSpeech = Array.isArray(rd.speeches) && rd.speeches.some(sp => sp && sp.playerId !== bot.id);
+    const dialogueFocus = plan.dialogueFocus || { type: 'vote', label: '交代本輪票向', style: 'conversational' };
+    const focusTarget = dialogueFocus.targetTag || '';
+    const focusStyleText = ({
+      direct: '直接、有主見，先講破綻，不繞圈', probing: '追問式，抓一個具體問題要求對方回答',
+      firm_defensive: '有底氣地自辯，不求饒、不亂轉移話題', guarded: '謹慎防守，先澄清事實再談立場',
+      subtle: '語氣自然克制，避免過度用力或自曝盤算', persuasive: '有說服力，但要提出可核對理由',
+      provocative: '敢反問、敢挑戰，但不能捏造證據', understated: '低調簡短，不搶話但保留自己的判斷',
+      measured: '冷靜追問，保留不確定性', conversational: '自然口語，有立場也有理由'
+    })[dialogueFocus.style] || '自然口語，有立場也有理由';
+    const genes = ctx.genes || {};
+    const assertiveness = U.clamp(Number(genes.assertiveness) || 0.5, 0, 1);
+    const camouflage = U.clamp(Number(genes.camouflage) || 0.5, 0, 1);
+    const skepticism = U.clamp(Number(genes.skepticism) || 0.5, 0, 1);
+    const geneTone = assertiveness >= 0.70 ? '語氣更果斷，先講核心疑點，但不可把推測說成事實' :
+      camouflage >= 0.68 ? '語氣較含蓄，可先承認對方有一部分道理，再說明保留之處，不要刻意裝腔' :
+      skepticism >= 0.68 ? '多問一個可驗證的問題，保留不確定性，不急著定罪' : '自然口語，直接說明立場與一項理由';
+    const socialTacticDirective = plan.socialTactic && plan.socialTactic.publicDirective
+      ? `本輪社會互動方向：${plan.socialTactic.publicDirective}。這是表達方向，不是可宣稱的事實；不得提及隊友、內部戰術、私有後驗或真實角色。${plan.socialTactic.targetBeast ? `如需提及戰術票向，使用【${plan.socialTactic.targetBeast}】。` : ''}` : '';
+    const dialogueFocusDirective = `本輪唯一戰術焦點：${dialogueFocus.label || dialogueFocus.type}${focusTarget ? `，主要對象是${focusTarget}` : ''}。說話姿態：${focusStyleText}。人格語氣：${geneTone}。整段發言圍繞這一個主軸，最多補一項最有價值的佐證，最後交代自己的票向；不要把所有分析模組逐項念出來。除非真人回應、角色承諾或規則核對確有需要，否則控制在 2 至 4 句短句。`;
 
     // This is deliberately a public-facing brief. Do not add bot.role, ctx.isGood,
     // ctx.partner, ctx.log.inspect, private Fang scans, A.prof/A.post, plan.why,
@@ -768,6 +788,10 @@
     }
 
     const publicObjectives = [];
+    if (plan.skillCoverStory && plan.skillCoverStory.line &&
+        (!plan.roleBluff || ['藥不然', '鄭國渠'].includes(plan.roleBluff.role)) && !(plan.trueRoleSignal && plan.trueRoleSignal.reveal) && !plan.roleDiscussionEvent) {
+      publicObjectives.push(`技能線索偽裝（僅壞人策略，可使用一次）：依核准句子提出「${plan.skillCoverStory.line}」。若 truthMode 是 fabricated-public-hypothesis，必須保留「可能／待核對」語氣；若是 fabricated-public-assertion 或 fabricated-public-denial，這是刻意的公開偽裝立場，不可捏造目擊細節、不可自稱親手發動，也不可聲稱系統已驗證；若是 verified-own-action，只可描述本 Bot 自己當輪可核對的行動。所有他人技能說法都只算未驗證公開訊號。`);
+    }
     if (plan.confess) {
       publicObjectives.push(`公開承認「我認壞」，但不說具體角色或同伴。明確主張【${plan.beast}】是贗品，並號召投向同一尊。`);
     } else if (plan.evilRolePerformance) {
@@ -788,8 +812,19 @@
       }).join(' '),
       plan.explain ? `${plan.explain.callerName}請你說明過去把票投在贗品上的原因。只引用當時可見的公開發言和實際票數；不要補寫不存在的理由。` : '',
       plan.askId ? (() => {
-        const target = U.byId(room, plan.askId);
-        return target ? `請簡短點名${U.tag(target)}，詢問他過去投給後來公開判為贗品的獸首共 ${plan.askVotes} 票（最近一次第 ${plan.askRound} 輪投【${plan.askBeast}】）的依據。這是事後對照，不代表他投票時已知道結果。` : '';
+        const target = U.byId(room, plan.askId), e = plan.askEvidence || {};
+        if (!target) return '';
+        const details = {
+          fake_vote: `歷史票單顯示他累計投給後來公開判為贗品的獸首 ${Number(e.votes || 0)} 票，最近一次為第 ${Number(e.round || plan.askRound || 0)} 輪【${e.beast || '未知'}】。明確提醒這是事後對照，投票當時尚未公開結果。`,
+          vote_dissonance: `第 ${Number(e.round || plan.askRound || 0)} 輪他公開喊的目標是 ${(e.calledBeasts || []).join('、')}，實際票單卻把 ${Number(e.investedChips || 0)} 票集中在【${e.investedBeast || '未知'}】；分票可能有戰術理由，請問清楚當時的安排，不可直接定罪。`,
+          inspection_conflict: `第 ${Number(e.round || plan.askRound || 0)} 輪他對【${e.beast || '未知'}】的公開真偽主張，與你的查驗畫面不同。可以指出有落差，但不要直接公布你看到的真偽結果；請他說明是否有技能時點、視野差或判斷依據。`,
+          speech_contradiction: `第 ${Number(e.round || plan.askRound || 0)} 輪他在同一段發言中，把【${e.beast || '未知'}】同時說成真品和贗品。請他確認哪個才是他的最終判斷。`,
+          claim_shift: `他前後對【${e.beast || '未知'}】的公開判斷不同：第 ${Number(e.earlierRound || 0)} 輪說${e.earlierReal ? '真品' : '贗品'}，第 ${Number(e.latestRound || 0)} 輪改成${e.latestReal ? '真品' : '贗品'}。這可能是有新資訊後修正，請他說明改變的原因。`,
+          role_shift: `他第 ${Number(e.earlierRound || 0)} 輪自稱【${e.earlierRole || '未知'}】，第 ${Number(e.latestRound || 0)} 輪又自稱【${e.latestRole || '未知'}】。請他說明角色說法為何改變，以及對應的技能紀錄。`,
+          role_hypothesis: `他曾把${e.candidateName || '另一位玩家'}列為【${e.role || '某角色'}】候選，這個猜測在公開發言中被不同來源提到。請他說明具體依據和技能時點，並保留這仍是假設。`,
+          role_swap: `公開紀錄中${U.tag(target)}自稱【${e.ownRole || '未知'}】，${e.otherTag || '另一位玩家'}自稱【${e.otherRole || '未知'}】。兩個說法可能都是真的，也可能有人在互換身分掩護；請對方提出能核對的技能與傳牌時序，不可單憑自稱判定。`
+        }[plan.askKind] || '請依照已列出的公開線索，針對具體事實詢問，不可補造未出現的發言或票數。';
+        return `請簡短點名${U.tag(target)}，${details} 問句要口語、具體，不能把單一矛盾或分票直接說成定罪。`;
       })() : '',
       plan.xuYuanLine ? `可以自然使用這句公開話術一次：「${plan.xuYuanLine}」。不要藉此暗示其他未核准的查驗結果。` : '',
       plan.withholdInfo ? '只陳述上方列出的核准公開結果，不得自行增加其他獸首的真偽宣稱。' : '',
@@ -827,7 +862,7 @@
         ];
 
     return [
-      `你正在玩《古董局中局》八人桌遊。請以第一人稱產生第 ${ctx.t + 1} 輪自然口語發言，使用繁體中文。發言長短依本輪證據與議題複雜度決定，不限定字數或句數；不要為了短而省略關鍵推理，也不要為了顯得完整而重複空話。只輸出台詞，不要加引號或說明。`,
+      `你正在玩《古董局中局》八人桌遊。請以第一人稱產生第 ${ctx.t + 1} 輪自然口語發言，使用繁體中文。發言長短依本輪證據與議題複雜度決定，不限定字數或句數，也不限制證據項目數；不要為了短而省略關鍵推理，也不要為了顯得完整而重複空話。只輸出台詞，不要加引號或說明。`,
       '',
       `[玩家與公開人設]`,
       `你是${U.tag(bot)}；說話風格：${meta.title || '理性推演'}。自然、具體，避免重複固定口頭禪。`,
@@ -849,6 +884,10 @@
       `過往多票配置（只看已結算的實際票單）：\n${publicVoteCommitmentHistory(room)}`,
       `歷史開票真偽：\n${history(room)}`,
       '',
+      '[本輪戰術焦點]',
+      dialogueFocusDirective,
+      socialTacticDirective,
+      '焦點選擇是本輪唯一主軸，不是要求只講一句話。可以先回應玩家、再提出一項證據、最後交代票向；但不要加入與主軸無關的查驗報告、票數預測或角色推理清單。',
       '[發言任務]',
       ...task,
       ...extra,
@@ -857,7 +896,8 @@
       hasPriorSpeech
         ? '要回應前手時，點出具體玩家、他說過的獸首／立場或票數；可以反駁，不必附和。不要重述已被其他人完整回應的同一話題。'
         : '目前沒有可回應的前手發言。直接提出自己的本輪立場，不要虛構玩家原話或指控。',
-      '台詞必須像玩家在桌上說話，不像系統報告。先講清楚主結論，再依需要提出足以支撐判斷的證據，不限制證據項目數；若證據不足，就明說還要觀察本輪票型、傳牌順序或其他人的發言。禁止只說收到、聽到或記下等空泛承接句；直接說支持或反對誰、哪項證據、主票投哪尊。',
+      '遇到前手喊票，禁止使用「我會比對支持與反對的公開線索，再決定是否跟票」這類空話。必須選一項已存在的具體依據說明：自己的核准查驗結果、已公開的陣營查驗主張、前手自己報出的真偽、至少兩名不同玩家的公開直接查驗回報，或前手過去實際投票與公開結果的對照；接著明確說跟票或不跟票。若只有一份自述，就明講「目前只有他一份說法」；不可虛構自己查過對方陣營或獸首。若只有私密資訊、沒有獲准公開，不得洩漏。',
+      '戰術回應要有桌上對話張力：點出玩家、具體行動、你掌握的證據、以及這一票會怎麼投。像「我親自查過她是好人，所以這次我願意跟她投狗」只能在你的角色確實查過該玩家且策略允許公開時使用；否則改用真正存在的公開證據。',
       '同一局所有電腦玩家的公開發言會做近似用語檢查；不得沿用前面任何電腦玩家的句子骨架或同一套理由，只能回應相同事實，必須用不同句構、不同切入點，避免重複開場、轉折和收尾。用短句和日常口語，最多抓一兩個重點，不要寫成會議紀錄。',
       '內部思考與公開台詞是兩件事：真正角色、陣營、秘密同伴、私密查驗、推理機率、風險估計、騙人目的和戰術盤算，無論真假都不得照讀。只把策略轉成符合當前公開立場的自然說法；不要說「我在轉移焦點」「建立可信度」「隱藏身分」「這是我的偽裝策略」等內心話。',
       '引用他人原話時必須能在上方公開發言找到；自己的推測要說「我懷疑／我推測」，不可冒充歷史事實。不要編造沒有發生的查驗、技能或票數。',
@@ -1055,10 +1095,274 @@
       ? `我目前對${U.tag(target)}的公開行動仍有疑問，但現有證據還不足以定案。`
       : `我對${U.tag(target)}的公開行動保留疑問，先核對紀錄再決定是否跟票。`;
   }
+  // 把前手喊票轉成有依據的戰術回應。只允許使用自己的查驗或公開紀錄。
+  function concreteVoteReply(bot, room, plan, A, speakerId, speakerLabel, calledBeast, speakerParsed) {
+    if (!calledBeast) return '';
+    const ctx = A && A.ctx || {};
+    const tag = speakerLabel || U.tag(U.byId(room, speakerId)) || '前手玩家';
+    const ownCampCheck = (room.rounds || []).map((rd, index) => ({ rd, index, log: rd && rd.turnLogs && rd.turnLogs[bot.id] }))
+      .filter(item => item.log && item.log.fangTargetId === speakerId && item.log.fangCamp === 'good')
+      .pop();
+    // 方震可以策略性公開自己的好人陣營查驗；第一輪避免無故自曝，後續在有跟票價值時才揭露。
+    if (ctx.isGood && bot.role === '方震' && ownCampCheck && (Number(ctx.t) || 0) >= 1) {
+      return `${tag}剛才主張投${B(calledBeast)}；我第${ownCampCheck.index + 1}輪親自查過這名玩家的陣營，結果是好人。這次我也投${B(calledBeast)}，是因為這筆查驗讓我願意相信她的票向。`;
+    }
+
+    const approvedOwnClaim = (plan.claims || []).find(claim => claim && claim.beast === calledBeast && typeof claim.real === 'boolean');
+    const callerClaim = (speakerParsed && Array.isArray(speakerParsed.claims) ? speakerParsed.claims : [])
+      .find(claim => claim && claim.beast === calledBeast && typeof claim.real === 'boolean');
+    if (approvedOwnClaim) {
+      if (callerClaim && callerClaim.real === approvedOwnClaim.real) {
+        return `${tag}主張投${B(calledBeast)}；我自己這輪也查到${B(calledBeast)}是${approvedOwnClaim.real ? '真品' : '贗品'}，這次票向一致，我跟這一票。`;
+      }
+      if (callerClaim && callerClaim.real !== approvedOwnClaim.real) {
+        return `${tag}主張投${B(calledBeast)}，但他對這尊的公開判斷和我親自查到的結果相反；我不跟這張票，主票仍放在${B(plan.beast)}。`;
+      }
+      return `${tag}主張投${B(calledBeast)}；我自己查到${B(calledBeast)}是${approvedOwnClaim.real ? '真品' : '贗品'}，這是我支持／反對這個票向的直接依據。`;
+    }
+
+    const publicReports = new Map();
+    const rd = ctx.rd;
+    (rd && rd.speeches || []).forEach(sp => {
+      if (!sp || !sp.playerId) return;
+      let parsed = {};
+      try { parsed = Claims.parseRecord ? Claims.parseRecord(sp, room, rd) : Claims.parse(String(sp.text || ''), room, rd); } catch (_) {}
+      const reports = (parsed && parsed.inspectionReports || []).filter(item => item && item.beast === calledBeast && typeof item.claimedReal === 'boolean');
+      if (reports.length) publicReports.set(sp.playerId, reports[reports.length - 1]);
+    });
+    if (publicReports.size >= 2) {
+      return `${tag}主張投${B(calledBeast)}；這輪另有${publicReports.size}位玩家公開回報查過這尊，我會把這些說法一併對照，不是只因為他先喊就跟票。`;
+    }
+    if (callerClaim) {
+      return `${tag}主張投${B(calledBeast)}，也公開說這尊是${callerClaim.real ? '真品' : '贗品'}；這是目前能核對到的具體理由，但還只有他一份自述，我暫時${plan.beast === calledBeast ? '跟同一方向' : `把主票放在${B(plan.beast)}`}。`;
+    }
+
+    const priorFakeVotes = [];
+    (room.rounds || []).slice(0, Number(ctx.t) || 0).forEach((historyRound, index) => {
+      const opened = historyRound && historyRound.voteResults && historyRound.voteResults.rank2;
+      const count = Number(historyRound && historyRound.votes && historyRound.votes[speakerId] && historyRound.votes[speakerId][calledBeast]) || 0;
+      if (count > 0 && opened && opened.hidden === false && opened.name === calledBeast && opened.isReal === false) {
+        priorFakeVotes.push(`第${index + 1}輪${count}票投給後來公開判假的${B(calledBeast)}`);
+      }
+    });
+    if (priorFakeVotes.length) {
+      return `${tag}又主張投${B(calledBeast)}；但他之前${priorFakeVotes.join('、')}。那次投錯不代表這次一定錯，我會先要求他說明這次有什麼新根據；我的主票放${B(plan.beast)}。`;
+    }
+    return `${tag}主張投${B(calledBeast)}；但目前沒有第二份獨立查驗支持這個方向，我不會只因為他先喊就跟票，這輪主票放${B(plan.beast)}。`;
+  }
+
+  // Gemini 的公開提示不包含私密方震查驗；生成後才由程式依「自己的真實查驗」補上戰術回應。
+  // 這樣模型不會先看到秘密資訊，但玩家仍能在公開發言中選擇揭露自己的查驗結果。
+  function concreteVoteReplyForLatestSpeaker(bot, room, plan, A) {
+    const ctx = A && A.ctx || {};
+    const rd = ctx.rd || U.curRound(room);
+    const speeches = rd && Array.isArray(rd.speeches) ? rd.speeches : [];
+    const speaker = [...speeches].reverse().find(item => item && item.playerId !== bot.id);
+    if (!speaker) return null;
+    let parsed = {};
+    try {
+      parsed = Claims.parseRecord ? Claims.parseRecord(speaker, room, rd) : Claims.parse(String(speaker.text || ''), room, rd);
+    } catch (_) {}
+    const current = new Set((rd.beasts || []).map(beast => beast && beast.name).filter(Boolean));
+    const called = parsed.callBeast || (parsed.callBeasts || []).find(name => current.has(name));
+    if (!called || !current.has(called)) return null;
+    const player = U.byId(room, speaker.playerId);
+    const label = player ? U.tag(player) : (speaker.speakerName || '前手玩家');
+    return {
+      line: concreteVoteReply(bot, room, plan, A, speaker.playerId, label, called, parsed),
+      speakerTag: label, beast: called, speakerId: speaker.playerId
+    };
+  }
+
   /* ------------------------------------------------------------------ 本地備援發言 */
+
+  function focusDrivenSelectParts(rawParts, plan, bot, room, ctx) {
+    const focus = plan && plan.dialogueFocus || { type: 'vote', style: 'conversational' };
+    const sentences = (Array.isArray(rawParts) ? rawParts : []).flatMap((raw, partIndex) => {
+      const text = String(raw || '').trim();
+      if (!text) return [];
+      return (text.match(/[^。！？!?]+[。！？!?]?/g) || [text]).map((value, sentenceIndex) => ({
+        text: String(value || '').trim(), partIndex, sentenceIndex
+      })).filter(item => item.text);
+    });
+    const normalize = value => String(value || '').replace(/[\s，。！？!?；;：:「」『』“”、,.]/g, '').replace(/【([^】]+)】/g, '$1');
+    const seen = new Set();
+    const unique = sentences.filter(item => {
+      const key = normalize(item.text);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    const target = focus.targetId ? U.byId(room, focus.targetId) : null;
+    const targetTag = target ? U.tag(target) : String(focus.targetTag || '');
+    const speakerThread = (() => {
+      try { return latestPublicThread(room, ctx && ctx.rd, bot); } catch (_) { return null; }
+    })();
+    const priorTag = speakerThread && speakerThread.speech ? speakerThread.tag : '';
+    const claimMatches = sentence => (plan.claims || []).some(claim => claim && claim.beast && sentence.includes(B(claim.beast)) &&
+      (claim.real ? /真品|真貨|是真|判真/.test(sentence) : /贗品|假品|是假|判假/.test(sentence)));
+    const voteMatches = sentence => !!plan.beast && sentence.includes(B(plan.beast)) && /(?:投|落票|票向|主票|號召|籌碼)/.test(sentence);
+    const askMatches = sentence => !!targetTag && sentence.includes(targetTag) && /(?:請.*(?:說明|解釋|交代)|為什麼|怎麼安排|哪一段|依據)/.test(sentence);
+    const roleMatches = sentence => !!(plan.roleBluff && plan.roleBluff.role && sentence.includes(`我是${plan.roleBluff.role}`)) ||
+      !!(plan.fakeFangClaim && sentence.includes('我是方震')) || !!(plan.confess && /我認壞/.test(sentence));
+    const humanReplyMatches = sentence => !!priorTag && sentence.includes(priorTag) &&
+      /(?:你剛才|你說|你主張|你喊|你自稱|前面|剛才|回應|原話|查驗|票單|立場|好人|壞人|真品|贗品)/.test(sentence);
+    const roleFocusMatches = sentence => targetTag && sentence.includes(targetTag) &&
+      /(?:老朝奉|藥不然|角色|身分|身份|對跳|技能|傳牌|自稱)/.test(sentence);
+    const evidenceMatches = sentence => /(?:查驗|技能|傳牌|時序|票單|投了|籌碼|票型|前後|改口|原話|公開結果|反轉)/.test(sentence);
+    const intro = {
+      role_swap: focus.style === 'direct' ? '角色名稱先放旁邊，先把技能和傳牌時點對起來。' :
+        focus.style === 'probing' ? '我先不判誰真跳，先問技能時點怎麼對。' : '我先把角色說法放一邊，回頭核對技能紀錄。',
+      defend_identity: focus.style === 'firm_defensive' ? '你可以懷疑我，但先把能核對的技能時點講清楚。' : '我先回應你剛才的角色質疑。',
+      defend_vote: '我先把那次投票的原因講清楚。',
+      challenge: focus.style === 'direct' ? '這裡有一筆紀錄，我想請你正面回答。' : '我這輪先追一筆具體紀錄。',
+      role_probe: '角色可以互跳，但不能只靠自稱定案。',
+      soft_accusation: '我聽到你對他的懷疑了，先看你拿的是哪一筆證據。',
+      reply_claim: '先回你剛才那個查驗判斷。',
+      reply_vote: '你剛才喊的票向，我有自己的判斷。',
+      reply_defense: '我有聽到你的自辯，但還要看行動能不能對上。',
+      suspect_pressure: '這件事我想直接問清楚。',
+      attack: '我想先把這個疑點問清楚。',
+      bait: '我先不急著定案，想聽你說明。'
+    }[focus.type] || '';
+
+    const chosen = [];
+    const chosenKeys = new Set();
+    const add = item => {
+      if (!item || !item.text) return;
+      const key = normalize(item.text);
+      if (!key || chosenKeys.has(key)) return;
+      chosenKeys.add(key);
+      chosen.push(item.text);
+    };
+    const find = predicate => unique.find(item => predicate(item.text));
+
+    // The selected focus leads; then preserve any hard public-performance contract.
+    let focusLine = null;
+    if (focus.type === 'role_swap') {
+      focusLine = find(askMatches) || find(text => targetTag && text.includes(targetTag) && roleFocusMatches(text));
+    } else if (focus.type === 'role_probe' || focus.type === 'defend_identity') {
+      focusLine = find(text => roleFocusMatches(text) || askMatches(text) || humanReplyMatches(text));
+    } else if (focus.type === 'challenge') {
+      focusLine = find(askMatches) || find(text => targetTag && text.includes(targetTag) && evidenceMatches(text));
+    } else if (focus.type.startsWith('reply_') || focus.type === 'soft_accusation' || focus.type === 'defend_vote') {
+      focusLine = find(humanReplyMatches) || find(text => targetTag && text.includes(targetTag));
+    } else if (focus.type === 'suspect_pressure') {
+      focusLine = find(text => targetTag && text.includes(targetTag) && /嫌疑|懷疑|可疑|壞人/.test(text));
+    }
+    if (focusLine) add(focusLine);
+    if (plan.socialTactic && ['attack', 'bait'].includes(plan.socialTactic.focus) && targetTag &&
+        !chosen.some(line => line.includes(targetTag))) {
+      const generated = plan.socialTactic.focus === 'attack'
+        ? `我想請${targetTag}說明一下：你剛才把疑點指向別人，提出的獨立證據是哪一筆？`
+        : `我想請${targetTag}補充一下：你剛才跟著這個票向，有沒有自己核對過的理由？`;
+      add({ text: generated });
+    }
+    if (focus.type === 'role_swap') {
+      const roleSwapEvidence = unique.find(item => /技能|時序|傳牌/.test(item.text) &&
+        /老朝奉|藥不然/.test(item.text) && /(?:你和|分別|兩個身分|角色版本|自稱)/.test(item.text));
+      if (roleSwapEvidence) add(roleSwapEvidence);
+    }
+
+    const roleLine = find(roleMatches);
+    if (roleLine) add(roleLine);
+
+    // Preserve explicitly planned public-performance contracts even when they are not this turn's focus.
+    if (plan.trueRoleSignal && plan.trueRoleSignal.line) {
+      const signal = unique.find(item => item.text.includes(String(plan.trueRoleSignal.line).trim()));
+      if (signal) add(signal);
+    }
+    if (plan.xuYuanLine) {
+      const xuLine = unique.find(item => item.text.includes(String(plan.xuYuanLine).trim()));
+      if (xuLine) add(xuLine);
+    }
+    if (plan.roleAbilityCover === 'unreadable') {
+      const unreadable = unique.find(item => /無法辨別真偽|驗不到|看不清/.test(item.text));
+      if (unreadable) add(unreadable);
+    }
+    if (plan.withholdInfo) {
+      const withholding = unique.find(item => /不重複|不再重複|暫不重複攤開|保留.*查驗|保留這筆/.test(item.text));
+      if (withholding) add(withholding);
+    }
+    if (plan.roleDiscussionEvent && plan.roleDiscussionEvent.candidateId) {
+      const discussionTarget = U.byId(room, plan.roleDiscussionEvent.candidateId);
+      const discussionTag = discussionTarget ? U.tag(discussionTarget) : '';
+      const discussionRole = String(plan.roleDiscussionEvent.candidateRole || '');
+      const discussionLine = unique.find(item => discussionTag && item.text.includes(discussionTag) &&
+        (!discussionRole || item.text.includes(discussionRole)) && /(?:可能|假設|候選|角色|身分|身份|技能|時序)/.test(item.text));
+      if (discussionLine) add(discussionLine);
+    }
+    if (plan.publicSuspectBrief) {
+      const briefSentences = unique.filter(item => item.partIndex < rawParts.length &&
+        String(rawParts[item.partIndex] || '').includes(plan.publicSuspectBrief));
+      briefSentences.forEach(add);
+    }
+    if (plan.laoTimingAudit && plan.laoTimingAudit.noSkillPossible) {
+      const timing = unique.find(item => /沒有足夠線索證明擾亂一定發動|不會因此把老朝奉排除/.test(item.text));
+      if (timing) add(timing);
+    }
+
+    // Keep approved claims, but avoid turning a multi-claim plan into a list of unrelated reports.
+    let claimLines = unique.filter(item => claimMatches(item.text));
+    if (focus.type === 'suspect_pressure' && plan.socialTactic && plan.socialTactic.focus === 'attack') {
+      const tacticBeast = plan.socialTactic.targetBeast || null;
+      claimLines = claimLines.filter(item => (tacticBeast && item.text.includes(B(tacticBeast))) ||
+        (targetTag && item.text.includes(targetTag) && /證據|查驗|票型|時序/.test(item.text)));
+    }
+    const claimLimit = focus.type === 'suspect_pressure' && plan.socialTactic && plan.socialTactic.focus === 'attack'
+      ? 1 : bot && bot.role === '許願' ? 1 : Math.min(2, (plan.claims || []).length || 1);
+    claimLines.slice(0, claimLimit).forEach(add);
+
+    // Preserve one concrete supporting fact, not every analysis fragment produced upstream.
+    const support = ['role_swap', 'role_probe', 'challenge', 'defend_identity'].includes(focus.type)
+      ? null
+      : unique.find(item => {
+          const text = item.text;
+          if (focus.type === 'suspect_pressure' && plan.socialTactic && plan.socialTactic.focus === 'attack')
+            return !!targetTag && text.includes(targetTag) && evidenceMatches(text) && !claimMatches(text) && !voteMatches(text);
+          return evidenceMatches(text) && !claimMatches(text) && !voteMatches(text) && !roleMatches(text) &&
+            (!targetTag || !text.includes(targetTag));
+        });
+    if (support) add(support);
+
+    // The announced vote is a hard requirement and stays at the end of the dialogue.
+    const voteLine = unique.find(item => voteMatches(item.text));
+    if (voteLine) add(voteLine);
+
+    // A planned identity discussion or public suspect conclusion may be the actual turn focus.
+    const roleOrSuspect = unique.find(item =>
+      (plan.roleDiscussionEvent && targetTag && item.text.includes(targetTag) && /角色|身分|身份|技能/.test(item.text)) ||
+      (plan.publicSuspectBrief && item.text.includes('嫌疑') && /老朝奉|候選/.test(item.text))
+    );
+    if (roleOrSuspect && chosen.length < 6) add(roleOrSuspect);
+
+    // Add one short focus-specific opener only when it contributes context not already stated.
+    const current = chosen.join('');
+    const openerRedundant = !intro ||
+      (focus.type.includes('role') && /角色|身分|身份|老朝奉|藥不然/.test(current)) ||
+      (focus.type.includes('defend') && /質疑|自辯|票型|投票/.test(current)) ||
+      (focus.type === 'challenge' && /請.*(?:說明|解釋|交代)|為什麼/.test(current));
+    if (intro && !openerRedundant && chosen.length < 6) chosen.unshift(intro);
+
+    // Fill only when the core selection is sparse, and only with a sentence tied to
+    // the chosen person or this round's announced beast. Never append unrelated reports.
+    if (chosen.length < 3) {
+      const focusedFallback = unique.find(item => !chosenKeys.has(normalize(item.text)) &&
+        ((targetTag && item.text.includes(targetTag)) || (plan.beast && item.text.includes(B(plan.beast))) ||
+          (focus.type === 'role_probe' && /角色|身分|身份|技能|傳牌/.test(item.text))) &&
+        !/我會比對支持與反對|再決定是否跟票|我會拿公開紀錄再比一次投不投|我會再交叉核對|目前票數預估|全局盤面估算/.test(item.text));
+      if (focusedFallback) add(focusedFallback);
+    }
+    return chosen.length ? chosen : unique.slice(0, 5).map(item => item.text);
+  }
 
   function localSpeech(bot, room, plan, A) {
     const { ctx } = A;
+    if (GD.Strategy && typeof GD.Strategy.deriveDialogueFocus === 'function') {
+      // Re-derive against the final plan; callers/tests may add a suspect or response
+      // after an earlier plan snapshot has already selected a generic focus.
+      plan = { ...plan, dialogueFocus: GD.Strategy.deriveDialogueFocus(bot, room, plan, A) };
+    }
     
     const parts = [];
     let roleDiscussionLine = '';
@@ -1083,16 +1387,49 @@
     };
     const askPublicLine = target => {
       if (!target || !plan.askId) return '';
-      const context = `${target.botId || target.name || target.id}:${plan.askVotes}:${plan.askRound}:${plan.askBeast}`;
+      const e = plan.askEvidence || {};
+      const context = `${target.botId || target.name || target.id}:${plan.askKind || 'public'}:${JSON.stringify(e)}`;
       const seed = GD.DialogueBank ? GD.DialogueBank.hash(`${dialogueSeedText}:ask:${context}`) : dialogueSeed;
-      const forms = [
-        `有件事要請${U.tag(target)}說明一下：你過去投給後來公開判為贗品的獸共 ${plan.askVotes} 票；最近一次是第 ${plan.askRound} 輪投${B(plan.askBeast)}。這是事後對照，當時的依據是什麼？`,
-        `${U.tag(target)}，我想請你說明一下：投給後來判為贗品的獸共有 ${plan.askVotes} 票，最近一次在第 ${plan.askRound} 輪投${B(plan.askBeast)}。投票當下你看到了什麼線索？`,
-        `回頭看票單，${U.tag(target)}投給後來公開判假的獸共 ${plan.askVotes} 票，最近是第 ${plan.askRound} 輪的${B(plan.askBeast)}；請你說明當時的判斷依據？`,
-        `我想把這幾票問清楚，請${U.tag(target)}解釋一下：後來判假的獸首共投 ${plan.askVotes} 票，最近是第 ${plan.askRound} 輪投${B(plan.askBeast)}。當時你根據什麼決定？`,
-        `有個票型問題想請${U.tag(target)}交代：投給後來公開判為贗品的獸共 ${plan.askVotes} 票，最近是第 ${plan.askRound} 輪的${B(plan.askBeast)}。投票時你知道哪些線索？`,
-        `關於這 ${plan.askVotes} 票，請${U.tag(target)}說明當時怎麼判斷：最近一次在第 ${plan.askRound} 輪投${B(plan.askBeast)}，那些獸首是事後才被判為贗品的。`
-      ];
+      const tag = U.tag(target);
+      const formsByKind = {
+        fake_vote: [
+          `請${tag}說明一下：回頭看票單，你過去投給後來公開判假的獸首共 ${Number(e.votes || 0)} 票，最近一次是第 ${Number(e.round || 0)} 輪的${B(e.beast || '未知')}。這是事後對照，投票當下你根據什麼判斷？`,
+          `請${tag}解釋這筆歷史票型：第 ${Number(e.round || 0)} 輪你投了${B(e.beast || '未知')}，它後來公開判為贗品；累計有 ${Number(e.votes || 0)} 票。當時有哪些依據？`,
+          `請${tag}說明當時的判斷：你投給後來判假的獸首共 ${Number(e.votes || 0)} 票，最近是第 ${Number(e.round || 0)} 輪的${B(e.beast || '未知')}。不要用結果倒推，講當時的理由就好。`
+        ],
+        vote_dissonance: [
+          `請${tag}說明一下，第 ${Number(e.round || 0)} 輪你公開喊${(e.calledBeasts || []).map(B).join('、')}，票單卻把 ${Number(e.investedChips || 0)} 票放在${B(e.investedBeast || '未知')}；當時有分票安排，還是中途改變想法？`,
+          `請${tag}解釋第 ${Number(e.round || 0)} 輪的發言和票單：你喊的目標是${(e.calledBeasts || []).map(B).join('、')}，實際比較多票落在${B(e.investedBeast || '未知')}。這兩個方向怎麼安排的？`,
+          `請${tag}說明這個票向落差：你第 ${Number(e.round || 0)} 輪公開支持${(e.calledBeasts || []).map(B).join('、')}，但 ${Number(e.investedChips || 0)} 票投了${B(e.investedBeast || '未知')}。是刻意分票，還是有新理由？`
+        ],
+        inspection_conflict: [
+          `請${tag}說明一下：第 ${Number(e.round || 0)} 輪你公開談【${e.beast || '未知'}】的真偽，和我查驗到的結果不一樣。是技能時點、視野差，還是我們其中一邊判斷錯了？`,
+          `請${tag}解釋【${e.beast || '未知'}】這段查驗紀錄：你當時公開說法跟我的查驗畫面對不上。先別急著定誰在說謊，你能不能講清楚查驗時點和依據？`,
+          `請${tag}說明你對第 ${Number(e.round || 0)} 輪【${e.beast || '未知'}】的判斷；我這邊的結果和你的公開主張有落差，得先排除技能影響。`
+        ],
+        speech_contradiction: [
+          `請${tag}說明一下：你第 ${Number(e.round || 0)} 輪同一段發言裡，把【${e.beast || '未知'}】先說成真、後面又說成假。你最後採用哪個判斷？`,
+          `請${tag}確認並解釋一下：剛才那段話有個地方對不上，你對【${e.beast || '未知'}】同時用了真品和贗品兩種說法。哪一句才是你真正的結論？`
+        ],
+        claim_shift: [
+          `請${tag}說明一下：你第 ${Number(e.earlierRound || 0)} 輪對【${e.beast || '未知'}】的判斷，和第 ${Number(e.latestRound || 0)} 輪的說法不一樣。中間多了什麼新線索？`,
+          `請${tag}解釋前後判斷的差別：你之前對【${e.beast || '未知'}】的說法，和後來那次不一樣。改口不一定有問題，請把理由講清楚。`
+        ],
+        role_shift: [
+          `請${tag}說明角色說法為什麼改變：第 ${Number(e.earlierRound || 0)} 輪你自稱【${e.earlierRole || '未知'}】，第 ${Number(e.latestRound || 0)} 輪又說自己是【${e.latestRole || '未知'}】；對應的技能紀錄是哪一段？`,
+          `請${tag}解釋角色說法的前後差異：你之前說自己是【${e.earlierRole || '未知'}】，後來又自稱【${e.latestRole || '未知'}】；對應的技能和時序是哪一段？`
+        ],
+        role_swap: [
+          `請${tag}說明：你自稱【${e.ownRole || '未知'}】，${e.otherTag || '另一位玩家'}則自稱【${e.otherRole || '未知'}】。這可能都是真的，也可能有人在互換身分掩護；請用技能和傳牌時序支持自己的版本。`,
+          `請${tag}解釋一下：你和${e.otherTag || '另一位玩家'}分別自稱【${e.ownRole || '未知'}】與【${e.otherRole || '未知'}】。先不看誰講得像，請指出哪一段公開行動能證明自己的說法。`,
+          `請${tag}說清楚自己的角色依據。你和${e.otherTag || '另一位玩家'}剛好把【老朝奉】和【藥不然】兩個身分分開認領，這兩個版本如何與技能時點對得上？`
+        ],
+        role_hypothesis: [
+          `請${tag}說明一下：你先前提過【${e.role || '某角色'}】的身份猜測，這個方向也有其他人提過。你是根據哪次技能或傳牌時點判斷？`,
+          `請${tag}解釋你先前提出的【${e.role || '某角色'}】猜測：先別把猜測當定論，能不能說出一個可核對的技能紀錄？`
+        ]
+      };
+      const forms = formsByKind[plan.askKind] || [`請${tag}說明一下這項公開紀錄的依據，讓大家能核對前後說法。`];
       return chooseDistinctLine(forms, seed, bot, room);
     };
     const passOrder = Array.isArray(ctx.rd?.passOrder) ? ctx.rd.passOrder : [];
@@ -1104,10 +1441,17 @@
         speech: s,
         position: speechOrder ? speechOrder.indexOf(s && s.playerId) : storedIndex
       }))
-      .filter(item => item.position >= 0 &&
-        item.speech.playerId !== bot.id &&
-        (!speechOrder || item.position < speechOrder.indexOf(bot.id)))
-      .sort((a, b) => b.position - a.position)
+      .filter(item => item.speech.playerId !== bot.id &&
+        (item.speech.voiceTranscript === true || (item.position >= 0 &&
+          (!speechOrder || item.position < speechOrder.indexOf(bot.id)))))
+      .sort((a, b) => {
+        const at = Number(a.speech && a.speech.createdAt) || 0;
+        const bt = Number(b.speech && b.speech.createdAt) || 0;
+        if (at && bt) return bt - at;
+        if (a.speech.voiceTranscript && !bt) return -1;
+        if (b.speech.voiceTranscript && !at) return 1;
+        return b.position - a.position;
+      })
       .map(item => item.speech);
     const lastPriorSpeech = priorSpeeches[0] || null;
     const parsePriorForThread = speech => {
@@ -1289,14 +1633,9 @@
       } else if (humanRoleClaim && mainClaim && humanRoleClaim === bot.role) {
         parts.push(`${humanLabel}也提出與我相同的角色版本；這仍需依原始發言與技能時點核對。`);
       }
-      if (humanCall && !mainClaim && !humanCorrection) {
-        const callSeed = GD.DialogueBank.hash(`${dialogueSeedText}:human-call:${humanPlayer && (humanPlayer.botId || humanPlayer.id) || humanLabel}:${humanCall}:${plan.beast}`);
-        publicResponseLine = freshPickLine('publicCallResponse', callSeed, { speaker: humanLabel, beast: humanCall, voteBeast: plan.beast });
-        parts.push(publicResponseLine);
-      } else if (humanCall && mainClaim) {
-        parts.push(humanCall === plan.beast
-          ? `${humanLabel}也主張投${B(humanCall)}，這輪我會跟同一個方向。`
-          : `${humanLabel}希望大家投${B(humanCall)}，但我的票投${B(plan.beast)}；開票後再看哪個判斷站得住。`);
+      if (humanCall && !humanCorrection) {
+        publicResponseLine = concreteVoteReply(bot, room, plan, A, lastPublicSpeaker.playerId, humanLabel, humanCall, humanParsed);
+        if (publicResponseLine) parts.push(publicResponseLine);
       }
       if (humanTarget) {
         const accusationSeed = GD.DialogueBank.hash(`${dialogueSeedText}:human-accusation:${humanPlayer && (humanPlayer.botId || humanPlayer.id) || humanLabel}:${humanTarget.botId || humanTarget.name || humanTarget.id}`);
@@ -1370,7 +1709,9 @@
         if (priorTarget) {
           parts.push(`${priorLabel}剛才把疑點指向${U.tag(priorTarget)}；我會對照他的原話與公開票型，不只憑單一指控定案。`);
         } else if (priorVoteCall && (ctx.rd?.beasts || []).some(b => b.name === priorVoteCall)) {
-          parts.push(`${priorLabel}剛才主張投${B(priorVoteCall)}；我會比對支持與反對這個目標的公開線索，再決定是否跟票。`);
+          const speakerParsed = parsePriorForThread(lastPriorSpeech);
+          const reply = concreteVoteReply(bot, room, plan, A, lastPriorSpeech.playerId, priorLabel, priorVoteCall, speakerParsed);
+          if (reply) parts.push(reply);
         } else if (priorCamp && campTarget) {
           parts.push(`${priorLabel}公開表示${U.tag(campTarget)}屬於${priorCamp.camp === 'evil' ? '壞人' : '好人'}陣營；這是他的判斷，我會再核對技能時點和其他可見行為。`);
         } else if (lastParsed.selfRole) {
@@ -1458,6 +1799,19 @@
       parts.push(publicSuspectLine(A.topSuspect, ctx, parts));
     }
 
+    // If a public plan names a suspect and this Bot's role ranking is decisive enough,
+    // phrase it as a tentative hypothesis rather than exposing logits or claiming certainty.
+    if (plan.suspectId && ctx.t >= 0) {
+      const suspectPlayer = U.byId(room, plan.suspectId);
+      const suspectProfile = A.prof && A.prof[plan.suspectId];
+      const laoScore = Number(suspectProfile && suspectProfile.probs && suspectProfile.probs['老朝奉']);
+      if (suspectPlayer && Number.isFinite(laoScore) && laoScore >= 55 &&
+          !suspectProfile.knownGood && suspectProfile.knownCamp !== 'good' &&
+          !parts.some(part => String(part || '').includes(U.tag(suspectPlayer)) && /可能是【老朝奉】/.test(String(part || '')))) {
+        parts.push(`我目前懷疑${U.tag(suspectPlayer)}可能是【老朝奉】，但這只是推測，還要核對技能時點和公開行動。`);
+      }
+    }
+
     /* ①-b 票型質問（好人）：只引用公開的票型，不碰私密依據 */
     if (plan.askId) {
       const q = U.byId(room, plan.askId);
@@ -1479,6 +1833,10 @@
     }
 
     /* ② 偽裝 / 帶風向 / 查驗陳述 */
+    if (!ctx.isGood && plan.skillCoverStory && plan.skillCoverStory.line &&
+        (!plan.roleBluff || ['藥不然', '鄭國渠'].includes(plan.roleBluff.role)) && !(plan.trueRoleSignal && plan.trueRoleSignal.reveal) && !plan.roleDiscussionEvent) {
+      parts.push(plan.skillCoverStory.line);
+    }
     let publicRoleSwitchLine = '';
     const previousPublicRoleClaim = (() => {
       const claims = [];
@@ -1540,7 +1898,7 @@
         parts.push(denial);
       }
     }
-    if (plan.confess) {
+    if (plan.confess && plan.roleAbilityCover !== 'unreadable') {
       // 認壞不是只承認陣營：必須同時給出明確贗品判斷與相同的公開票向。
       parts.push('我認壞，不再裝了。');
       if (plan.beast) parts.push(`【${plan.beast}】是贗品，我主張這輪把票投向【${plan.beast}】，也請大家一起投這尊。`);
@@ -1837,12 +2195,26 @@
     }
     const forecastRows = plan.voteForecast && Array.isArray(plan.voteForecast.ranking)
       ? plan.voteForecast.ranking.filter(row => row && row.name).slice(0, 2) : [];
-    if (forecastRows.length) {
+    if (forecastRows.length && (!plan.dialogueFocus || ['vote', 'inspection_report'].includes(plan.dialogueFocus.type))) {
       const forecastText = forecastRows.map(row => `${B(row.name)}約${Math.round(Number(row.expectedVotes) || 0)}票`).join('、');
       compactParts.push(`目前票數預估是${forecastText}，但這只是預測，最後仍以實際投票為準。`);
     }
-    // normalizeTemplate 已刪除跨輪與本輪重複句；不再因篇幅門檻刪除證據或人物回應。
-    let assembled = simplifyDialogue(compactParts.join(''));
+    // The focus-driven builder replaces report-like accumulation with one main topic,
+    // the minimum evidence needed to support it, approved claims, and the actual vote.
+    const focusedParts = focusDrivenSelectParts(compactParts, plan, bot, room, ctx);
+    let assembled = simplifyDialogue(focusedParts.join(''));
+    // 戰術層若選定可執行的投票模式，表達層需公開最低限度、且不洩漏私密隊友資訊的票向。
+    const socialTactic = plan.socialTactic || null;
+    if (socialTactic && socialTactic.ballotMode === 'bait-one-chip' && socialTactic.ballotBeast &&
+        !assembled.includes(B(socialTactic.ballotBeast))) {
+      assembled += `我先投${B(socialTactic.ballotBeast)}一票作探路，看看後面有沒有獨立理由。`;
+    } else if (socialTactic && socialTactic.ballotMode === 'all-in' && socialTactic.ballotBeast &&
+        !assembled.includes(B(socialTactic.ballotBeast))) {
+      assembled += `這輪我集中把票投向${B(socialTactic.ballotBeast)}，目標是爭取前二，不代表真偽已經確定。`;
+    } else if (socialTactic && socialTactic.ballotMode === 'camouflage-betrayal' && socialTactic.coverBeast &&
+        !assembled.includes(B(socialTactic.coverBeast))) {
+      assembled += `我也會把${B(socialTactic.coverBeast)}納入票型考量，不會只跟著單一風向走。`;
+    }
     // 確保公開主票方向存在；即使補上後較長，也不截斷原有推理內容。
     const finalCallParse = Claims.parse(assembled, room, ctx.rd);
     if (plan.beast && !(finalCallParse.callBeasts || []).includes(plan.beast)) {
@@ -1853,8 +2225,9 @@
     const localPerformanceAudit = auditPublicPerformanceClaim(plan, Claims.parse(assembled, room, ctx.rd).claims,
       Claims.parse(assembled, room, ctx.rd).callBeasts);
     const localLeakAudit = auditPrivateThoughtLeakage(assembled);
-    if (!localAudit.ok || !localHumanAudit.ok || !localPerformanceAudit.ok || !localLeakAudit.ok) {
-      if (typeof process !== 'undefined' && process.env && process.env.DEBUG_SPEECH_AUDIT) console.error('LOCAL_AUDIT', bot.name, bot.role, plan.mode, localAudit.why, '\nTEXT=', assembled);
+    const localActionAudit = auditActionConsistency(assembled, bot, room, plan, A);
+    if (!localAudit.ok || !localHumanAudit.ok || !localPerformanceAudit.ok || !localLeakAudit.ok || !localActionAudit.ok) {
+      if (typeof process !== 'undefined' && process.env && process.env.DEBUG_SPEECH_AUDIT) console.error('LOCAL_AUDIT', bot.name, bot.role, plan.mode, localAudit.why || localActionAudit.why, '\nTEXT=', assembled);
       // Remove only the sentence that fails the public-fact audit; preserve any planned bluff, role claim,
       // true-role signal and ballot call elsewhere in the generated local speech.
       const sentenceParts = assembled.match(/[^。！？!?]+[。！？!?]?/g) || [assembled];
@@ -1864,7 +2237,8 @@
       if (sanitized && auditPublicConsistency(sanitized, room, bot, plan, A).ok &&
           publicResponseAudit(sanitized, publicThreadForSpeech, bot, plan).ok &&
           auditPublicPerformanceClaim(plan, sanitizedParsed.claims, sanitizedParsed.callBeasts).ok &&
-          auditPrivateThoughtLeakage(sanitized).ok) return distinctLocalSpeech(sanitized, bot, room, plan);
+          auditPrivateThoughtLeakage(sanitized).ok &&
+          auditActionConsistency(sanitized, bot, room, plan, A).ok) return distinctLocalSpeech(sanitized, bot, room, plan);
 
       // Last-resort construction retains required strategy contracts instead of dropping all role-play.
       const safeParts = [];
@@ -1912,8 +2286,13 @@
       if (plan.publicSuspectBrief && !safeParts.some(part => part.includes(plan.publicSuspectBrief))) safeParts.push(plan.publicSuspectBrief);
       if (roleDiscussionLine) safeParts.push(roleDiscussionLine);
       if (plan.xuYuanLine && !safeParts.some(part => part.includes(plan.xuYuanLine))) safeParts.push(plan.xuYuanLine);
-      if (plan.confess || plan.evilRolePerformance) {
-        if (plan.confess) safeParts.push('我認壞，不再裝了。');
+      if (plan.confess) {
+        safeParts.push('我認壞，不再裝了。');
+        safeParts.push(`【${plan.beast}】是贗品，我主張這輪把票投向【${plan.beast}】，也請大家一起投這尊。`);
+      } else if (plan.roleAbilityCover === 'unreadable') {
+        // 「驗不到」能力偽裝優先於殘留的 evilRolePerformance 旗標；不能同時報出獸首真偽。
+        safeParts.push(`這輪沒有直接獸首查驗結果，我把票投向${B(plan.beast)}，這是依其他公開線索做的投票，不是親自驗出的真偽。`);
+      } else if (plan.evilRolePerformance) {
         safeParts.push(`【${plan.beast}】是贗品，我主張這輪把票投向【${plan.beast}】，也請大家一起投這尊。`);
       } else {
         const voteForms = [
@@ -2226,7 +2605,7 @@
   }
 
   function auditPublicPerformanceClaim(plan, claims, callBeasts) {
-    if (!(plan && (plan.confess || plan.evilRolePerformance))) return { ok: true };
+    if (!plan || (!plan.confess && plan.roleAbilityCover === 'unreadable') || !(plan.confess || plan.evilRolePerformance)) return { ok: true };
     const targetClaims = (Array.isArray(claims) ? claims : []).filter(c => c && c.beast === plan.beast && typeof c.real === 'boolean');
     if (!targetClaims.some(c => c.real === false) || targetClaims.some(c => c.real === true)) {
       return { ok: false, why: '認壞／跳壞必須把同一目標說成贗品，不能一邊認壞一邊替它背書為真品' };
@@ -2248,8 +2627,16 @@
     return /^\s*(?:我(?:有)?(?:聽到|聽見|收到)(?:了)?|我的?這邊(?:有)?收到|我記下了)[。！？!?,，\s]*$/u.test(String(text || ''));
   }
 
+  function normalizeRepeatedAttribution(text) {
+    let value = String(text || '');
+    // 修正「紫色【某人】：紫色【某人】……」等拼裝式重複署名。
+    value = value.replace(/((?:黑|紅|橘|黃|綠|藍|紫|白)色【[^】]+】)(?:\s*(?:說|表示|主張|認為))?\s*[：:]\s*\1/g, '$1：');
+    value = value.replace(/((?:黑|紅|橘|黃|綠|藍|紫|白)色【[^】]+】)\s+\1/g, '$1');
+    return value;
+  }
+
   function simplifyDialogue(text) {
-    let value = String(text || '').replace(/[\t\r]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+    let value = normalizeRepeatedAttribution(text).replace(/[\t\r]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
     if (!value) return '';
     const boilerplate = [
       /我會納入本輪判斷[。！？]?/g,
@@ -2363,6 +2750,44 @@
       if (!similarBotSpeech(candidate, bot, room, 0.52)) return candidate;
     }
     return simplifyDialogue(`${result}${variants[index % variants.length]}`);
+  }
+
+  function auditActionConsistency(text, bot, room, plan, A) {
+    const s = String(text || '').trim();
+    if (!s || !bot || !plan || !A) return { ok: true };
+    const rd = U.curRound(room);
+    const parsed = Claims.parse(s, room, rd, bot.id);
+    if (bot.role === '方震' && !plan.fakeFangClaim && !plan.revealFang && (parsed.claims || []).length) {
+      return { ok: false, why: '真正方震只能公開陣營查驗，不能捏造獸首查驗結果' };
+    }
+    if (bot.role === '方震' && plan.hideBlind && (parsed.blind || /被偷襲|遭偷襲|偷襲成功|視野被中斷/.test(s))) {
+      return { ok: false, why: '方震不得透過失明台詞洩漏自己遭偷襲' };
+    }
+    if (plan.skillCoverStory && plan.skillCoverStory.role &&
+        (!plan.roleBluff || ['藥不然', '鄭國渠'].includes(plan.roleBluff.role)) && !(plan.trueRoleSignal && plan.trueRoleSignal.reveal) && !plan.roleDiscussionEvent) {
+      const reports = (parsed.abilityReports || []).filter(item => item && item.role === plan.skillCoverStory.role);
+      if (!reports.length) return { ok: false, why: '已選定藥不然攻擊／鄭國渠封印偽裝，但台詞沒有留下對應公開線索' };
+      if (plan.skillCoverStory.beast && !s.includes(`【${plan.skillCoverStory.beast}】`)) {
+        return { ok: false, why: '技能偽裝台詞漏掉指定獸首，無法核對其公開說法' };
+      }
+    }
+    const tactic = plan.socialTactic || null;
+    if (tactic && tactic.focus === 'attack' && tactic.targetId) {
+      const target = U.byId(room, tactic.targetId);
+      const tag = target ? U.tag(target) : tactic.targetTag || '';
+      if (tag && !s.includes(tag)) return { ok: false, why: '攻擊焦點已選定，但台詞沒有點名目標玩家' };
+    }
+    if (tactic && tactic.focus === 'bait' && tactic.targetId) {
+      const target = U.byId(room, tactic.targetId);
+      const tag = target ? U.tag(target) : tactic.targetTag || '';
+      if (tag && (!s.includes(tag) || !/(?:為什麼|怎麼|依據|理由|說明|核對)/.test(s))) {
+        return { ok: false, why: '試探焦點需要點名對象並提出可回應的問題' };
+      }
+    }
+    if (plan.revealBlind && !parsed.blind && !/(?:遭偷襲|被偷襲|視野被中斷)/.test(s)) {
+      return { ok: false, why: '策略決定公開失明，但發言未交代失明狀態' };
+    }
+    return { ok: true, parsed };
   }
 
   function validate(text, bot, room, plan, A) {
@@ -2518,7 +2943,7 @@
       }
     }
     // 假扮黃煙煙／木戶加奈的「驗不到」輪，不能同時又公開獸首真偽結果。
-    if (plan.roleAbilityCover === 'unreadable' && (!parsed.unsure || claims.length)) {
+    if (!plan.confess && plan.roleAbilityCover === 'unreadable' && (!parsed.unsure || claims.length)) {
       return { ok: false, why: '黃煙煙／木戶加奈偽裝的能力輪廓要求本輪驗不到且不得公開獸首真偽' };
     }
     // 許願不可同時報出 2 尊
@@ -2580,6 +3005,8 @@
       return { ok: false, why: '壞人自曝' };
     }
     if (A.ctx.isGood && parsed.selfEvil && !plannedFalseConfessOK) return { ok: false, why: '好人不可說自己是壞人' };
+    const actionAudit = auditActionConsistency(s, bot, room, plan, A);
+    if (!actionAudit.ok) return actionAudit;
     if (plan.askId) {
       const askTarget = U.byId(room, plan.askId);
       const explicitTargetQuestion = !!askTarget && s.includes(U.tag(askTarget)) &&
@@ -2591,8 +3018,9 @@
     return { ok: true, parsed };
   }
 
-  GD.Speech = { buildPrompt, localSpeech, validate, isFillerAcknowledgement, history, publicVoteCommitmentHistory, auditPublicConsistency,
-    latestPublicThread, compactPublicReply, publicResponseAudit, disclosesFangIdentity, simplifyDialogue,
-    buildPublicPerformanceContract, auditPublicPerformanceClaim, auditPrivateThoughtLeakage, dialogueSimilarity, similarBotSpeech, chooseDistinctLine };
+  GD.Speech = { buildPrompt, localSpeech, concreteVoteReply, concreteVoteReplyForLatestSpeaker, validate, auditActionConsistency, isFillerAcknowledgement, history, publicVoteCommitmentHistory, auditPublicConsistency,
+    latestPublicThread, compactPublicReply, publicResponseAudit, disclosesFangIdentity, normalizeRepeatedAttribution, simplifyDialogue,
+    buildPublicPerformanceContract, auditPublicPerformanceClaim, auditPrivateThoughtLeakage, dialogueSimilarity, similarBotSpeech, chooseDistinctLine,
+    focusDrivenSelectParts };
   if (typeof module !== 'undefined' && module.exports) module.exports = GD.Speech;
 })(typeof window !== 'undefined' ? window : global);

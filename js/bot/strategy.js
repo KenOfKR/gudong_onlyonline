@@ -75,6 +75,117 @@
     return Array.isArray(data.claims) ? data.claims : [];
   };
 
+
+  // Select one public-facing dialogue focus per turn. The focus is a presentation
+  // contract, not a new game rule and not a disclosure of private reasoning.
+  function deriveDialogueFocus(bot, room, plan, A) {
+    const ctx = A && A.ctx || {};
+    const rd = ctx.rd || U.curRound(room) || {};
+    const genes = ctx.genes || {};
+    const clamp01 = value => Math.max(0, Math.min(1, Number.isFinite(Number(value)) ? Number(value) : 0.5));
+    const assertiveness = clamp01(genes.assertiveness);
+    const camouflage = clamp01(genes.camouflage);
+    const deception = clamp01(genes.deception);
+    const skepticism = clamp01(genes.skepticism);
+    const targetFor = id => id ? U.byId(room, id) : null;
+    let type = 'vote';
+    let targetId = null;
+    let source = 'plan';
+    let priority = 20;
+
+    if (plan.publicRolePressure) {
+      type = 'defend_identity';
+      targetId = plan.publicRolePressure.speakerId || null;
+      source = 'public_role_pressure';
+      priority = 100;
+    } else if (plan.explain) {
+      type = 'defend_vote';
+      source = 'direct_question';
+      priority = 98;
+    } else if (plan.askKind === 'role_swap' || plan.askKind === 'role_shift') {
+      type = 'role_swap';
+      targetId = plan.askId || null;
+      source = 'role_claim_crosscheck';
+      priority = 96;
+    } else if (plan.askId) {
+      type = 'challenge';
+      targetId = plan.askId;
+      source = plan.askKind || 'public_evidence';
+      priority = 92;
+    } else if (plan.socialTactic && plan.socialTactic.focus === 'attack' && plan.socialTactic.targetId) {
+      type = 'suspect_pressure';
+      targetId = plan.socialTactic.targetId;
+      source = 'social_tactic';
+      priority = 90;
+    } else if (plan.socialTactic && plan.socialTactic.focus === 'bait' && plan.socialTactic.targetId) {
+      type = 'reply_vote';
+      targetId = plan.socialTactic.targetId;
+      source = 'social_tactic_bait';
+      priority = 84;
+    } else if (plan.roleDiscussionEvent && plan.roleDiscussionEvent.candidateId) {
+      type = 'role_probe';
+      targetId = plan.roleDiscussionEvent.candidateId;
+      source = 'public_role_hypothesis';
+      priority = 88;
+    } else {
+      const thread = GD.Speech && typeof GD.Speech.latestPublicThread === 'function'
+        ? GD.Speech.latestPublicThread(room, rd, bot) : null;
+      if (thread && thread.speech && !thread.addressed) {
+        const unanswered = thread.unanswered || {};
+        targetId = thread.speech.playerId || null;
+        if ((unanswered.roleClaims && unanswered.roleClaims.length) || unanswered.role) type = 'role_probe';
+        else if (unanswered.stances && unanswered.stances.length) type = 'soft_accusation';
+        else if (unanswered.defense) type = 'reply_defense';
+        else if (unanswered.claims && unanswered.claims.length) type = 'reply_claim';
+        else if (unanswered.call) type = 'reply_vote';
+        else type = 'reply_public';
+        source = 'unanswered_public_thread';
+        priority = 82;
+      } else if (plan.publicSuspectBrief || plan.suspectId) {
+        type = 'suspect_pressure';
+        targetId = plan.suspectId || (plan.publicSuspectTags && plan.publicSuspectTags[0] &&
+          (room.players || []).find(player => U.tag(player) === plan.publicSuspectTags[0])?.id) || null;
+        source = 'public_suspicion';
+        priority = 65;
+      } else if (plan.claims && plan.claims.length) {
+        type = 'inspection_report';
+        source = 'approved_public_claim';
+        priority = 45;
+      }
+    }
+
+    let style = 'conversational';
+    if (type === 'defend_identity' || type === 'defend_vote' || type === 'reply_defense') {
+      style = assertiveness >= 0.62 ? 'firm_defensive' : 'guarded';
+    } else if (type === 'role_swap' || type === 'role_probe' || type === 'challenge' || type === 'soft_accusation') {
+      style = assertiveness >= 0.68 ? 'direct' : skepticism >= 0.66 ? 'probing' : 'measured';
+    } else if (!ctx.isGood && (plan.roleBluff || plan.evilRolePerformance)) {
+      style = camouflage >= 0.66 || deception >= 0.70 ? 'subtle' : assertiveness >= 0.62 ? 'provocative' : 'persuasive';
+    } else if (camouflage >= 0.68 && assertiveness < 0.48) {
+      style = 'understated';
+    } else if (assertiveness >= 0.72) {
+      style = 'direct';
+    } else if (skepticism >= 0.70) {
+      style = 'probing';
+    }
+
+    const player = targetFor(targetId);
+    const focusLabels = {
+      defend_identity: '回應角色質疑', defend_vote: '解釋自己的票型', role_swap: '拆解角色互換',
+      challenge: '追問具體證據', role_probe: '核對角色假設', soft_accusation: '回應人物指控',
+      reply_defense: '回應玩家自辯', reply_claim: '回應前手查驗主張', reply_vote: '表態是否跟票',
+      reply_public: '接續前手發言', suspect_pressure: '提出有根據的嫌疑', inspection_report: '說明自己的查驗',
+      vote: '交代本輪票向'
+    };
+    return {
+      type, targetId, targetTag: player ? U.tag(player) : '', source, priority, style,
+      label: focusLabels[type] || focusLabels.vote,
+      round: Number(ctx.t || 0) + 1,
+      // Keep only presentation metadata in the public plan; never copy private role or inspection data.
+      publicOnly: true
+    };
+  }
+
   function hasPublicSuspectAssessment(room, speeches) {
     const players = Array.isArray(room && room.players) ? room.players : [];
     return (Array.isArray(speeches) ? speeches : []).some(sp => {
@@ -239,6 +350,95 @@
       committedRound: saved.committedRound || chosen.roundIndex + 1 };
   }
 
+  function chooseAbilityCoverStory(bot, room, plan, A) {
+    if (!bot || GD.isGood(bot.role) || !room) return null;
+    const rd = room.rounds && room.rounds[room.currentRoundIdx];
+    if (!rd) return null;
+    const log = rd.turnLogs && rd.turnLogs[bot.id] || {};
+    const ownAmbush = !!(log.ambushTargetId || (Array.isArray(log.ambushIds) && log.ambushIds.length));
+    const ownSeal = /封鎖|封印|封住/.test(String(log.ability || '') + ' ' + String(log.skillTag || ''));
+    const ownAmbushTarget = ownAmbush ? U.byId(room, log.ambushTargetId) : null;
+    const ownSealBeastMatch = String(log.ability || '').match(/封鎖【([鼠牛虎兔龍蛇馬羊猴雞狗豬])】/);
+    const ownSealBeast = ownSealBeastMatch && ownSealBeastMatch[1] || null;
+    const publicAbilityReports = [];
+    (room.rounds || []).slice(0, room.currentRoundIdx + 1).forEach(round => {
+      (round && round.speeches || []).forEach(sp => {
+        if (!sp) return;
+        const parsed = publicSpeechData(sp, room, round);
+        (parsed.abilityReports || []).forEach(report => publicAbilityReports.push({ ...report, speakerId: sp.playerId }));
+      });
+    });
+    const preferredRole = plan && plan.roleBluff && ['藥不然', '鄭國渠'].includes(plan.roleBluff.role)
+      ? plan.roleBluff.role : null;
+    const options = [
+      { role: '藥不然', kind: 'ambush', beast: plan && plan.beast, ownAction: bot.role === '藥不然' && ownAmbush,
+        targetId: ownAmbushTarget && ownAmbushTarget.id || null },
+      { role: '鄭國渠', kind: 'seal', beast: (bot.role === '鄭國渠' && ownSealBeast) || plan && plan.zhengBlindSignal && plan.zhengBlindSignal.beast || plan && plan.beast,
+        ownAction: bot.role === '鄭國渠' && ownSeal, targetId: null }
+    ];
+    let candidates = options.filter(item => item.beast && (rd.beasts || []).some(beast => beast.name === item.beast));
+    if (preferredRole) candidates = candidates.filter(item => item.role === preferredRole);
+    // 不可無故在假稱中點出自己的真實角色；只有自己當輪確有該技能行動時才可如實報告。
+    candidates = candidates.filter(item => item.role !== bot.role || item.ownAction);
+    if (!candidates.length) return null;
+    const genes = bot.genes || GD.Genes.load(bot.botId);
+    const deception = U.clamp(Number(genes.deception) || 0.5, 0, 1);
+    const camouflage = U.clamp(Number(genes.camouflage) || 0.5, 0, 1);
+    const seed = `${room.gameId || room.roomId || 'local'}:${room.currentRoundIdx}:${bot.botId || bot.id}:ability-cover`;
+    const opportunity = 0.18 + 0.22 * deception + 0.16 * camouflage;
+    if (!candidates.some(item => item.ownAction) && stableRoll(seed) > opportunity) return null;
+    const roleTieBreak = stableRoll(`${seed}:role`) < 0.5 ? '藥不然' : '鄭國渠';
+    const selected = candidates.slice().sort((a, b) => {
+      const aPublic = publicAbilityReports.filter(report => report.role === a.role && report.stance !== 'denial').length;
+      const bPublic = publicAbilityReports.filter(report => report.role === b.role && report.stance !== 'denial').length;
+      const scoreDelta = (Number(b.ownAction) * 4 + bPublic) - (Number(a.ownAction) * 4 + aPublic);
+      return scoreDelta || (a.role === roleTieBreak ? -1 : b.role === roleTieBreak ? 1 : 0);
+    })[0];
+    if (!selected) return null;
+    const targetId = selected.targetId || (A && A.prof ? Object.values(A.prof)
+      .filter(rec => rec && rec.player && rec.player.id !== bot.id && !(A.ctx && A.ctx.partner && rec.player.id === A.ctx.partner.id))
+      .sort((a, b) => Number(b.evil || 0) - Number(a.evil || 0))[0]?.player.id : null) || null;
+    const target = targetId && U.byId(room, targetId);
+    const isOwnVerifiedAction = !!selected.ownAction;
+    const priorPublicSupport = publicAbilityReports.filter(report => report.role === selected.role).length;
+    const styleRoll = stableRoll(`${seed}:stance`);
+    let stance, truthMode, line;
+    const targetText = target ? U.tag(target) : '相關玩家';
+    if (isOwnVerifiedAction) {
+      stance = 'assertion';
+      truthMode = 'verified-own-action';
+      line = selected.role === '藥不然'
+        ? `我能確認，${U.tag(ownAmbushTarget || target)}本輪受到藥不然攻擊；【${selected.beast}】的回報必須連同失明時序一起核對。`
+        : `我能確認，【${selected.beast}】本輪確實受到鄭國渠封印影響，不能直接當成一般查驗結果。`;
+    } else if (styleRoll < 0.24 + deception * 0.38) {
+      // 壞人可故意提出未經證實、甚至錯誤的技能斷言；推理端仍只記為公開說法。
+      stance = 'assertion';
+      truthMode = 'fabricated-public-assertion';
+      line = selected.role === '藥不然'
+        ? `我判斷${targetText}本輪確實受到藥不然攻擊；【${selected.beast}】這筆不能直接當成一般查驗結果。`
+        : `我判斷【${selected.beast}】本輪確實受到鄭國渠封印影響，這筆結果不能直接當成一般查驗。`;
+    } else if (styleRoll > 0.77 - camouflage * 0.18) {
+      stance = 'denial';
+      truthMode = 'fabricated-public-denial';
+      line = selected.role === '藥不然'
+        ? `我認為這輪沒有藥不然攻擊，別急著用偷襲解釋${targetText}的【${selected.beast}】回報。`
+        : `我認為這輪沒有鄭國渠封印，先不要用封印替【${selected.beast}】的結果找理由。`;
+    } else {
+      stance = 'hypothesis';
+      truthMode = 'fabricated-public-hypothesis';
+      line = selected.role === '藥不然'
+        ? `${targetText}的視野異常也可能是藥不然攻擊造成；我先把【${selected.beast}】列成待核對線索，不能直接當成已證實。`
+        : `${targetText}這筆查驗也可能受到鄭國渠封印影響；【${selected.beast}】先保留，必須再對照傳牌順位與其他回報。`;
+    }
+    return {
+      role: selected.role, kind: selected.kind, beast: selected.beast, targetId,
+      targetTag: target ? U.tag(target) : null, truthMode, stance,
+      priorPublicReports: priorPublicSupport,
+      provenance: isOwnVerifiedAction ? 'own-action-log' : 'generated-public-bluff',
+      verification: isOwnVerifiedAction ? 'own-action-only' : 'unverified', line
+    };
+  }
+
   function roleBluffFeasibility(role, bot, ctx, A) {
     if (!role || !bot || !ctx) return 0;
     const room = ctx.room || {};
@@ -268,11 +468,15 @@
     }
     if (role === '平民') return 0.78;
     const ownLogs = (room.rounds || []).slice(0, ctx.t + 1).map(rd => rd && rd.turnLogs && rd.turnLogs[bot.id]).filter(Boolean);
-    const ownAmbush = ownLogs.some(log => !!(log.ambushTargetId || (log.ambushIds || []).length || /偷襲/.test(String(log.ability || ''))));
-    const ownBlock = ownLogs.some(log => /封鎖|封住/.test(String(log.ability || '') + ' ' + String(log.skillTag || '')));
+    const ownAmbush = ownLogs.some(log => !!(log.ambushTargetId || (log.ambushIds || []).length || /偷襲|攻擊/.test(String(log.ability || ''))));
+    const ownBlock = ownLogs.some(log => /封鎖|封印|封住/.test(String(log.ability || '') + ' ' + String(log.skillTag || '')));
     const ownDisruption = ownLogs.some(log => /擾亂/.test(String(log.ability || '') + ' ' + String(log.skillTag || '')) || log.laoSkillDecision === 'activate');
-    if (role === '鄭國渠') return ownBlock ? 0.82 : (ctx.t === 0 ? 0.49 : 0.16);
-    if (role === '藥不然') return ownAmbush ? 0.82 : (ctx.t === 0 ? 0.49 : 0.16);
+    const publicSelfAbilityClaim = (room.rounds || []).slice(0, ctx.t + 1).some(rd =>
+      (rd && rd.speeches || []).some(sp => String(sp && sp.playerId) === String(bot.id) &&
+        (publicSpeechData(sp, room, rd).abilityReports || []).some(report => report.role === role &&
+          (report.selfAttribution === true || report.selfRoleClaim === true))));
+    if (role === '鄭國渠') return ownBlock ? 0.82 : publicSelfAbilityClaim ? 0.72 : (ctx.t === 0 ? 0.49 : 0.16);
+    if (role === '藥不然') return ownAmbush ? 0.82 : publicSelfAbilityClaim ? 0.72 : (ctx.t === 0 ? 0.49 : 0.16);
     if (role === '老朝奉') return ownDisruption ? 0.82 : (ctx.t === 0 ? 0.49 : 0.20);
     if (role === '姬雲浮') return 0.62;
     return 0.50;
@@ -281,49 +485,10 @@
   // Decide the frame using a stable roll shared by Lao's pass decision and Yao's skill decision.
   // Without Lao deliberately handing the phone to Yao, the ordinary evil pass policy keeps the partner late,
   // so the intended Lao-first / Yao-second setup almost never occurs in complete games.
-  function shouldActivateThirdSeatFrame(room, yao, lao, roundIndex) {
-    if (!room || !yao || !lao || yao.role !== '藥不然' || lao.role !== '老朝奉') return false;
-    const rd = (room.rounds || [])[roundIndex];
-    if (!rd || !Array.isArray(rd.passOrder)) return false;
-    const pass = rd.passOrder;
-    const laoPos = pass.indexOf(lao.id);
-    const yaoPos = pass.indexOf(yao.id);
-    const prePassSetup = laoPos === 0 && yaoPos < 0 && pass.length === 1;
-    const activeSetup = laoPos === 0 && yaoPos === 1;
-    if (!prePassSetup && !activeSetup) return false;
-    const left = room.players.filter(p => !pass.includes(p.id));
-    if (prePassSetup && (!left.some(p => p.id === yao.id) || left.length < 3)) return false;
-    if (activeSetup && left.length < 2) return false;
-    if (yao.isAmbushed || yao.isPermanentlyAmbushed || yao.pendingAmbush || yao.pendingImmediateAmbush || yao.pendingPermanentAmbush || lao.isPermanentlyAmbushed) return false;
-
-    const yaoCommitment = committedFalseRoleBluff(room, yao, roundIndex);
-    const laoCommitment = committedFalseRoleBluff(room, lao, roundIndex);
-    const identityCompatible = (!yaoCommitment || yaoCommitment.role === '老朝奉') &&
-      (!laoCommitment || laoCommitment.role === '藥不然');
-    if (!identityCompatible) return false;
-
-    const genes = yao.genes || (GD.Genes && GD.Genes.load ? GD.Genes.load(yao.botId) : { deception: 0.5 });
-    const state = evilStrategicState(room, yao);
-    const frameChance = U.clamp(0.20 + 0.38 * (Number(genes.deception) || 0) + (state.posture === 'desperate' ? 0.12 : 0), 0.14, 0.76);
-    const frameKey = `${yao.botId || yao.id}:${room.roomId || ''}:${roundIndex}:1:YAO_THIRD_SEAT_FRAME`;
-    return stableRoll(frameKey) < frameChance;
-  }
-
-  // The special setup exists only when the real Yao targeted the third pass-order actor
-  // from position two and the real Lao was first; this is a legal, high-risk identity-swap ploy.
-  function currentAmbushSwap(room) {
-    const rd = U.curRound(room);
-    if (!rd || !Array.isArray(rd.passOrder)) return null;
-    const yao = (room.players || []).find(p => p.role === '藥不然');
-    const lao = (room.players || []).find(p => p.role === '老朝奉');
-    if (!yao || !lao) return null;
-    const yl = rd.turnLogs && rd.turnLogs[yao.id];
-    const victimId = yl && yl.ambushTargetId;
-    const victimLog = victimId && rd.turnLogs && rd.turnLogs[victimId];
-    if (!yl || !yl.ambushFrameTactic || !victimId || !victimLog || !victimLog.blind) return null;
-    if (rd.passOrder.indexOf(lao.id) !== 0 || rd.passOrder.indexOf(yao.id) !== 1 || rd.passOrder.indexOf(victimId) !== 2) return null;
-    return { firstId: lao.id, secondId: yao.id, victimId, origin: 'ambush-role-swap' };
-  }
+  // v10.9 retires the legacy forced Lao-first / Yao-second third-seat script.
+  // Ordinary Yao ambush selection and pass evaluation remain unchanged.
+  function shouldActivateThirdSeatFrame() { return false; }
+  function currentAmbushSwap() { return null; }
 
   /* EVIL_MACRO_STRATEGY_V1: 只依公開資訊與 Bot 自己保存的後驗估分，不讀取封存第一名的真實真偽。 */
   function evilStrategicState(room, bot) {
@@ -380,6 +545,213 @@
     return rnd() < hideP ? 'conceal' : 'aggressive';
   }
 
+  // 終局角色候選只建立一次排序；決策、前三名與覆盤共用同一份分數和證據。
+  // 局中只讀自己的私密查驗，以及全場公開發言／票單；絕不讀其他玩家的私密 turnLogs。
+  function assessFinalRoleCandidates(bot, room, A, targetRole) {
+    const ctx = A.ctx || {};
+    const partnerId = ctx.partner && ctx.partner.id;
+    const goodTarget = targetRole === '許願' || targetRole === '方震' || targetRole === '好人誘餌';
+    const hardExcluded = [];
+    const ranked = [];
+    const rounds = Array.isArray(room.rounds) ? room.rounds : [];
+
+    Object.values(A.prof || {}).forEach(rec => {
+      if (!rec || !rec.player || rec.player.id === bot.id) return;
+      const player = rec.player;
+      const id = player.id;
+      let hardReason = '';
+      if (partnerId && id === partnerId) {
+        hardReason = `我的秘密同伴（${bot.role === '老朝奉' ? '藥不然' : bot.role === '藥不然' ? '老朝奉' : '已知同伴'}）已確認，不可能是目標角色`;
+      } else if (!goodTarget && targetRole === '老朝奉' && (rec.knownCamp === 'good' || rec.knownGood)) {
+        hardReason = '我自己的方震陣營查驗已確認他是好人，不可能是老朝奉';
+      } else if (goodTarget && (rec.knownCamp === 'evil' || rec.knownEvil || rec.confessed)) {
+        hardReason = '已有可靠陣營資訊確認他屬於壞人方，不可能是好人角色';
+      }
+      if (hardReason) {
+        hardExcluded.push({ id, tag: U.tag(player), role: player.role || '', reason: hardReason, strength: 'hard' });
+        return;
+      }
+
+      const probs = rec.probs || {};
+      const evidence = [];
+      let roleAdjust = 0;
+      const seenReports = new Set();
+      const seenUncertainty = new Set();
+      let roleClaimRounds = 0;
+      let campCheckCount = 0;
+      let dualInspectionRounds = 0;
+      let limitedInspectionRounds = 0;
+      let blindRounds = 0;
+
+      rounds.forEach((rd, roundIndex) => {
+        if (!rd) return;
+        const sp = (rd.speeches || []).find(item => item && item.playerId === id);
+        if (!sp) return;
+        const data = publicSpeechData(sp, room, rd) || {};
+        if (data.selfRole === targetRole) {
+          roleClaimRounds++;
+          roleAdjust += 0.12;
+          evidence.push({ strength: 'weak', round: roundIndex + 1, source: 'public-role-claim', text: `第${roundIndex + 1}輪公開自稱【${targetRole}】；自稱可能是假跳，只給少量支持` });
+        }
+        // 角色指控／技能歸因僅來自公開語句，權重刻意低於可交叉核對的技能時序。
+        if (targetRole === '老朝奉') {
+          const laoAccusations = (data.roleClaims || []).filter(item => item && item.playerId === id && item.role === '老朝奉' &&
+            !['deny', 'fake'].includes(item.polarity));
+          if (laoAccusations.length) {
+            roleAdjust += Math.min(0.48, laoAccusations.length * 0.24);
+            evidence.push({ strength: 'weak', round: roundIndex + 1, source: 'public-role-attribution', text: `第${roundIndex + 1}輪有公開發言把此人列為老朝奉候選；可能是錯誤指認或栽贓，僅作弱佐證` });
+          }
+        }
+        const abilityReports = Array.isArray(data.abilityReports) ? data.abilityReports : [];
+        abilityReports.forEach(report => {
+          if (!report || report.stance === 'denial') return;
+          const roleMatch = report.role === targetRole;
+          const targetMatch = (report.targetIds || []).some(targetId => String(targetId) === String(id));
+          if (roleMatch && targetMatch) {
+            const weight = report.stance === 'assertion' ? 0.62 : 0.34;
+            roleAdjust += weight;
+            evidence.push({ strength: 'weak', round: roundIndex + 1, source: 'public-unverified-ability-attribution', text: `第${roundIndex + 1}輪有玩家公開把${U.tag(player)}與${report.role === '藥不然' ? '攻擊' : '封印'}線索連結；尚未驗證，也可能是假線索` });
+          }
+          if (roleMatch && report.selfAttribution === true && String(sp.playerId) === String(id)) {
+            roleAdjust += 0.14;
+            evidence.push({ strength: 'weak', round: roundIndex + 1, source: 'public-self-ability-claim', text: `第${roundIndex + 1}輪本人公開提到【${targetRole}】技能；可能是真實報告或偽裝，不當成技能已發動` });
+          }
+        });
+
+        const reports = Array.isArray(data.inspectionReports) ? data.inspectionReports : [];
+        const thisRoundBeasts = new Set();
+        reports.forEach(report => {
+          if (!report || Number(report.round) !== roundIndex + 1 || !report.beast || typeof report.claimedReal !== 'boolean') return;
+          const key = `${roundIndex + 1}|${report.beast}|${report.claimedReal}`;
+          if (seenReports.has(key)) return;
+          seenReports.add(key);
+          thisRoundBeasts.add(report.beast);
+        });
+        if (targetRole === '許願' && thisRoundBeasts.size >= 2) {
+          dualInspectionRounds++;
+          roleAdjust += 3.2;
+          evidence.push({ strength: 'medium', round: roundIndex + 1, source: 'public-dual-inspection-report', text: `第${roundIndex + 1}輪公開回報查驗至少兩尊不同獸首，符合許願的雙查驗能力；仍屬自述，未獨立驗證` });
+        }
+
+        const uncertainty = Array.isArray(data.uncertaintyReasons) ? data.uncertaintyReasons : [];
+        const hasLimitedView = !!(data.blind || data.unsure || uncertainty.length);
+        if (hasLimitedView) {
+          const reasonKey = `${roundIndex + 1}|${uncertainty.map(x => x && x.reason).join(',')}|${data.blind ? 1 : 0}|${data.unsure ? 1 : 0}`;
+          if (!seenUncertainty.has(reasonKey)) {
+            seenUncertainty.add(reasonKey);
+            const reasons = uncertainty.map(x => x && x.reason).filter(Boolean);
+            const isBlind = !!data.blind || reasons.includes('ambush');
+            const isBlocked = reasons.includes('blocked');
+            if (isBlind) blindRounds++;
+            if (targetRole === '許願') {
+              limitedInspectionRounds++;
+              const penalty = isBlind ? 0.9 : isBlocked ? 0.6 : 0.8;
+              roleAdjust -= penalty;
+              const explanation = isBlind
+                ? '自述該輪遭偷襲／看不清，可能是藥不然造成，不能直接當成角色證明'
+                : isBlocked
+                  ? '自述該輪有查驗受阻；封印可能只影響部分查驗，故只列弱反證'
+                  : '自述該輪驗不到，只能算很弱的反證；黃煙煙／木戶加奈本身也有一次困惑回合，偷襲或封鎖也可能造成看不到結果，不能單憑這一輪把人刪掉';
+              evidence.push({ strength: 'weak', round: roundIndex + 1, source: 'public-limited-inspection', text: `第${roundIndex + 1}輪${explanation}` });
+            } else if (targetRole === '藥不然' && isBlind) {
+              roleAdjust += 0.12;
+              evidence.push({ strength: 'weak', round: roundIndex + 1, source: 'public-blind-report', text: `第${roundIndex + 1}輪自述遭偷襲致盲；受害者回報不代表本人就是藥不然，只保留極弱時序參考` });
+            }
+          }
+        }
+
+        const campChecks = Array.isArray(data.campChecks) ? data.campChecks : [];
+        if (targetRole === '方震' && campChecks.length) {
+          campCheckCount += campChecks.length;
+          const bonus = Math.min(4.5, campChecks.length * 2.2);
+          roleAdjust += bonus;
+          evidence.push({ strength: 'medium', round: roundIndex + 1, source: 'public-camp-check-claim', text: `第${roundIndex + 1}輪公開提到${campChecks.length}次陣營查驗，符合方震能力特徵；但口頭宣稱仍可能是假跳` });
+        }
+      });
+
+      // 歷史投票只在第二名公開揭曉後做事後比對；不把投票當下未知的結果當成定罪證據。
+      let retrospectiveFakeVotes = 0;
+      rounds.forEach((rd, roundIndex) => {
+        const opened = rd && rd.voteResults && rd.voteResults.rank2;
+        if (!opened || opened.hidden !== false || opened.isReal !== false || !opened.name || !rd.votes) return;
+        const chips = Math.max(0, Number(rd.votes[id] && rd.votes[id][opened.name]) || 0);
+        if (!chips) return;
+        retrospectiveFakeVotes += chips;
+        const delta = Math.min(1.8, chips * 0.28);
+        roleAdjust += targetRole === '老朝奉' ? delta : (goodTarget ? -delta : 0);
+        evidence.push({ strength: 'weak', round: roundIndex + 1, source: 'retrospective-public-ballot', text: `第${roundIndex + 1}輪投給後來公開判假的【${opened.name}】${chips}票；當時尚未知道結果，僅是事後弱線索，可能是誤判或戰術分票` });
+      });
+
+      let baseScore;
+      if (targetRole === '老朝奉') baseScore = finalLaoCandidateScore(rec, A);
+      else if (targetRole === '好人誘餌') baseScore = Number(rec.ally || 0);
+      else baseScore = Number(probs[targetRole] || 0) + Number(rec.ally || 0) * 0.12;
+
+      // 姬雲浮只作柔性競爭角色，不因機率超過 55% 就把玩家從候選名單硬刪。
+      const jiProbability = Number(probs['姬雲浮'] || 0);
+      const jiPenalty = goodTarget ? Math.min(3.5, Math.max(0, jiProbability - 35) * 0.07) : 0;
+      if (jiProbability >= 45 && goodTarget) {
+        evidence.push({ strength: 'weak', round: null, source: 'competing-role-posterior', text: `姬雲浮後驗 ${Math.round(jiProbability)}%，是競爭角色，僅降低許願／方震排序 ${jiPenalty.toFixed(1)} 分，不直接排除` });
+      }
+      if (rec.isPartner && targetRole !== '老朝奉') {
+        roleAdjust -= 2.0;
+        evidence.push({ strength: 'weak', round: null, source: 'inferred-partner', text: '推理模型暫時把他列為疑似同伴；這不是已確認身分，只作輕微降權' });
+      }
+      if (Number(rec.conflicts && rec.conflicts.length || 0) > 0 && targetRole === '老朝奉') {
+        evidence.push({ strength: 'medium', round: null, source: 'public-contradiction', text: `公開發言有 ${rec.conflicts.length} 項可回查矛盾` });
+      }
+      const score = baseScore + roleAdjust - jiPenalty;
+      if (!evidence.length) evidence.push({ strength: 'weak', round: null, source: 'posterior-only', text: '目前沒有足夠的具體公開技能／查驗紀錄，主要依角色後驗排序；把握度有限' });
+      const supportingEvidence = evidence.filter(e => ['public-role-claim', 'public-dual-inspection-report', 'public-blind-report', 'public-camp-check-claim', 'public-contradiction'].includes(e.source) || (e.source === 'retrospective-public-ballot' && targetRole === '老朝奉'));
+      const counterEvidence = evidence.filter(e => ['public-limited-inspection', 'competing-role-posterior', 'inferred-partner'].includes(e.source) || (e.source === 'retrospective-public-ballot' && goodTarget));
+      const inEliminatedLaoPool = targetRole === '老朝奉' && (A.eliminatedFromLaoIds || []).includes(id);
+      if (inEliminatedLaoPool) counterEvidence.push({ strength: 'medium', round: null, source: 'lao-window-elimination', text: '未同時出現在多輪老朝奉反轉時序交集內，降低老朝奉可能性' });
+      const hasOnlyPosterior = evidence.length === 1 && evidence[0].source === 'posterior-only';
+      const roleProb = Number(probs[targetRole] || 0);
+      let eliminationTier = '保留候選';
+      if (inEliminatedLaoPool || (roleProb < 6 && counterEvidence.length > 0 && supportingEvidence.length === 0)) eliminationTier = '高度不可能';
+      else if (counterEvidence.length > supportingEvidence.length && roleProb < 16) eliminationTier = '暫時排除';
+      else if (hasOnlyPosterior && Math.abs(roleProb - 14.28) < 4) eliminationTier = '資訊不足，無法判斷';
+      ranked.push({ id, player, tag: U.tag(player), score, baseScore, roleProbability: roleProb, jiProbability,
+        roleAdjust, jiPenalty, evidence, supportingEvidence, counterEvidence, eliminationTier,
+        reasons: (rec.reasons || []).slice(0, 4), evil: Math.round(Number(rec.evil || 0)),
+        ally: Math.round(Number(rec.ally || 0)), knownCamp: rec.knownCamp || null, metrics: { roleClaimRounds, campCheckCount, dualInspectionRounds, limitedInspectionRounds, blindRounds, retrospectiveFakeVotes } });
+    });
+
+    ranked.sort((a, b) => b.score - a.score || String(a.id).localeCompare(String(b.id)));
+    const selected = ranked[0] || null;
+    return {
+      targetRole, selectedId: selected && selected.id,
+      hardExcluded,
+      ranked,
+      top: ranked.slice(0, 3),
+      summary: selected ? `依同一套角色後驗與公開技能／查驗／票型證據，${selected.tag}暫列${targetRole}第一候選；這是相對排序，不是已證實身分。` : '沒有可用候選人。'
+    };
+  }
+
+
+  // 把同一份候選證據轉成桌上能聽懂的刪除法；不把機率分數念成內部報表。
+  function finalDeductionNarrative(assessment, selectedId) {
+    if (!assessment) return '目前沒有完整候選資料，這次指認把握有限。';
+    const hard = assessment.hardExcluded || [];
+    const selected = (assessment.ranked || []).find(item => item.id === selectedId) || assessment.ranked[0];
+    const hardLine = hard.length
+      ? `我先把${hard.map(item => item.tag).join('、')}排除，因為${hard.map(item => item.reason).join('；')}。`
+      : '我沒有足以一刀刪人的硬證據，所以沒有只憑機率把任何人直接踢出候選。';
+    if (!selected) return `${hardLine}剩下的人證據都不夠，這次只能保留低把握指認。`;
+    const rank = assessment.ranked.findIndex(item => item.id === selected.id) + 1;
+    const evidence = (selected.evidence || []).slice(0, 2).map(item => item.text).filter(Boolean);
+    const weakOnly = (selected.evidence || []).length > 0 && selected.evidence.every(item => item.strength === 'weak');
+    const candidateLabel = weakOnly ? '待驗候選' : '候選';
+    const reasonLine = evidence.length ? `我把${selected.tag}暫列第${rank}順位${candidateLabel}，主要看的是：${evidence.join('；')}。`
+      : `我把${selected.tag}暫列第${rank}順位${candidateLabel}，但目前缺少能獨立核實的技能或查驗紀錄。`;
+    const runner = (assessment.ranked || []).find(item => item.id !== selected.id);
+    const runnerLine = runner ? `下一個候選是${runner.tag}；兩人的差距還不足以當成百分之百確定。` : '';
+    const certaintyLine = weakOnly ? '目前證據偏弱，這只是待驗候選，不是已確認指控。' : '這是依目前證據排出的優先候選，不代表身分已經確認。';
+    return `${hardLine}${reasonLine}${runnerLine}${certaintyLine}`;
+  }
+
+
   function inferEvilTeammate(bot, A, room) {
     // 用角色後驗、公開發言與公開選票推測未確認的壞人同伴；不讀其他 Bot 私密 mind 或真實 role。
     if (!bot || !A || !A.prof || bot.role !== '鄭國渠') return null;
@@ -426,39 +798,20 @@
     return confident ? best : null;
   }
 
+  // 舊版模擬器相容入口：不再執行「姬雲浮機率門檻硬排除」，只包裝共用排序結果.
+  // 保留函式名稱與位置，讓既有 A/B 模擬工具仍能切出 inferEvilTeammate。
   function bestFinalRoleCandidate(bot, room, A, targetRole) {
-    const inferredBuddy = inferEvilTeammate(bot, A, room);
-    const candidates = Object.values(A.prof || {}).filter(r => r && r.player && r.player.id !== bot.id &&
-      !(A.ctx.partner && r.player.id === A.ctx.partner.id) &&
-      !(inferredBuddy && r.player.id === inferredBuddy.player.id) && !r.isPartner && !r.knownEvil && !r.confessed);
-    if (!candidates.length) return { record: null, excludedJi: null, inferredBuddy };
-    const mostLikelyJi = [...candidates].sort((a, b) => (b.probs && b.probs['姬雲浮'] || 0) - (a.probs && a.probs['姬雲浮'] || 0))[0];
-    const excludedJi = mostLikelyJi && (mostLikelyJi.probs['姬雲浮'] || 0) >= 55 && candidates.length > 2 ? mostLikelyJi : null;
-    const pool = excludedJi ? candidates.filter(r => r.player.id !== excludedJi.player.id) : candidates;
-    const score = rec => {
-      const probs = rec.probs || {};
-      const jiPenalty = Math.max(0, (probs['姬雲浮'] || 0) - 35) * 0.25;
-      let roleEvidence = 0;
-      for (const rd of (room.rounds || [])) {
-        const sp = (rd.speeches || []).find(s => s.playerId === rec.player.id);
-        if (!sp || (!sp.p && !sp.text)) continue;
-        const publicData = publicSpeechData(sp, room, rd);
-        if (targetRole === '方震') {
-          roleEvidence += Math.min(10, ((publicData.campChecks || []).length * 6));
-        } else if (targetRole === '許願' && rd.voteResults && rd.voteResults.rank2) {
-          const claim = (publicData.claims || []).find(c => c.beast === rd.voteResults.rank2.name);
-          if (claim && claim.real === true && rd.voteResults.rank2.isReal) roleEvidence += 4;
-          else if (claim && claim.real === true && !rd.voteResults.rank2.isReal) roleEvidence -= 2;
-        }
-      }
-      return (probs[targetRole] || 0) + (rec.ally || 0) * 0.35 + roleEvidence - jiPenalty;
+    const assessment = assessFinalRoleCandidates(bot, room, A, targetRole);
+    const best = assessment.ranked[0] || null;
+    return {
+      record: best ? (A.prof && A.prof[best.id]) || null : null,
+      excludedJi: null,
+      inferredBuddy: inferEvilTeammate(bot, A, room),
+      assessment
     };
-    pool.sort((a, b) => score(b) - score(a));
-    return { record: pool[0] || null, excludedJi, inferredBuddy };
   }
 
-
-  // 只使用已公開發言，保留每位玩家最近一次明確身分宣稱；不讀其他 Bot 的私密 mind。
+  // 只使用已公開發言，保留每位玩家最近一次明確身分宣稱；不讀其他 Bot 的私密 mind.
   function latestPublicRoleClaims(room, beforeRoundIndex, excludeId = null) {
     const latest = new Map();
     (room.rounds || []).slice(0, beforeRoundIndex + 1).forEach((rd, roundIndex) => {
@@ -513,7 +866,12 @@
     const latest = latestPublicRoleClaims(room, beforeRoundIndex, bot && bot.id);
     const claim = latest.get(partner.id);
     if (!claim || !partner.role || claim.role === partner.role) {
-      return { multiplier: 1, active: false, reason: 'no-public-false-role-commitment' };
+      return { multiplier: 1, active: false, antiMirror: false, reason: 'no-public-false-role-commitment' };
+    }
+    if (String(claim.role) === String(bot && bot.role)) {
+      return { multiplier: 0, active: true, antiMirror: true, partnerClaim: claim.role,
+        partnerTrueRole: partner.role, currentRound: claim.roundIndex === beforeRoundIndex,
+        reason: 'partner-publicly-claims-actor-true-role-mirror-blocked' };
     }
     const isCurrentRound = claim.roundIndex === beforeRoundIndex;
     const raw = (room.rounds || []).slice(0, beforeRoundIndex + 1)
@@ -726,7 +1084,7 @@
       stablePlayerKey(a.candidateId).localeCompare(stablePlayerKey(b.candidateId)));
     const chosen = rows[0] || null;
     return {
-      version: '10.8.14', victimId, chosenId: chosen && chosen.candidateId,
+      version: '10.9', victimId, victimIds: [...new Set((A && A.ctx && A.ctx.log && A.ctx.log.ambushIds || []).map(String).filter(Boolean))], chosenId: chosen && chosen.candidateId,
       formula: 'score=-2.35*exposure+laoSkillValue+adjacencyCamouflage-adjacencyLinkRisk-nextRoundLeadCost+0.03*evilPosterior(for non-victim); exposure also includes public target suspicion, alternative suspect noise, role-signal and public commitment/ballot mismatch',
       publicSuspicion: suspicion,
       alternativeNoise,
@@ -798,8 +1156,11 @@
         if (state.posture === 'conceal') chance -= 0.08;
         if (state.posture === 'desperate') chance += 0.15;
         if (likelyXu) chance += 0.18;
-        // 無技能深水偽裝：低價值、非許願目標時可保留擾亂；高價值救援／阻斷仍優先啟動。
-        const reserveForCover = state.posture === 'conceal' && !likelyXu && impact < 0.32 && pool.length > 0;
+        // 技能有實質影響且存在足夠目標時，適度降低無理由保留；仍保留策略性不發動空間。
+        const meaningfulTarget = pool.length >= 2 && impact >= 0.38;
+        if (meaningfulTarget) chance += 0.10 + 0.04 * U.clamp(Number(genes.assertiveness) || 0.5, 0, 1);
+        // 無技能深水偽裝：只在低價值、非許願目標時才保留擾亂。
+        const reserveForCover = state.posture === 'conceal' && !likelyXu && impact < 0.24 && pool.length > 0;
         if (reserveForCover) chance *= 0.72;
         chance = U.clamp(chance, 0.10, 0.95);
         const active = pool.length > 0 && impact >= 0.12 && rnd() < chance;
@@ -898,9 +1259,8 @@
       const passPos = A.ctx.rd.passOrder.indexOf(bot.id);
       const frameVictimId = A.ctx.log.ambushTargetId;
       const frameVictim = frameVictimId && U.byId(room, frameVictimId);
-      if (A.ctx.log.ambushFrameTactic && passPos === 1 && frameVictim && left.some(p => p.id === frameVictim.id)) {
-        return choose(frameVictim, `本輪採用高風險第三位栽贓：直接把手機交給${U.tag(frameVictim)}，讓盲區落在前兩位之後，之後再利用「第一位像藥不然、第二位像老朝奉」的角色互換故事混淆判斷`);
-      }
+      // 舊存檔可能仍帶有 ambushFrameTactic；不再執行固定第三位栽贓路線。
+      // 保留下方 evaluateYaoAmbushPass，正常藥不然偷襲後仍可依風險選擇傳牌對象。
       const passAudit = evaluateYaoAmbushPass(bot, room, A, left);
       const passPick = left.find(p => p.id === passAudit.chosenId);
       if (passPick) {
@@ -1261,6 +1621,9 @@
   }
   S.chooseCounterfeitTarget = chooseCounterfeitTarget;
   S.buildRoleBluffPool = buildRoleBluffPool;
+  S.assessFinalRoleCandidates = assessFinalRoleCandidates;
+  S.finalDeductionNarrative = finalDeductionNarrative;
+  S.deriveDialogueFocus = deriveDialogueFocus;
   S.roleBluffFeasibility = roleBluffFeasibility;
   S.latestPublicRoleClaims = latestPublicRoleClaims;
   S.chooseRoleBluffRole = chooseRoleBluffRole;
@@ -1320,6 +1683,207 @@
 
   S.ensureFakeXuAbilityProfile = ensureFakeXuAbilityProfile;
 
+  function visibleInteractionSpeeches(bot, room, ctx) {
+    const rows = [];
+    for (let roundIndex = 0; roundIndex <= ctx.t; roundIndex++) {
+      const rd = room.rounds && room.rounds[roundIndex];
+      if (!rd) continue;
+      let speeches = Array.isArray(rd.speeches) ? rd.speeches : [];
+      if (roundIndex === ctx.t) {
+        const order = Array.isArray(rd.speechOrder) ? rd.speechOrder : [];
+        const mySpeechPosition = order.indexOf(bot.id);
+        if (mySpeechPosition >= 0) {
+          speeches = speeches.filter(sp => {
+            if (sp && sp.voiceTranscript === true) return true; // async public captions are not constrained by formal speech order
+            const position = order.indexOf(sp && sp.playerId);
+            return position >= 0 && position < mySpeechPosition;
+          });
+        } else speeches = speeches.filter(sp => sp && sp.playerId !== bot.id);
+      }
+      speeches.forEach(sp => {
+        if (!sp || !sp.playerId || sp.playerId === bot.id) return;
+        rows.push({ roundIndex, rd, sp, data: publicSpeechData(sp, room, rd) });
+      });
+    }
+    return rows;
+  }
+
+  function classifyAskedKind(text) {
+    const value = String(text || '');
+    if (/後來(?:公開)?判(?:為)?贗品|後來判假|公開判假的獸/.test(value)) return 'fake_vote';
+    if (/號召|喊票|實際.*(?:投|票單)|票單.*(?:喊|號召)/.test(value)) return 'vote_dissonance';
+    if (/同一段發言|同一句|同時用了真品和贗品|真品和贗品兩種說法/.test(value)) return 'speech_contradiction';
+    if (/前後(?:兩次|說法|判斷)|之前.*後來.*(?:真品|贗品)|前後判斷的差別/.test(value)) return 'claim_shift';
+    if (/技能時點|查驗結果不同|查驗紀錄|我的(?:查驗|結果|查驗畫面)|反轉時點/.test(value)) return 'inspection_conflict';
+    if (/你和.{0,30}分別自稱|互換身分|角色互換|兩個身分分開認領/.test(value)) return 'role_swap';
+    if (/角色說法.*(?:改變|差異)|自稱.{0,18}又說|之前說自己是.{0,22}後來又自稱/.test(value)) return 'role_shift';
+    if (/身份猜測|身分猜測|角色猜測|某角色.{0,12}猜測|提出的.{0,8}猜測|提過.{0,8}猜測/.test(value)) return 'role_hypothesis';
+    if (/把.{0,16}說成|角色依據|自稱.{0,12}又/.test(value)) return 'role_claim';
+    return '';
+  }
+
+  function selectInteractionChallenge(bot, room, A) {
+    const ctx = A && A.ctx;
+    const rd = ctx && ctx.rd;
+    if (!bot || !room || !ctx || !rd || !Array.isArray(room.players)) return null;
+
+    const visible = visibleInteractionSpeeches(bot, room, ctx);
+    const askedTargets = new Set();
+    const usedKinds = new Set();
+    visible.filter(row => row.roundIndex === ctx.t).forEach(row => {
+      const asked = Array.isArray(row.data.asked) ? row.data.asked : [];
+      asked.forEach(id => askedTargets.add(String(id)));
+      const kind = classifyAskedKind(row.sp.text);
+      if (kind) usedKinds.add(kind);
+    });
+    // Multiple different people may be questioned in one round, but never keep asking the same person.
+    if (askedTargets.size >= 3) return null;
+
+    const protectedIds = new Set();
+    if (ctx.partner && ctx.partner.id) protectedIds.add(String(ctx.partner.id));
+    (A.inferredPartners || []).forEach(item => { if (item && item.playerId) protectedIds.add(String(item.playerId)); });
+    const inferredMate = !ctx.isGood ? inferEvilTeammate(bot, A, room) : null;
+    if (inferredMate && inferredMate.player) protectedIds.add(String(inferredMate.player.id));
+
+    const candidates = [];
+    const push = (targetId, kind, evidence, baseScore, roundNum) => {
+      const id = String(targetId || '');
+      const target = U.byId(room, id);
+      if (!target || id === String(bot.id) || askedTargets.has(id) || protectedIds.has(id)) return;
+      const profile = A.prof && A.prof[id];
+      if (ctx.isGood && profile && (profile.knownGood || profile.confessed || profile.knownCamp === 'good')) return;
+      if (!ctx.isGood && profile && (profile.knownEvil || profile.confessed || profile.knownCamp === 'evil' || Number(profile.ally || 0) >= 82)) return;
+      const suspicion = ctx.isGood ? Math.max(0, Math.min(2.2, Number(profile && profile.evil || 0) / 28)) : 0;
+      const diversity = usedKinds.has(kind) ? -1.8 : 0;
+      const score = baseScore + suspicion + diversity;
+      candidates.push({ targetId: id, kind, evidence: evidence || {}, round: roundNum || null, score });
+    };
+
+    // 1. Direct conflict between this bot's own visible inspection and a prior public claim.
+    // 許願的雙查驗資訊必須保留：不以私人查驗衝突作為公開盤問素材，避免暴露她看過哪些獸首。
+    if (bot.role !== '許願') {
+      Object.values(A.prof || {}).forEach(profile => {
+        (profile && profile.conflicts || []).forEach(conflict => {
+          if (!conflict || !conflict.speakerId || !conflict.beast) return;
+          push(conflict.speakerId, 'inspection_conflict', {
+            beast: conflict.beast, claimedReal: conflict.claim, sawReal: conflict.saw,
+            round: conflict.round, speakerPosition: conflict.speakerPos
+          }, 9.6, conflict.round);
+        });
+      });
+    }
+
+    // 2. A player's own speech contradicts itself in one statement.
+    visible.forEach(row => (row.data.selfContradictions || []).forEach(item => {
+      if (!item || !item.beast || !Array.isArray(item.verdicts) || !item.verdicts.includes(true) || !item.verdicts.includes(false)) return;
+      push(row.sp.playerId, 'speech_contradiction', {
+        beast: item.beast, round: row.roundIndex + 1, verdicts: item.verdicts.slice()
+      }, 9.2, row.roundIndex + 1);
+    }));
+
+    // 3. Across public speeches, ask about a changed verdict without assuming that changing one's mind is guilt.
+    const claimHistory = new Map();
+    visible.forEach(row => (row.data.claims || []).forEach(claim => {
+      if (!claim || !claim.beast || typeof claim.real !== 'boolean') return;
+      const key = `${row.sp.playerId}|${claim.beast}`;
+      const previous = claimHistory.get(key);
+      if (previous && previous.real !== claim.real) {
+        push(row.sp.playerId, 'claim_shift', {
+          beast: claim.beast, earlierReal: previous.real, latestReal: claim.real,
+          earlierRound: previous.round, latestRound: row.roundIndex + 1
+        }, 7.8, row.roundIndex + 1);
+      }
+      claimHistory.set(key, { real: claim.real, round: row.roundIndex + 1 });
+    }));
+
+    // 4. A public role claim changes between rounds; ask for the concrete ability/timing evidence.
+    const roleHistory = new Map();
+    visible.forEach(row => {
+      const role = row.data.selfRole;
+      if (!role || role === '平民') return;
+      const previous = roleHistory.get(row.sp.playerId);
+      if (previous && previous.role !== role) {
+        push(row.sp.playerId, 'role_shift', {
+          earlierRole: previous.role, latestRole: role,
+          earlierRound: previous.round, latestRound: row.roundIndex + 1
+        }, 8.1, row.roundIndex + 1);
+      }
+      roleHistory.set(row.sp.playerId, { role, round: row.roundIndex + 1 });
+    });
+
+    // 5. Public call vs actual ballot: a split can be legitimate, so the question is neutral.
+    Object.values(A.prof || {}).forEach(profile => {
+      (profile && profile.voteDissonance || []).forEach(item => {
+        if (!item || !item.calledBeasts || !item.calledBeasts.length || !item.investedBeast || Number(item.round) > ctx.t) return;
+        push(profile.player && profile.player.id, 'vote_dissonance', {
+          round: item.round, calledBeasts: item.calledBeasts.slice(), investedBeast: item.investedBeast,
+          investedChips: item.investedChips, callVotes: item.callVotes
+        }, 8.2, item.round);
+      });
+    });
+
+    // 6. Retrospective public fake-vote trail. The prompt explicitly says the result was revealed after voting.
+    (A.fakeVoters || []).forEach(profile => {
+      const targetId = profile && profile.player && profile.player.id;
+      if (!targetId) return;
+      const history = Mind.pubFakeVotes(room, targetId, ctx.t) || [];
+      const latest = history[history.length - 1];
+      if (!latest) return;
+      push(targetId, 'fake_vote', {
+        votes: Number(profile.pubFake || 0), round: latest.round, beast: latest.beast
+      }, 7.0, latest.round);
+    });
+
+    // 7. Reciprocal Lao/Yao public claims may be a coordinated role-swap frame.
+    // It is a question trigger only: do not infer that either claimant is evil from the pair alone.
+    (A.roleSwapPairs || []).forEach(pair => {
+      if (!pair || !pair.first || !pair.second) return;
+      [pair.first, pair.second].forEach((claim, index) => {
+        const other = index === 0 ? pair.second : pair.first;
+        const profile = A.prof && A.prof[claim.playerId];
+        const evidence = {
+          round: pair.round,
+          ownRole: claim.role,
+          otherRole: other.role,
+          otherTag: U.tag(U.byId(room, other.playerId)),
+          pattern: pair.pattern,
+          note: pair.note
+        };
+        push(claim.playerId, 'role_swap', evidence,
+          9.8 + Math.min(1.0, Number(profile && profile.evil || 0) / 100), pair.round);
+      });
+    });
+
+    // 8. Independent public claims about a role candidate: ask the speaker who made the claim to show evidence.
+    const roleHypotheses = S.collectPublicRoleHypotheses(room, bot.id, ctx.t);
+    roleHypotheses.filter(item => (item.sources || []).length >= 2).forEach(item => {
+      const sourceId = item.sourceSpeakerId || (item.sources || []).slice(-1)[0];
+      const candidate = U.byId(room, item.candidateId);
+      if (!sourceId || !candidate) return;
+      push(sourceId, 'role_hypothesis', {
+        candidateId: candidate.id, candidateName: U.tag(candidate), role: item.role,
+        sourceCount: (item.sources || []).length, round: item.sourceRound
+      }, 6.6, item.sourceRound);
+    });
+
+    if (!candidates.length) return null;
+    const genes = ctx.genes || {};
+    const triggerChance = U.clamp(0.48 + 0.45 * (Number(genes.assertiveness) || 0.5), 0.48, 0.93);
+    if (rnd() >= triggerChance) return null;
+
+    // Prefer a category not yet used this round, then randomize among similarly strong evidence
+    // so every bot does not mechanically repeat the single highest-scoring clue.
+    const freshCategory = candidates.filter(item => !usedKinds.has(item.kind));
+    const pool = (freshCategory.length ? freshCategory : candidates)
+      .sort((a, b) => (b.score - a.score) || String(a.targetId).localeCompare(String(b.targetId)));
+    const ceiling = pool[0].score - 1.6;
+    const shortlist = pool.filter(item => item.score >= ceiling).slice(0, 5);
+    const selected = shortlist[Math.floor(rnd() * shortlist.length)];
+    return selected ? { ...selected } : null;
+  }
+
+  S.selectInteractionChallenge = selectInteractionChallenge;
+
   S.plan = function (bot, room) {
     const A = Mind.analyze(bot, room), { ctx } = A;
     const { genes, rd, myIns, names, t } = ctx;
@@ -1330,10 +1894,14 @@
     const isYaoOrLao = ['藥不然', '老朝奉'].includes(bot.role);
     const desiredSwapRole = bot.role === '藥不然' ? '老朝奉' : bot.role === '老朝奉' ? '藥不然' : null;
     let openingRoleBluff = oldCommittedRole;
-    // 相容舊存檔：舊版真方震可能已承諾假跳許願，但其能力無法提供雙獸首查驗；不再延續不相容承諾。
+    // 舊版固定第三位栽贓／角色互換故事全面退役，不讓任何角色從舊存檔續演。
+    if (oldCommittedRole && oldCommittedRole.origin === 'ambush-role-swap') {
+      openingRoleBluff = null;
+      persistOwnLog(ctx, { roleBluffAbandonedReason: 'legacy-fixed-ambush-role-swap-retired' });
+    }
+    // 相容舊存檔：真方震無法提供雙獸首查驗，不延續不相容許願假跳。
     if (bot.role === '方震' && openingRoleBluff && openingRoleBluff.role === '許願') openingRoleBluff = null;
-    let roleSwapContext = oldCommittedRole && oldCommittedRole.origin === 'ambush-role-swap' && isYaoOrLao
-      ? (oldCommittedRole.swapContext || null) : null;
+    let roleSwapContext = null;
     if (swapNow && isYaoOrLao) {
       if (!openingRoleBluff) {
         openingRoleBluff = {
@@ -1350,7 +1918,10 @@
       roleBluff: openingRoleBluff, roleSwapTrap: roleSwapContext, ambushFrame: null, ambushFrameHypothesis: null,
       tacticalLine: '', tactics: null, padBeast: null, partnerBeast: null, why };
     const log = ctx.log;
-    const explicitRoleSwapFrame = !!(plan.roleSwapTrap || plan.ambushFrame || log.ambushFrameTactic);
+    if (log.blind !== true && (log.blindTiming != null || log.blindSourceRound != null)) {
+      persistOwnLog(ctx, { blindTiming: null, blindSourceRound: null });
+    }
+    const explicitRoleSwapFrame = false;
     if (ctx.isGood && A.laoTiming) {
       const topTiming = (A.laoTiming.candidates || []).slice(0, 3).map(candidate => {
         const player = U.byId(room, candidate.playerId);
@@ -1430,11 +2001,11 @@
       plan.counterAccuseId = plan.publicRolePressure.speakerId;
       why.push(`前手公開把我指為【${plan.publicRolePressure.role}】；我需要正面反駁並要求對方提出可核對的技能時點，必要時以其他公開票型反制，而不是只跟著獸首話題走`);
     }
-    const hideBlind = ctx.isGood && !!log.blind && shouldHideBlind(bot, genes);
+    const hideBlind = ctx.isGood && !!log.blind && (bot.role === '方震' || shouldHideBlind(bot, genes));
     if (ctx.isGood && log.blind && !hideBlind && ctx.myPos === 2 && rd.passOrder.length >= 3) {
       plan.ambushFrameHypothesis = { firstId: rd.passOrder[0], secondId: rd.passOrder[1], victimId: bot.id };
     }
-    if (!ctx.isGood && bot.role === '藥不然' && log.ambushFrameTactic && log.ambushTargetId) {
+    if (!ctx.isGood && bot.role === '藥不然' && false && log.ambushFrameTactic && log.ambushTargetId) {
       plan.ambushFrame = {
         firstId: rd.passOrder[0] || null, secondId: bot.id,
         victimId: log.ambushTargetId, targetId: log.ambushTargetId,
@@ -1508,7 +2079,7 @@
 
       const isConfusedOrBlockedGood = !log.blind && myIns.length === 0 && bot.role !== '方震' && !plan.fakeFangClaim;
       const coverBluff = isConfusedOrBlockedGood && rnd() < 0.65;
-      const bluff = ((bot.role === '方震' && !log.blind && !plan.revealFang) || hideBlind || coverBluff) && !plan.fakeFangClaim && !plan.revealFang;
+      const bluff = (bot.role !== '方震' && (hideBlind || coverBluff)) && !plan.fakeFangClaim && !plan.revealFang;
 
       if (bluff) {
         plan.claims = [{ beast: plan.beast, real: true }];
@@ -1517,11 +2088,16 @@
         why.push(hideBlind ? `我這輪遭偷襲、什麼都看不到，但不輕易說出被偷襲${bot.role === '許願' || bot.role === '方震' ? `（我是${bot.role}，說出口等於告訴壞人這刀砍中了要害）` : '（說了只會讓壞人確認偷襲有效）'}；改把後驗最像真品的【${plan.beast}】當成自己的查驗結果報出`
           : coverBluff ? `我這輪查驗顯示無法辨別真偽，但為了不暴露弱點並替方震分擔保護色，我順著後驗最穩的【${plan.beast}】報真品護航`
           : `我是方震，看不到獸首。為了不被藥不然靠「驗不到」認出，我把後驗最像真品的【${plan.beast}】當成自己的查驗結果報出`);
-      } else if (log.blind && !plan.fakeFangClaim) {
+      } else if (log.blind && !plan.fakeFangClaim && bot.role !== '方震' && !hideBlind) {
+        plan.revealBlind = true;
         why.push('我這輪遭偷襲，決定公開說出來，好讓大家知道偷襲者排在我前面的行動者之中');
       }
 
-      if (!bluff && !plan.fakeFangClaim) {
+      if (bot.role === '方震' && !plan.fakeFangClaim && !plan.revealFang) {
+        plan.claims = [];
+        plan.hideBlind = !!log.blind;
+      }
+      if (!bluff && !plan.fakeFangClaim && bot.role !== '方震') {
         why.push(myIns.length ? `我親眼看到 ${myIns.map(i => `【${i.beastName}】${GD.Mind.inspectionTruth(i) ? '真' : '假'}`).join('、')}，結合前手宣稱，後驗最像真品的是【${plan.beast}】(${Math.round(A.post.find(b => b.name === plan.beast).pReal * 100)}%)`
           : `這輪我${log.blind ? '遭偷襲' : '無法辨別真偽'}，只能依前手宣稱的可信度，後驗最像真品的是【${plan.beast}】`);
       }
@@ -1598,12 +2174,24 @@
       }
     }
 
-    /* ---- 票型採人：用公開的票型質問 ---- */
-    const alreadyAsked = (rd.speeches || []).some(sp => (publicSpeechData(sp, room, rd).asked || []).length);
-    if (ctx.isGood && t >= 1 && !alreadyAsked && A.fakeVoters.length && rnd() < 0.3 + 0.6 * genes.assertiveness) {
-      const q = A.fakeVoters[0], hist = Mind.pubFakeVotes(room, q.player.id, t), last = hist[hist.length - 1];
-      plan.askId = q.player.id; plan.askVotes = q.pubFake; plan.askBeast = last.beast; plan.askRound = last.round;
-      why.push(`${U.tag(q.player)}過去投給後來公開判為贗品的獸累計 ${q.pubFake} 票（最近一次是第 ${last.round} 輪的【${last.beast}】）。這是事後對照，不代表他投票時已知道結果；先請他說明當時的依據，若解釋得通就放過，若解釋不通或閃躲再升高嫌疑`);
+    /* ---- 多來源公開採人：言行矛盾、票型、角色宣稱與事後結果分開提問 ---- */
+    const challenge = selectInteractionChallenge(bot, room, A);
+    if (challenge) {
+      plan.askId = challenge.targetId;
+      plan.askKind = challenge.kind;
+      plan.askEvidence = challenge.evidence;
+      plan.askRound = challenge.round;
+      const target = U.byId(room, challenge.targetId);
+      const sourceLabel = ({
+        inspection_conflict: '本人的查驗畫面與公開主張不一致',
+        speech_contradiction: '同一段發言前後矛盾',
+        claim_shift: '跨輪公開真偽判斷改變',
+        role_shift: '跨輪角色自稱改變',
+        vote_dissonance: '公開號召與實際票單有落差',
+        fake_vote: '事後公開結果與歷史票單的對照',
+        role_hypothesis: '多人提出同一角色猜測，仍需核對依據'
+      })[challenge.kind] || '公開紀錄有待釐清';
+      why.push(`${target ? U.tag(target) : challenge.targetId}有一項值得核對的公開紀錄：${sourceLabel}。先針對具體事實提問，不把單一矛盾或分票直接當成定罪；也不要重複本輪已有人問過的對象`);
     }
 
     /* ★ 定案 4：被點名要說明為什麼把票投在贗品上（保留抗壓，加入第三輪 cantExplain 退讓例外） */
@@ -1844,6 +2432,14 @@
     if (!plan.confess && !plan.fakeFangClaim) {
       const allowGoodCounterBluff = !!(ctx.isGood && plan.publicRolePressure);
       const rolePool = buildRoleBluffPool(bot, ctx, allowGoodCounterBluff);
+      const teamMirrorPreview = !ctx.isGood ? teamRoleBluffAdjustment(room, bot, ctx.partner, t) : null;
+      if (teamMirrorPreview && teamMirrorPreview.antiMirror) {
+        for (let i = rolePool.length - 1; i >= 0; i--) {
+          if (rolePool[i] === teamMirrorPreview.partnerClaim) rolePool.splice(i, 1);
+        }
+        plan.roleBluffAbandonedReason = 'partner-publicly-claims-actor-true-role-mirror-blocked';
+        if (plan.roleBluff && plan.roleBluff.role === bot.role) plan.roleBluff = null;
+      }
       const feasibilityRows = rolePool.map(role => ({ role, feasibility: roleBluffFeasibility(role, bot, ctx, A) }));
       const feasibleRolePool = feasibilityRows.filter(item => item.feasibility >= 0.45).map(item => item.role);
       rolePool.splice(0, rolePool.length, ...feasibleRolePool);
@@ -1862,9 +2458,11 @@
             laoNoConsensusBoost * 0.35, 0.025, 0.48);
       const teamRolePosture = ctx.isGood ? { multiplier: 1, active: false, reason: 'good-side' }
         : teamRoleBluffAdjustment(room, bot, ctx.partner, t);
-      const roleBluffChance = !ctx.isGood && teamRolePosture.active && !explicitRoleSwapFrame
-        ? U.clamp(baseRoleBluffChance * teamRolePosture.multiplier, 0.03, 0.78)
-        : baseRoleBluffChance;
+      const roleBluffChance = !ctx.isGood && teamRolePosture.antiMirror
+        ? 0
+        : !ctx.isGood && teamRolePosture.active && !explicitRoleSwapFrame
+          ? U.clamp(baseRoleBluffChance * teamRolePosture.multiplier, 0, 0.78)
+          : baseRoleBluffChance;
       if (!ctx.isGood) {
         plan.teamDeceptionPosture = {
           partnerPublicFalseRole: !!teamRolePosture.active,
@@ -2092,6 +2690,33 @@
       }
     }
 
+    // v10.9 social tactical layer: derive one public-information-only tactic after belief/skill planning.
+    plan.socialTactic = GD.Tactics && typeof GD.Tactics.chooseSocialTactic === 'function'
+      ? GD.Tactics.chooseSocialTactic(room, bot, A, plan) : null;
+    if (plan.socialTactic && plan.socialTactic.targetId && plan.socialTactic.focus === 'attack') {
+      const socialTarget = U.byId(room, plan.socialTactic.targetId);
+      plan.socialTactic.targetTag = socialTarget ? U.tag(socialTarget) : plan.socialTactic.targetTag || '';
+    }
+    // One dominant conversational objective is selected after the tactical plan is complete.
+    // It shapes phrasing and focus only; voting, skills, and all game rules remain unchanged.
+    plan.dialogueFocus = deriveDialogueFocus(bot, room, plan, A);
+    // 壞人可把真正技能或未核實的技能假說當成公開掩護；不改動任何技能執行與查驗結果。
+    plan.skillCoverStory = plan.trueRoleSignal && plan.trueRoleSignal.reveal ||
+      (plan.roleBluff && !['藥不然', '鄭國渠'].includes(plan.roleBluff.role))
+      ? null : chooseAbilityCoverStory(bot, room, plan, A);
+    plan.tacticalPlan = {
+      id: `${room.gameId || room.roomId || 'local'}:${t + 1}:${bot.id}`,
+      chosenTactic: plan.socialTactic && plan.socialTactic.mode || plan.tacticalStrategy || plan.mode || 'baseline',
+      targetPlayerId: plan.socialTactic && plan.socialTactic.targetId || plan.dialogueFocus && plan.dialogueFocus.targetId || null,
+      targetBeast: plan.socialTactic && (plan.socialTactic.ballotBeast || plan.socialTactic.targetBeast) || plan.beast || null,
+      backupBeast: plan.socialTactic && plan.socialTactic.coverBeast || null,
+      speechObjective: { type: plan.dialogueFocus && plan.dialogueFocus.type || 'position', targetId: plan.dialogueFocus && plan.dialogueFocus.targetId || null },
+      ballotObjective: { mode: plan.socialTactic && plan.socialTactic.ballotMode || 'optimize', targetBeast: plan.socialTactic && plan.socialTactic.ballotBeast || plan.beast || null },
+      skillCoverStory: plan.skillCoverStory ? { role: plan.skillCoverStory.role, truthMode: plan.skillCoverStory.truthMode, beast: plan.skillCoverStory.beast } : null,
+      riskTolerance: Number(plan.socialTactic && plan.socialTactic.riskTolerance) || U.clamp(0.34 * (Number(ctx.genes.assertiveness) || 0.5) + 0.34 * (Number(ctx.genes.deception) || 0.5) + 0.20 * (1 - (Number(ctx.genes.skepticism) || 0.5)) + 0.12 * (Number(ctx.genes.camouflage) || 0.5), 0, 1),
+      status: 'planned', actualBallot: null
+    };
+
     /* ---- 寫入覆盤用紀錄 ---- */
     const top = Object.values(A.prof).filter(r => !r.knownGood && r.knownCamp !== 'good').sort((a, b) => (Number(b.pEvil) - Number(a.pEvil)) || (b.evil - a.evil)).slice(0, 2);
     rd.mind[bot.id] = {
@@ -2104,6 +2729,7 @@
       teamDeceptionPosture: plan.teamDeceptionPosture || null,
       estimatedGoodScore: plan.estimatedGoodScore == null ? null : plan.estimatedGoodScore,
       roleBluff: plan.roleBluff || null,
+      roleBluffAbandonedReason: plan.roleBluffAbandonedReason || null,
       roleDiscussionEvent: plan.roleDiscussionEvent || null,
       roleDiscussionAudit: plan.roleDiscussionAudit || null,
       zhengBlindSignal: plan.zhengBlindSignal || null,
@@ -2114,6 +2740,20 @@
       tacticalCategory: plan.tactics && plan.tactics.category || null,
       tacticalStrategy: plan.tacticalStrategy || null,
       tacticalLine: plan.tacticalLine || '',
+      skillCoverStory: plan.skillCoverStory ? { ...plan.skillCoverStory } : null,
+      tacticalPlan: plan.tacticalPlan ? { ...plan.tacticalPlan } : null,
+      socialTactic: plan.socialTactic ? {
+        name: plan.socialTactic.name, mode: plan.socialTactic.mode, focus: plan.socialTactic.focus,
+        targetId: plan.socialTactic.targetId || null, targetTag: plan.socialTactic.targetTag || '',
+        targetBeast: plan.socialTactic.targetBeast || null, coverBeast: plan.socialTactic.coverBeast || null,
+        ballotMode: plan.socialTactic.ballotMode || null, ballotBeast: plan.socialTactic.ballotBeast || null,
+        reason: plan.socialTactic.reason || null, confidence: plan.socialTactic.confidence || 0,
+        teamAssignment: !ctx.isGood ? { actorRole: bot.role, duty: ({ decoy: 'partner-cover-and-pressure-redirection', 'all-in': 'counterfeit-vote-push', 'camouflage-betrayal': 'create-public-distance-and-split-vote', 'false-agreement': 'mirror-consensus-while-shifting-ballot', 'coalition-break': 'break-opposing-coalition', 'sacrifice-cover': 'absorb-pressure-to-protect-ally' })[plan.socialTactic.mode] || 'public-misdirection', partnerId: ctx.partner && ctx.partner.id || null, basis: 'own-role-and-public-information-only' } : null,
+        publicDirective: plan.socialTactic.publicDirective || '', executed: false
+      } : null,
+      dialogueFocus: plan.dialogueFocus ? { type: plan.dialogueFocus.type, targetId: plan.dialogueFocus.targetId || null,
+        targetTag: plan.dialogueFocus.targetTag || '', source: plan.dialogueFocus.source, priority: plan.dialogueFocus.priority,
+        style: plan.dialogueFocus.style, label: plan.dialogueFocus.label, round: plan.dialogueFocus.round } : null,
       xuYuanLine: plan.xuYuanLine || null,
       voteForecast: plan.tactics && plan.tactics.forecast ? {
         round: plan.tactics.forecast.round,
@@ -2129,7 +2769,9 @@
       inferredBuddyId: plan.inferredBuddyId || null,
       suspectId: plan.suspectId, softShadeId: plan.softShadeId, fakeFangClaim: plan.fakeFangClaim,
       padBeast: plan.padBeast, why, publicSuspectBrief: plan.publicSuspectBrief || null, hideBlind: !!plan.hideBlind,
-      askId: plan.askId || null, confess: !!plan.confess, explained: !!plan.explain,
+      askId: plan.askId || null, askKind: plan.askKind || null,
+      askEvidence: plan.askEvidence || null, askRound: plan.askRound || null,
+      confess: !!plan.confess, explained: !!plan.explain,
       followHuman: plan.followHuman ? plan.followHuman.callerId : null,
       insText: (log.inspect || []).map(i => i.resultText),
       blind: !!log.blind,
@@ -2171,6 +2813,7 @@
     const ownSpeech = (rd.speeches || []).find(sp => String(sp && sp.playerId) === String(bot.id));
     const ownSpeechData = publicSpeechData(ownSpeech, room, rd);
     const promisedBeast = ownSpeechData.voteCommitmentBinding ? (ownSpeechData.voteCommitment || null) : null;
+    const social = m.socialTactic || null;
     const annotateBallotTactic = (candidate, diagnostic) => {
       const positive = Object.entries(candidate || {}).filter(([, value]) => Number(value) > 0).sort((a, b) => Number(b[1]) - Number(a[1]));
       const mode = !positive.length ? 'abstain' : positive.length > 1 ? 'split' : Number(positive[0][1]) <= 1 ? 'probe' : 'concentrate';
@@ -2204,12 +2847,20 @@
     const ballot = {};
     const finalizePublicPerformanceBallot = candidate => {
       const hasCandidateVotes = Object.values(candidate || {}).some(value => Number(value) > 0);
-      let finalBallot = candidate || {};
+      m.plannedBallot = { ...(candidate || {}) };
+      let finalBallot = { ...(candidate || {}) };
       // A concrete first-person promise is binding only when the legal spend limit permits at least one chip.
       // In the absence of such a promise, a zero-chip abstention remains legal for both camps.
-      if (promisedBeast && spend > 0) {
+      const intentionalModes = ['all-in', 'decoy', 'camouflage-betrayal', 'counter-consensus',
+        'false-agreement', 'coalition-break', 'sacrifice-cover', 'planned-pivot'];
+      const intentionalDivergence = !GD.isGood(bot.role) && social && intentionalModes.includes(social.mode) &&
+        (social.ballotBeast || social.targetBeast) && Object.entries(finalBallot).some(([name, chips]) => Number(chips) > 0 && name !== promisedBeast);
+      if (promisedBeast && spend > 0 && !intentionalDivergence) {
         finalBallot = enforcePublicTargetAnchor(finalBallot, promisedBeast, spend);
         m.votePromiseHonored = true;
+      } else if (promisedBeast && spend > 0 && intentionalDivergence) {
+        m.votePromiseHonored = Number(finalBallot[promisedBeast] || 0) > 0;
+        m.votePromiseMismatchReason = 'intentional-social-tactic-divergence';
       } else if (hasCandidateVotes && !GD.isGood(bot.role) && (m.mode === 'confess' || m.confess || m.evilRolePerformance) && m.beast && spend > 0) {
         finalBallot = enforcePublicTargetAnchor(finalBallot, m.beast, spend);
       } else if (promisedBeast && spend <= 0) {
@@ -2220,13 +2871,55 @@
         finalBallot = { [m.beast]: spend - 1, [m.zhengBlindSignal.beast]: 1 };
         m.zhengBlindSignal.executed = true;
       }
+      m.adjustedBallot = { ...finalBallot };
       annotateBallotTactic(finalBallot, m.ballotModel);
       m.actualBallot = { ...finalBallot };
+      if (social) {
+        const intendedBeast = social.ballotBeast || social.targetBeast || null;
+        social.executedBallot = { ...finalBallot };
+        social.executed = Object.values(finalBallot).some(value => Number(value) > 0) &&
+          (!intendedBeast || Number(finalBallot[intendedBeast] || 0) > 0 ||
+            (social.coverBeast && Number(finalBallot[social.coverBeast] || 0) > 0));
+      }
+      if (m.tacticalPlan) {
+        m.tacticalPlan.actualBallot = { ...finalBallot };
+        m.tacticalPlan.status = 'ballot-executed';
+        m.tacticalPlan.ballotObjective = { ...(m.tacticalPlan.ballotObjective || {}), actualBallot: { ...finalBallot } };
+      }
+      const commitmentRows = (ownSpeechData.voteCommitments || []).map(item => {
+        const actualVotes = Math.max(0, Number(finalBallot[item.beast]) || 0);
+        const expectedVotes = Number.isFinite(Number(item.chips)) && Number(item.chips) > 0
+          ? Number(item.chips) : (item.kind === 'probe' ? 1 : 1);
+        return {
+          beast: item.beast, chips: item.chips ?? null, binding: item.binding !== false,
+          kind: item.kind || 'explicit', text: item.text || '', actualVotes, expectedVotes,
+          fulfilled: item.binding !== false ? actualVotes >= expectedVotes : null
+        };
+      });
+      const probeAudit = (ownSpeechData.voteProbeTargets || []).map(beast => ({
+        beast, expectedVotes: 1, actualVotes: Math.max(0, Number(finalBallot[beast]) || 0),
+        fulfilled: Number(finalBallot[beast] || 0) >= 1
+      }));
+      const primaryCommitment = commitmentRows.find(item => item.kind !== 'probe') || commitmentRows[0] || null;
+      m.commitmentAudit = {
+        publicCalls: [...new Set([...(ownSpeechData.speakerCalls || ownSpeechData.callBeasts || []), ownSpeechData.callBeast].filter(Boolean))],
+        commitments: commitmentRows, probeAudit,
+        softIntents: (ownSpeechData.voteIntents || []).map(item => ({ beast: item.beast, kind: item.kind || 'soft-intent', intensity: item.intensity || 0 })),
+        plannedBallot: { ...(m.plannedBallot || {}) }, adjustedBallot: { ...(m.adjustedBallot || {}) },
+        actualBallot: { ...finalBallot },
+        totalSpent: Object.values(finalBallot).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0),
+        votePromiseHonored: primaryCommitment ? primaryCommitment.fulfilled !== false : m.votePromiseHonored !== false,
+        votePromiseMismatchReason: m.votePromiseMismatchReason || null,
+        socialTactic: social ? { name: social.name, mode: social.mode, executed: !!social.executed,
+          executedBallot: { ...(social.executedBallot || {}) }, reason: social.reason || null } : null,
+        recordedAt: Date.now()
+      };
       return finalBallot;
     };
 
-    // 好人依自己的後驗與前二名效益評估投票；可棄票、保留籌碼、分票，亦不強制追隨公開主張。
-    if (GD.isGood(bot.role) && GD.Tactics && typeof GD.Tactics.optimizeBallot === 'function') {
+    // v10.9.1：同一個效用模型評估所有社會戰術，不再讓 All-In／Decoy／偽裝分票繞過前二名與留票效益。
+    if (GD.Tactics && typeof GD.Tactics.optimizeBallot === 'function' &&
+        (GD.isGood(bot.role) || social)) {
       const model = GD.Tactics.optimizeBallot(room, bot, m, spend);
       if (model && model.ballot) {
         m.ballotModel = model.diagnostic || null;
@@ -2318,8 +3011,9 @@
       if (opened.isReal === false) publicBallotSignal += Math.min(1.25, chips * 0.45);
       else publicBallotSignal -= Math.min(0.35, chips * 0.12);
     });
-    const base = pLao * 1.45 + Math.min(8, Math.max(0, rec.evil || 0) * 0.08) +
-      (rec.conflicts && rec.conflicts.length ? 2.5 : 0) + timingBonus + flipWindowBonus + publicBallotSignal - Math.min(8, Math.max(0, rec.ally || 0) * 0.08);
+    const independentLaoSupport = Math.min(3, Math.max(0, Number(rec.laoTimingRounds || 0)) * 0.65 + (timingSupport >= 0.35 ? 0.8 : 0));
+    const base = pLao * 2.35 + Math.min(5, Math.max(0, rec.evil || 0) * 0.045) +
+      (rec.conflicts && rec.conflicts.length ? 2.2 : 0) + timingBonus + flipWindowBonus + independentLaoSupport + publicBallotSignal - Math.min(8, Math.max(0, rec.ally || 0) * 0.08);
     // 私人時序交集權重最高；公開歷史回報與玩家候選集合僅作弱佐證。
     const privateIntersection = (A.laoIntersectIds || []).includes(id) ? 25 : 0;
     const publicFlipCount = (A.publicReportedFlipPools || []).filter(pool => (pool.candidateIds || []).includes(id)).length;
@@ -2332,87 +3026,139 @@
 
   S.personVote = function (bot, room) {
     const A = Mind.analyze(bot, room), { ctx } = A;
-    const last = [...room.rounds].reverse().map(r => r.mind[bot.id]).find(Boolean);
-    const anyPool = room.players.filter(p => p.id !== bot.id && !(ctx.partner && p.id === ctx.partner.id) && !(A.prof[p.id] && (A.prof[p.id].knownEvil || (ctx.isGood && (A.prof[p.id].confessed || A.prof[p.id].knownGood || A.prof[p.id].knownCamp === 'good')))));
+    const last = [...room.rounds].reverse().map(r => r.mind && r.mind[bot.id]).find(Boolean);
+    const targetRole = ctx.isGood ? '老朝奉'
+      : bot.role === '老朝奉' ? '許願'
+      : bot.role === '藥不然' ? '方震'
+      : '好人誘餌';
+    const assessment = assessFinalRoleCandidates(bot, room, A, targetRole);
+    // 終局好人使用已公開的前序鑑人票收斂目標；只按自己的陣營後驗加權，不讀其他玩家的私有 mind。
+    const priorGoodTargetSupport = new Map();
+    Object.entries(room.personVotes || {}).forEach(([voterId, targetId]) => {
+      if (!voterId || voterId === bot.id || !targetId || targetId === bot.id) return;
+      const voter = A.prof && A.prof[voterId];
+      if (!voter) return;
+      const pEvil = Number(voter.pEvil);
+      const weight = voter.knownCamp === 'good' || voter.knownGood ? 1.0
+        : Number.isFinite(pEvil) && pEvil <= 0.30 ? 0.78
+          : Number.isFinite(pEvil) && pEvil <= 0.42 ? 0.38 : 0.08;
+      if (weight > 0) priorGoodTargetSupport.set(targetId, (priorGoodTargetSupport.get(targetId) || 0) + weight);
+    });
+    const bestLaoForCoordination = assessment.ranked[0] || null;
+    const coordinatedLao = ctx.isGood && ctx.t === 2 && bestLaoForCoordination
+      ? [...priorGoodTargetSupport.entries()].map(([targetId, support]) => ({
+          targetId, support, candidate: assessment.ranked.find(item => item.id === targetId) || null
+        })).filter(item => item.candidate && item.support >= 0.78 &&
+          item.candidate.score >= bestLaoForCoordination.score - 4.5)
+        .sort((a, b) => b.support - a.support || b.candidate.score - a.candidate.score)[0] || null
+      : null;
+    const anyPool = room.players.filter(p => p.id !== bot.id && !(ctx.partner && p.id === ctx.partner.id) &&
+      !(A.prof[p.id] && (A.prof[p.id].knownEvil || (ctx.isGood && (A.prof[p.id].confessed || A.prof[p.id].knownGood || A.prof[p.id].knownCamp === 'good')))));
     const any = pickDecision(anyPool.length ? anyPool : room.players.filter(p => p.id !== bot.id)).id;
-    const finalLaoCandidates = Object.values(A.prof)
-      .filter(r => r && r.player && r.player.id !== bot.id && !r.confessed && !r.knownGood && r.knownCamp !== 'good')
-      .map(rec => ({ rec, score: finalLaoCandidateScore(rec, A) }))
-      .sort((a, b) => b.score - a.score || String(a.rec.player.id).localeCompare(String(b.rec.player.id)));
     let id = null, why = '', followId = null;
+
     if (ctx.isGood) {
       if (bot.role === '方震') {
+        // 陣營查驗只能指出壞人方；再用同一份老朝奉排序選擇候選，不把壞人方直接等同老朝奉。
         const evilChecked = [];
-        room.rounds.forEach(r => {
-          const l = r.turnLogs[bot.id];
-          if (l && l.fangTargetId && l.fangCamp === 'evil' && !(A.prof[l.fangTargetId] && A.prof[l.fangTargetId].confessed)) {
-            evilChecked.push(l.fangTargetId);
-          }
+        (room.rounds || []).forEach(rd => {
+          const ownLog = rd.turnLogs && rd.turnLogs[bot.id];
+          if (ownLog && ownLog.fangTargetId && ownLog.fangCamp === 'evil' &&
+              assessment.ranked.some(item => item.id === ownLog.fangTargetId)) evilChecked.push(ownLog.fangTargetId);
         });
-        if (evilChecked.length > 0) {
-          evilChecked.sort((a, b) => finalLaoCandidateScore(A.prof[b], A) - finalLaoCandidateScore(A.prof[a], A));
-          const bestChecked = A.prof[evilChecked[0]];
-          const laoPosterior = Number(bestChecked && bestChecked.probs && bestChecked.probs['老朝奉']) || 0;
-          if (bestChecked && (laoPosterior >= 18 || (A.laoIntersectIds || []).includes(evilChecked[0]))) {
+        evilChecked.sort((a, b) => {
+          const sa = assessment.ranked.find(item => item.id === a)?.score ?? -Infinity;
+          const sb = assessment.ranked.find(item => item.id === b)?.score ?? -Infinity;
+          return sb - sa;
+        });
+        if (evilChecked.length) {
+          const checked = A.prof[evilChecked[0]];
+          const laoPosterior = Number(checked && checked.probs && checked.probs['老朝奉']) || 0;
+          if (checked && (laoPosterior >= 18 || (A.laoIntersectIds || []).includes(evilChecked[0]))) {
             id = evilChecked[0];
-            why = `方震查驗只確認${U.tag(U.byId(room, id))}屬於壞人陣營；另有老朝奉角色線索支持，因此把他列為老朝奉候選，仍非單憑陣營查驗定案`;
+            why = `我的方震陣營查驗確認${U.tag(U.byId(room, id))}是壞人；再加上老朝奉角色線索，才把他排在第一，不是把陣營查驗當成身分證明`;
           }
         }
       }
-
       if (!id) {
-
-        const bestLaoEntry = finalLaoCandidates[0] || null;
-        const bestLao = bestLaoEntry && bestLaoEntry.rec;
-
-        const hasReportedFlip = bestLao && (A.publicReportedFlipPools || []).some(pool => (pool.candidateIds || []).includes(bestLao.player.id));
-        const supportedPublicFlip = hasReportedFlip && (bestLao.probs && bestLao.probs['老朝奉'] || 0) >= 15 && (bestLao.evil || 0) >= 12;
-        const hasLaoEvidence = bestLao && ((bestLao.conflicts || []).length > 0 || supportedPublicFlip ||
-          ((bestLao.probs && bestLao.probs['老朝奉'] || 0) >= 22 && (bestLao.evil || 0) >= 22));
+        const bestLao = coordinatedLao && coordinatedLao.candidate || assessment.ranked[0];
         if (ctx.t === 2 && bestLao) {
-          id = bestLao.player.id;
-          why = hasLaoEvidence
-            ? `終局指認：${U.tag(bestLao.player)}在共用嫌疑排序中最高，且有可回查證據支持；這是相對嫌疑最高，不等於已被證實`
-            : `終局依共用證據排序選出相對嫌疑最高的${U.tag(bestLao.player)}；目前證據偏弱，這是待驗候選而非已確認身分`;
-        } else if (A.publicCall && Number(A.prof[A.publicCall.targetId]?.pEvil || 0) > 0.60 && (A.prof[A.publicCall.targetId]?.ally || 0) < 85 && rnd() < 0.3 + 0.65 * ctx.genes.conformity) {
-          id = A.publicCall.targetId; followId = A.publicCall.callerId; why = `響應公開玩家【${A.publicCall.callerName}】的集火號召`;
+          id = bestLao.id;
+          const bestEvidence = bestLao.evidence && bestLao.evidence[0];
+          why = `${assessment.summary}${bestEvidence ? `主要依據：${bestEvidence.text}` : ''}${coordinatedLao ? `；另有前序已公開的鑑人票 ${coordinatedLao.support.toFixed(2)} 權重支持此候選，且其個人證據與第一名差距在 4.5 內，因此採取集火收斂。` : ''}`;
+        } else if (A.publicCall && Number(A.prof[A.publicCall.targetId]?.pEvil || 0) > 0.60 &&
+          (A.prof[A.publicCall.targetId]?.ally || 0) < 85 && rnd() < 0.3 + 0.65 * ctx.genes.conformity) {
+          id = A.publicCall.targetId;
+          followId = A.publicCall.callerId;
+          why = `響應公開玩家【${A.publicCall.callerName}】的集火號召，但保留自己的嫌疑排序`;
         } else if (last && last.suspectId && last.suspectId !== bot.id && !(A.prof[last.suspectId] && A.prof[last.suspectId].confessed)) {
-          id = last.suspectId; why = '貫徹自己發言時鋪的梗';
+          id = last.suspectId;
+          why = '沿用自己前面公開提出、仍未被新證據推翻的懷疑對象';
         } else if (A.topSuspect) {
-          id = A.topSuspect.player.id; why = `綜合三輪證據，${U.tag(A.topSuspect.player)}老朝奉機率最高`;
+          id = A.topSuspect.player.id;
+          why = `目前公開與私有可用證據中，${U.tag(A.topSuspect.player)}的老朝奉嫌疑最高`;
         }
       }
-    } else if (bot.role === '老朝奉') {
-      const pick = bestFinalRoleCandidate(bot, room, A, '許願');
-      id = (pick.record && pick.record.player.id) || (A.topXu && A.topXu.player.id);
-      why = (pick.excludedJi ? `先排除最像姬雲浮的${U.tag(pick.excludedJi.player)}，` : '') + (pick.inferredBuddy ? `並避開疑似第三同伴${U.tag(pick.inferredBuddy.player)}，` : '') + '以角色後驗、公開真品命中與票型交叉縮小許願候選（同伴藥不然已排除）';
-    } else if (bot.role === '藥不然') {
-      const pick = bestFinalRoleCandidate(bot, room, A, '方震');
-      id = (pick.record && pick.record.player.id) || (A.topFang && A.topFang.player.id);
-      why = (pick.excludedJi ? `先排除最像姬雲浮的${U.tag(pick.excludedJi.player)}，` : '') + (pick.inferredBuddy ? `並避開疑似第三同伴${U.tag(pick.inferredBuddy.player)}，` : '') + '優先比對方震能力線索，並用角色後驗與公開發言縮小候選（同伴老朝奉已排除）';
+    } else if (bot.role === '老朝奉' || bot.role === '藥不然') {
+      const best = assessment.ranked[0];
+      id = (best && best.id) || any;
+      why = `${assessment.summary}${best && best.evidence && best.evidence.length ? `主要依據：${best.evidence[0].text}` : ''}`;
     } else {
       const inferred = inferEvilTeammate(bot, A, room);
-      const inferredIds = new Set((A.inferredPartners || []).map(item => item && item.playerId).filter(Boolean));
-      if (inferred && inferred.player) inferredIds.add(inferred.player.id);
-      const decoy = Object.values(A.prof).filter(r => r.player.id !== bot.id && !r.isPartner && !inferredIds.has(r.player.id) && (!inferred || r.player.id !== inferred.player.id))
-        .sort((a, b) => b.ally - a.ally)[0];
-      id = (decoy && decoy.player.id) || (A.topAlly && A.topAlly.player.id);
-      why = inferred ? `我保護根據角色後驗與公開票型推測的同伴${U.tag(inferred.player)}，終局票不計分，轉投最像好人的對象製造錯誤線索` : '鄭國渠的終局票不計分，選擇最像好人的對象製造錯誤線索';
+      id = (assessment.ranked[0] && assessment.ranked[0].id) || any;
+      why = inferred
+        ? `鄭國渠的鑑人票不計分；我避開已知同伴，挑選目前最像好人的對象作為誘餌，讓終局指認留下錯誤線索`
+        : '鄭國渠的鑑人票不計分；挑選目前最像好人的對象作為誘餌，讓終局指認留下錯誤線索';
     }
 
     id = id || any;
-    const top = (ctx.isGood ? finalLaoCandidates : Object.values(A.prof).sort((a, b) => b.evil - a.evil).map(rec => ({ rec, score: rec.evil })))
-      .slice(0, 3).map(entry => {
-        const r = entry.rec;
-        return { id: r.player.id, evil: Math.round(r.evil), score: Math.round(entry.score * 100) / 100,
-          evidence: { privateLaoIntersection: (A.laoIntersectIds || []).includes(r.player.id),
-            timingPositionSupport: U.round3(Number(r.laoTimingSupport) || 0),
-            publicFlipReports: (A.publicReportedFlipPools || []).filter(pool => (pool.candidateIds || []).includes(r.player.id)).length,
-            publicCandidateGroups: (A.publicCandidateGroups || []).filter(group => (group.candidateIds || []).includes(r.player.id)).length },
-          probs: { '老朝奉': r.probs['老朝奉'], '藥不然': r.probs['藥不然'], '許願': r.probs['許願'], '方震': r.probs['方震'] },
-          reasons: r.reasons.slice(0, 4) };
-      });
-    return { targetId: id, why: why || '資訊不足，憑直覺指認', followId, top };
+    const top = assessment.top.map(entry => {
+      const rec = A.prof[entry.id] || {};
+      return {
+        id: entry.id, evil: entry.evil, score: Math.round(entry.score * 100) / 100,
+        evidence: {
+          privateLaoIntersection: (A.laoIntersectIds || []).includes(entry.id),
+          timingPositionSupport: U.round3(Number(rec.laoTimingSupport) || 0),
+          publicFlipReports: (A.publicReportedFlipPools || []).filter(pool => (pool.candidateIds || []).includes(entry.id)).length,
+          publicCandidateGroups: (A.publicCandidateGroups || []).filter(group => (group.candidateIds || []).includes(entry.id)).length
+        },
+        probs: {
+          '老朝奉': Number(rec.probs && rec.probs['老朝奉'] || 0),
+          '藥不然': Number(rec.probs && rec.probs['藥不然'] || 0),
+          '許願': Number(rec.probs && rec.probs['許願'] || 0),
+          '方震': Number(rec.probs && rec.probs['方震'] || 0),
+          '姬雲浮': Number(rec.probs && rec.probs['姬雲浮'] || 0)
+        },
+        reasons: entry.evidence.map(item => item.text).slice(0, 5)
+      };
+    });
+    const eliminationNarrative = finalDeductionNarrative(assessment, id);
+    why = [eliminationNarrative, why].filter(Boolean).join(' ');
+    const slimEntry = r => ({ id: r.id, tag: r.tag, score: Math.round(r.score * 100) / 100, roleProbability: r.roleProbability, eliminationTier: r.eliminationTier || '保留候選' });
+    const tiers = {
+      confirmedExcluded: (assessment.hardExcluded || []).map(item => ({ id: item.id, tag: item.tag, role: item.role || '', reason: item.reason, eliminationTier: '確認排除' })),
+      highlyUnlikely: assessment.ranked.filter(r => r.eliminationTier === '高度不可能').map(slimEntry),
+      tentativelyExcluded: assessment.ranked.filter(r => r.eliminationTier === '暫時排除').map(slimEntry),
+      retainedCandidates: assessment.ranked.filter(r => r.eliminationTier === '保留候選').map(slimEntry),
+      insufficientInfo: assessment.ranked.filter(r => r.eliminationTier === '資訊不足，無法判斷').map(slimEntry)
+    };
+    const deduction = {
+      targetRole,
+      selectedId: id,
+      summary: assessment.summary,
+      eliminationNarrative,
+      hardExcluded: assessment.hardExcluded,
+      tiers,
+      ranked: assessment.ranked.map(entry => ({
+        id: entry.id, tag: entry.tag, score: Math.round(entry.score * 100) / 100,
+        roleProbability: entry.roleProbability, jiProbability: entry.jiProbability,
+        eliminationTier: entry.eliminationTier || '保留候選',
+        supportingEvidence: (entry.supportingEvidence || []).map(item => ({ ...item })),
+        counterEvidence: (entry.counterEvidence || []).map(item => ({ ...item })),
+        evidence: entry.evidence.map(item => ({ ...item }))
+      }))
+    };
+    return { targetId: id, why: why || '目前證據不足，依共用候選排序指認', followId, top, deduction };
   };
 
   S.roleBluffFeasibility = roleBluffFeasibility;

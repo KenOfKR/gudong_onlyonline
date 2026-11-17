@@ -77,9 +77,31 @@
       const ballot = { ...((rd.votes && rd.votes[bot.id]) || {}) };
       const result = rd.voteResults || null;
       const ranked = result ? [result.rank1, result.rank2].filter(Boolean) : [];
+      const actualTopTwoNames = ranked.map(item => item && item.name).filter(Boolean);
       const ownCalls = [...new Set([...(parsed.speakerCalls || parsed.callBeasts || []), parsed.callBeast].filter(Boolean))];
       const ownMind = rd.mind && rd.mind[bot.id] || null;
       const forecast = ownMind ? (ownMind.voteForecast || ownMind.ballotModel || null) : null;
+      const tacticalPlan = ownMind && ownMind.tacticalPlan || null;
+      const socialTactic = ownMind && ownMind.socialTactic || null;
+      const speechActionAudit = ownMind && ownMind.speechActionAudit || null;
+      const commitmentAudit = ownMind && ownMind.commitmentAudit || null;
+      const plannedBallot = commitmentAudit && commitmentAudit.plannedBallot || ownMind && ownMind.plannedBallot || {};
+      const adjustedBallot = commitmentAudit && commitmentAudit.adjustedBallot || ownMind && ownMind.adjustedBallot || {};
+      const actualBallot = { ...ballot };
+      const tacticTarget = socialTactic && (socialTactic.ballotBeast || socialTactic.targetBeast) || tacticalPlan && tacticalPlan.targetBeast || null;
+      const tacticTargetRanked = !!(tacticTarget && actualTopTwoNames.includes(tacticTarget));
+      const tacticTargetReal = tacticTarget ? (rd.beasts || []).find(item => item && item.name === tacticTarget)?.isReal ?? null : null;
+      const tacticOutcome = socialTactic || tacticalPlan ? {
+        chosenTactic: socialTactic && socialTactic.mode || tacticalPlan && tacticalPlan.chosenTactic || 'baseline',
+        tacticTarget, tacticTargetRanked, tacticTargetReal,
+        plannedBallot: { ...(plannedBallot || {}) }, adjustedBallot: { ...(adjustedBallot || {}) }, actualBallot,
+        plannedActualDivergence: JSON.stringify(plannedBallot || {}) !== JSON.stringify(actualBallot),
+        speechAuditPassed: speechActionAudit ? speechActionAudit.ok === true : null,
+        speechAuditDowngraded: speechActionAudit ? speechActionAudit.downgraded === true : false,
+        voteCommitmentsHonored: commitmentAudit ? commitmentAudit.votePromiseHonored !== false : null,
+        actualTopTwo: actualTopTwoNames.slice(),
+        attributionBasis: 'own-plan-vs-own-final-ballot-and-postgame-opened-result'
+      } : null;
       const publicCallSupport = { before: {}, all: {} };
       const ownSpeechIndex = (rd.speeches || []).findIndex(item => item && String(item.playerId) === String(bot.id));
       (rd.speeches || []).forEach((publicSpeech, speechIndex) => {
@@ -99,7 +121,6 @@
       Object.values(rd.votes || {}).forEach(playerBallot => Object.entries(playerBallot || {}).forEach(([name, raw]) => {
         observedVotesByBeast[name] = (observedVotesByBeast[name] || 0) + Math.max(0, Number(raw) || 0);
       }));
-      const actualTopTwoNames = ranked.map(item => item && item.name).filter(Boolean);
       const forecastRows = forecast && (forecast.ranking || forecast.before || forecast.after) || [];
       const forecastTarget = declaredTarget && forecastRows.find(item => item && item.name === declaredTarget) || null;
       const strategyOutcome = declaredTarget ? {
@@ -130,6 +151,9 @@
           roleClaim: parsed.selfRole || null,
           actualBallot: ballot,
           ballotTactic: rd.mind && rd.mind[bot.id] && rd.mind[bot.id].ballotTactic ? JSON.parse(JSON.stringify(rd.mind[bot.id].ballotTactic)) : null,
+          tacticalPlan: tacticalPlan ? JSON.parse(JSON.stringify(tacticalPlan)) : null,
+          socialTactic: socialTactic ? JSON.parse(JSON.stringify(socialTactic)) : null,
+          speechActionAudit: speechActionAudit ? JSON.parse(JSON.stringify(speechActionAudit)) : null,
           totalSpent: Object.values(ballot).reduce((n, value) => n + (Number(value) || 0), 0),
           abstained: Object.values(ballot).every(value => !(Number(value) > 0))
         },
@@ -143,7 +167,8 @@
           scoreProjection: rd.mind[bot.id].scoreProjection || null
         } : null,
         strategyOutcome,
-        commitmentAudit: audit ? JSON.parse(JSON.stringify(audit)) : null,
+        tacticalAttribution: tacticOutcome,
+        commitmentAudit: commitmentAudit ? JSON.parse(JSON.stringify(commitmentAudit)) : (audit ? JSON.parse(JSON.stringify(audit)) : null),
         outcome: result ? {
           rank1: { ...result.rank1 }, rank2: { ...result.rank2 },
           selectedTopTwo: ranked.map(item => ({ beast: item.name, real: item.isReal, votes: item.votes })),
@@ -176,6 +201,31 @@
     const target = U.byId(room, pv);
     const lao = room.players.find(p => p.role === '老朝奉');
     const minds = room.rounds.map(rd => rd.mind[bot.id]).filter(Boolean);
+    const tacticSamples = minds.map(mind => {
+      const tactic = mind.socialTactic || null;
+      const ballot = mind.commitmentAudit && mind.commitmentAudit.actualBallot || mind.actualBallot || {};
+      const topTwo = room.rounds.find(rd => rd && rd.mind && rd.mind[bot.id] === mind)?.voteResults;
+      const ranked = topTwo ? [topTwo.rank1, topTwo.rank2].filter(Boolean) : [];
+      const target = tactic && (tactic.ballotBeast || tactic.targetBeast) || mind.tacticalPlan && mind.tacticalPlan.targetBeast;
+      const beast = target && room.rounds.find(rd => rd && rd.mind && rd.mind[bot.id] === mind)?.beasts.find(item => item.name === target);
+      return { tactic, target, ballot, rankedNames: ranked.map(item => item.name), targetReal: beast ? beast.isReal : null,
+        speechAudit: mind.speechActionAudit || null, executed: !!(tactic && tactic.executed) };
+    }).filter(item => item.tactic && item.target);
+
+    if (tacticSamples.length >= 2) {
+      const speechFailures = tacticSamples.filter(item => item.speechAudit && item.speechAudit.ok === false).length;
+      const successfulTactics = tacticSamples.filter(item => item.rankedNames.includes(item.target) &&
+        (good ? item.targetReal === true : item.targetReal === false)).length;
+      const rate = successfulTactics / tacticSamples.length;
+      if (speechFailures > 0) {
+        add('skepticism', 0.012, `${speechFailures} 次戰術發言稽核未通過；降低無法與台詞一致的冒險策略傾向`);
+      }
+      if (rate >= 0.67) {
+        add(good ? 'assertiveness' : 'deception', 0.012, `跨輪 ${successfulTactics}/${tacticSamples.length} 次戰術目標進入前二且符合本陣營利益；給予小幅策略獎勵`);
+      } else if (rate <= 0.33) {
+        add(good ? 'skepticism' : 'camouflage', 0.010, `跨輪戰術目標成功率僅 ${successfulTactics}/${tacticSamples.length}；小幅降低相同戰術的偏好`);
+      }
+    }
 
     if (good) {
       /* 1. 好人陣營因果獎懲 */
@@ -302,7 +352,9 @@
     }
 
     const rec = Genes.record(bot.botId);
-    const lr = Math.max(0.5, 1 - rec.games * 0.03);
+    // Low-sample learning is deliberately damped: one unusual match must not rewrite a bot's personality.
+    const sampleFactor = rec.games < 1 ? 0.45 : rec.games < 2 ? 0.62 : rec.games < 3 ? 0.78 : rec.games < 4 ? 0.90 : 1;
+    const lr = Math.max(0.35, 1 - rec.games * 0.03) * sampleFactor;
     const delta = {};
     Genes.KEYS.forEach(k => { delta[k] = 0; });
     const kept = notes.filter(n => n.d !== 0 && n.why);
